@@ -62,6 +62,7 @@ pub use fp_evm::{
 	PrecompileSet, LinearCostPrecompile,
 };
 pub use evm::{ExitReason, ExitSucceed, ExitError, ExitRevert, ExitFatal};
+pub use evm::executor::PrecompileOutput;
 
 use sp_std::vec::Vec;
 #[cfg(feature = "std")]
@@ -76,6 +77,7 @@ use frame_system::RawOrigin;
 use sp_core::{U256, H256, H160, Hasher};
 use sp_runtime::{AccountId32, traits::{UniqueSaturatedInto, BadOrigin, Saturating}};
 use evm::Config as EvmConfig;
+use impl_trait_for_tuples::impl_for_tuples;
 
 /// Type alias for currency balance.
 pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -255,6 +257,9 @@ pub trait Config: frame_system::Config + pallet_timestamp::Config {
 	/// EVM execution runner.
 	type Runner: Runner<Self>;
 
+	/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
+	/// pallets
+	type OnMethodCall: OnMethodCall<Self>;
 	/// To handle fee deduction for EVM transactions. An example is this pallet being used by `pallet_ethereum`
 	/// where the chain implementing `pallet_ethereum` should be able to configure what happens to the fees
 	/// Similar to `OnChargeTransaction` of `pallet_transaction_payment`
@@ -513,6 +518,12 @@ decl_module! {
 impl<T: Config> Module<T> {
 	/// Check whether an account is empty.
 	pub fn is_account_empty(address: &H160) -> bool {
+		if T::OnMethodCall::is_used(address) {
+			return false;
+		} else if T::OnMethodCall::is_reserved(address) {
+			return true;
+		}
+
 		let account = Self::account_basic(address);
 		let code_len = AccountCodes::decode_len(address).unwrap_or(0);
 
@@ -530,6 +541,10 @@ impl<T: Config> Module<T> {
 
 	/// Remove an account.
 	pub fn remove_account(address: &H160) {
+		if T::OnMethodCall::is_reserved(address) {
+			return;
+		}
+
 		if AccountCodes::contains_key(address) {
 			let account_id = T::AddressMapping::into_account_id(*address);
 			let _ = frame_system::Module::<T>::dec_consumers(&account_id);
@@ -564,6 +579,94 @@ impl<T: Config> Module<T> {
 			nonce: U256::from(UniqueSaturatedInto::<u128>::unique_saturated_into(nonce)),
 			balance: U256::from(UniqueSaturatedInto::<u128>::unique_saturated_into(balance)),
 		}
+	}
+}
+
+pub trait OnMethodCall<T> {
+	/// Is address is reserved, it shouldn't be created/deleted
+	fn is_reserved(contract: &H160) -> bool;
+
+	/// Is contract is actually used for anything
+	fn is_used(contract: &H160) -> bool;
+
+	/// On contract call
+	fn call(
+		source: &H160,
+		target: &H160,
+		input: &[u8],
+	) -> Option<PrecompileOutput>;
+
+	/// Get hardcoded contract code
+	fn get_code(contract: &H160) -> Option<Vec<u8>>;
+}
+
+/// Implementation for () disables method call interception
+impl<T> OnMethodCall<T> for () {
+	fn is_reserved(_contract: &H160) -> bool {
+		false
+	}
+	fn is_used(_contract: &H160) -> bool {
+		false
+	}
+
+	fn call(
+		_source: &H160,
+		_target: &H160,
+		_input: &[u8],
+	) -> Option<PrecompileOutput> {
+		None
+	}
+
+	fn get_code(_contract: &H160) -> Option<Vec<u8>> {
+		None
+	}
+}
+
+/// Allow chaining
+#[impl_for_tuples(1, 12)]
+impl<T> OnMethodCall<T> for Tuple {
+	for_tuples!( where #( Tuple: OnMethodCall<T> )* );
+
+	fn is_reserved(contract: &H160) -> bool {
+		for_tuples!(#(
+			if Tuple::is_reserved(contract) {
+				return true;
+			}
+		)*);
+		false
+	}
+
+	fn is_used(contract: &H160) -> bool {
+		for_tuples!(#(
+			if Tuple::is_used(contract) {
+				return true;
+			}
+		)*);
+		false
+	}
+
+	fn call(
+		source: &H160,
+		target: &H160,
+		input: &[u8],
+	) -> Option<PrecompileOutput> {
+		for_tuples!(#(
+			if let Some(r) = Tuple::call(source, target, input) {
+				return Some(r);
+			}
+		)*);
+		None
+	}
+
+	fn get_code(
+		address: &H160,
+	) -> Option<Vec<u8>> {
+		for_tuples!(#(
+			if let Some(r) = Tuple::get_code(address) {
+				return Some(r);
+			}
+		)*);
+		None
 	}
 }
 

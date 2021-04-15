@@ -30,6 +30,7 @@ evm = { version = "0.25.0", default-features = false, features = ["with-codec"] 
 evm-runtime = { version = "0.25.0", default-features = false }
 evm-gasometer = { version = "0.25.0", default-features = false }
 sha3 = { version = "0.8", default-features = false }
+impl-trait-for-tuples = "0.2.1"
 
 [features]
 default = ["std"]

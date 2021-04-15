@@ -26,18 +26,25 @@ use frame_support::{
 };
 use sha3::{Keccak256, Digest};
 use fp_evm::{ExecutionInfo, CallInfo, CreateInfo, Log, Vicinity};
-use evm::{ExitReason, ExitError, Transfer};
+use evm::{Context, ExitReason, ExitError, Transfer};
 use evm::backend::Backend as BackendT;
-use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT};
+use evm::executor::{PrecompileOutput, StackExecutor, StackSubstateMetadata, StackState as StackStateT};
 use crate::{
 	Config, AccountStorages, FeeCalculator, AccountCodes, Module, Event,
-	Error, AddressMapping, PrecompileSet, OnChargeEVMTransaction
+	Error, AddressMapping, PrecompileSet, OnChargeEVMTransaction, OnMethodCall,
 };
 use crate::runner::Runner as RunnerT;
 
 #[derive(Default)]
 pub struct Runner<T: Config> {
 	_marker: PhantomData<T>,
+}
+
+fn run_precompiles<T: Config>(addr: H160, value: &[u8], target_gas: Option<u64>, context: &Context) -> Option<PrecompileOutput> {
+	if let Some(value) = T::OnMethodCall::call(&context.caller, &addr, value) {
+		return Some(value)
+	}
+	T::Precompiles::execute(addr, value, target_gas, context).map(|v| v.into())
 }
 
 impl<T: Config> Runner<T> {
@@ -72,7 +79,7 @@ impl<T: Config> Runner<T> {
 		let mut executor = StackExecutor::new_with_precompile(
 			state,
 			config,
-			T::Precompiles::execute,
+			run_precompiles::<T>,
 		);
 
 		let total_fee = gas_price.checked_mul(U256::from(gas_limit))
@@ -392,7 +399,8 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 	}
 
 	fn code(&self, address: H160) -> Vec<u8> {
-		AccountCodes::get(&address)
+		<T as Config>::OnMethodCall::get_code(&address)
+			.unwrap_or_else(|| AccountCodes::get(&address))
 	}
 
 	fn storage(&self, address: H160, index: H256) -> H256 {
