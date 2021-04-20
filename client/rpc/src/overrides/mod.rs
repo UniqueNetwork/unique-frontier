@@ -26,7 +26,7 @@ use fp_rpc::EthereumRuntimeRPCApi;
 mod schema_v1_override;
 
 pub use fc_rpc_core::{EthApiServer, NetApiServer};
-pub use schema_v1_override::SchemaV1Override;
+pub use schema_v1_override::{SchemaV1Override, AccountCodeProvider};
 
 /// Something that can fetch Ethereum-related data. This trait is quite similar to the runtime API,
 /// and indeed oe implementation of it uses the runtime API.

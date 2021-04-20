@@ -28,18 +28,24 @@ use fp_rpc::TransactionStatus;
 use super::{StorageOverride, storage_prefix_build, blake2_128_extend};
 
 /// An override for runtimes that use Schema V1
-pub struct SchemaV1Override<B: BlockT, C, BE> {
+pub struct SchemaV1Override<B: BlockT, C, BE, A> {
 	client: Arc<C>,
+	code_provider: Arc<A>,
 	_marker: PhantomData<(B, BE)>,
 }
 
-impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE> {
+impl<B: BlockT, C, BE, A> SchemaV1Override<B, C, BE, A> {
+	pub fn new_with_code_provider(client: Arc<C>, code_provider: Arc<A>) -> Self {
+		Self { client, code_provider, _marker: PhantomData }
+	}
+}
+impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE, ()> {
 	pub fn new(client: Arc<C>) -> Self {
-		Self { client, _marker: PhantomData }
+		Self::new_with_code_provider(client, Arc::new(()))
 	}
 }
 
-impl<B, C, BE> SchemaV1Override<B, C, BE> where
+impl<B, C, BE, A> SchemaV1Override<B, C, BE, A> where
 	C: StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	BE: Backend<B> + 'static,
@@ -68,7 +74,7 @@ impl<B, C, BE> SchemaV1Override<B, C, BE> where
 	}
 }
 
-impl<Block, C, BE> StorageOverride<Block> for SchemaV1Override<Block, C, BE>
+impl<Block, C, BE, A> StorageOverride<Block> for SchemaV1Override<Block, C, BE, A>
 where
 	C: StorageProvider<Block, BE>,
 	C: AuxStore,
@@ -78,9 +84,13 @@ where
 	BE::State: StateBackend<BlakeTwo256>,
 	Block: BlockT<Hash=H256> + Send + Sync + 'static,
 	C: Send + Sync + 'static,
+	A: AccountCodeProvider<Block>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>> {
+		if let Some(code) = self.code_provider.code(block, address.clone()) {
+			return Some(code);
+		}
 		let mut key: Vec<u8> = storage_prefix_build(b"EVM", b"AccountCodes");
 		key.extend(blake2_128_extend(address.as_bytes()));
 		self.query_storage::<Vec<u8>>(
@@ -132,5 +142,15 @@ where
 				storage_prefix_build(b"Ethereum", b"CurrentTransactionStatuses")
 			)
 		)
+	}
+}
+
+pub trait AccountCodeProvider<Block: BlockT> {
+	fn code(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>>;
+}
+
+impl<Block: BlockT> AccountCodeProvider<Block> for () {
+	fn code(&self, _block: &BlockId<Block>, _address: H160) -> Option<Vec<u8>> {
+		None
 	}
 }
