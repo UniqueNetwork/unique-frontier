@@ -26,7 +26,7 @@
 use frame_support::{
 	decl_module, decl_storage, decl_error, decl_event,
 	traits::Get, traits::FindAuthor, weights::Weight,
-	dispatch::DispatchResultWithPostInfo,
+	dispatch::{DispatchResult, DispatchResultWithPostInfo},
 };
 use sp_std::prelude::*;
 use frame_system::ensure_none;
@@ -38,9 +38,9 @@ use sp_runtime::{
 	},
 	generic::DigestItem, traits::UniqueSaturatedInto, DispatchError,
 };
-use evm::ExitReason;
+use evm::{ExitReason, ExitSucceed};
 use fp_evm::CallOrCreateInfo;
-use pallet_evm::{Runner, GasWeightMapping, FeeCalculator};
+use pallet_evm::{EvmSubmitLog, PrecompileLog, Runner, GasWeightMapping, FeeCalculator};
 use sha3::{Digest, Keccak256};
 use codec::{Encode, Decode};
 use fp_consensus::{FRONTIER_ENGINE_ID, PostLog, PreLog};
@@ -96,6 +96,8 @@ pub trait Config: frame_system::Config<Hash=H256> + pallet_balances::Config + pa
 	type StateRoot: Get<H256>;
 	/// The block gas limit. Can be a simple constant, or an adjustment algorithm in another pallet.
 	type BlockGasLimit: Get<U256>;
+
+	type EvmSubmitLog: pallet_evm::EvmSubmitLog;
 }
 
 decl_storage! {
@@ -391,6 +393,58 @@ impl<T: Config> Module<T> {
 		Ok(Some(T::GasWeightMapping::gas_to_weight(used_gas.unique_saturated_into())).into())
 	}
 
+	pub fn add_transaction_result(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult {
+		ensure!(
+			fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()).is_err(),
+			Error::<T>::PreLogExists,
+		);
+
+		let source = Self::recover_signer(&transaction)
+			.ok_or_else(|| Error::<T>::InvalidSignature)?;
+		let transaction_hash = H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
+		let transaction_index = Pending::get().len() as u32;
+
+		let logs: Vec<Log> = logs.into_iter()
+			.map(|PrecompileLog(address, topics, data)| Log { address, topics, data })
+			.collect();
+
+		for log in logs.iter() {
+			T::EvmSubmitLog::submit_log(log.clone());
+		}
+
+		let logs_bloom = {
+			let mut bloom: Bloom = Bloom::default();
+			Self::logs_bloom(
+				logs.clone(),
+				&mut bloom
+			);
+			bloom
+		};
+
+		let status = TransactionStatus {
+			transaction_hash,
+			transaction_index,
+			from: source,
+			to: None,
+			contract_address: None,
+			logs_bloom: logs_bloom.clone(),
+			logs: logs.clone(),
+		};
+
+		let receipt = ethereum::Receipt {
+			state_root: H256::from_low_u64_be(1),
+			used_gas: 0.into(),
+			logs_bloom: logs_bloom.clone(),
+			logs: logs.clone(),
+		};
+
+		Pending::append((transaction, status, receipt));
+
+		Self::deposit_event(Event::Executed(source, H160::default(), transaction_hash, ExitReason::Succeed(ExitSucceed::Returned)));
+	
+		Ok(())
+	}
+
 	/// Get the author using the FindAuthor trait.
 	pub fn find_author() -> H160 {
 		let digest = <frame_system::Module<T>>::digest();
@@ -459,5 +513,15 @@ impl<T: Config> Module<T> {
 				Ok((None, Some(res.value), CallOrCreateInfo::Create(res)))
 			},
 		}
+	}
+}
+
+pub trait EthereumTransactionSender {
+	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult;
+}
+
+impl<T: Config> EthereumTransactionSender for Module<T> {
+	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult {
+		<Module<T>>::add_transaction_result(transaction, logs)
 	}
 }
