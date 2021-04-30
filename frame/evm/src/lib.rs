@@ -62,7 +62,7 @@ pub use fp_evm::{
 	PrecompileSet, LinearCostPrecompile,
 };
 pub use evm::{ExitReason, ExitSucceed, ExitError, ExitRevert, ExitFatal};
-pub use evm::executor::PrecompileOutput;
+pub use evm::executor::{PrecompileLog, PrecompileOutput};
 
 use sp_std::vec::Vec;
 #[cfg(feature = "std")]
@@ -579,6 +579,20 @@ impl<T: Config> Module<T> {
 			nonce: U256::from(UniqueSaturatedInto::<u128>::unique_saturated_into(nonce)),
 			balance: U256::from(UniqueSaturatedInto::<u128>::unique_saturated_into(balance)),
 		}
+	}
+
+	pub fn add_log_record(log: Log) {
+		Module::<T>::deposit_event(Event::<T>::Log(log));
+	}
+}
+
+pub trait EvmSubmitLog {
+	fn submit_log(log: Log);
+}
+
+impl<T: Config> EvmSubmitLog for Module<T> {
+	fn submit_log(log: Log) {
+		Self::add_log_record(log);
 	}
 }
 
