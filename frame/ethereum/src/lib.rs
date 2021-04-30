@@ -30,7 +30,7 @@ use frame_support::{
 };
 use sp_std::prelude::*;
 use frame_system::ensure_none;
-use frame_support::{ensure, traits::UnfilteredDispatchable};
+use frame_support::ensure;
 use ethereum_types::{H160, H64, H256, U256, Bloom, BloomInput};
 use sp_runtime::{
 	transaction_validity::{
@@ -94,8 +94,6 @@ pub trait Config: frame_system::Config<Hash=H256> + pallet_balances::Config + pa
 	type FindAuthor: FindAuthor<H160>;
 	/// How Ethereum state root is calculated.
 	type StateRoot: Get<H256>;
-	/// The block gas limit. Can be a simple constant, or an adjustment algorithm in another pallet.
-	type BlockGasLimit: Get<U256>;
 
 	type EvmSubmitLog: pallet_evm::EvmSubmitLog;
 }
@@ -185,6 +183,7 @@ enum TransactionValidationError {
 	UnknownError,
 	InvalidChainId,
 	InvalidSignature,
+	InvalidGasLimit,
 }
 
 impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
@@ -200,6 +199,10 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 
 			let origin = Self::recover_signer(&transaction)
 				.ok_or_else(|| InvalidTransaction::Custom(TransactionValidationError::InvalidSignature as u8))?;
+
+			if transaction.gas_limit >= T::BlockGasLimit::get() {
+				return InvalidTransaction::Custom(TransactionValidationError::InvalidGasLimit as u8).into();
+			}
 
 			let account_data = pallet_evm::Module::<T>::account_basic(&origin);
 
