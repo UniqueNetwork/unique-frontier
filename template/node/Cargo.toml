@@ -2,12 +2,12 @@
 name = "frontier-template-node"
 version = "0.0.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-description = "Substrate Node template"
+description = "Frontier Node template"
 edition = "2018"
 license = "Unlicense"
 build = "build.rs"
 homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/substrate/"
+repository = "https://github.com/paritytech/frontier/"
 publish = false
 
 [package.metadata.docs.rs]
@@ -42,6 +42,7 @@ sc-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "
 sp-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
 pallet-evm = { path = "../../frame/evm" }
 pallet-ethereum = { path = "../../frame/ethereum" }
+pallet-dynamic-fee = { path = "../../frame/dynamic-fee" }
 sc-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
 sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }

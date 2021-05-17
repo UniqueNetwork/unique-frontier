@@ -39,7 +39,7 @@ use fc_rpc_core::{
 use fc_rpc_core::types::{
 	BlockNumber, Bytes, CallRequest, Filter, FilteredParams, FilterChanges, FilterPool, FilterPoolItem,
 	FilterType, Index, Log, Receipt, RichBlock, SyncStatus, SyncInfo, Transaction, Work, Rich, Block,
-	BlockTransactions, TransactionRequest, PendingTransactions, PendingTransaction,
+	BlockTransactions, TransactionRequest, PendingTransactions, PendingTransaction, PeerCount,
 };
 use fp_rpc::{EthereumRuntimeRPCApi, ConvertTransaction, TransactionStatus};
 use crate::{frontier_backend_client, internal_err, error_on_execution_failure, EthSigner, public_key};
@@ -236,6 +236,15 @@ fn filter_range_logs<B: BlockT, C, BE>(
 
 	let mut current_number = to;
 
+	// Pre-calculate BloomInput for reuse.
+	let topics_input = if let Some(_) = &filter.topics {
+		let filtered_params = FilteredParams::new(Some(filter.clone()));
+		Some(filtered_params.flat_topics)
+	} else {
+		None
+	};
+	let bloom_filter = FilteredParams::bloom_filter(&filter.address, &topics_input);
+
 	while current_number >= from {
 		let id = BlockId::Number(current_number);
 
@@ -245,7 +254,7 @@ fn filter_range_logs<B: BlockT, C, BE>(
 		let block = handler.current_block(&id);
 
 		if let Some(block) = block {
-			if FilteredParams::in_bloom(block.header.logs_bloom, filter) {
+			if FilteredParams::in_bloom(block.header.logs_bloom, &bloom_filter) {
 				let statuses = handler.current_transaction_statuses(&id);
 				if let Some(statuses) = statuses {
 					filter_block_logs(ret, filter, block, statuses);
@@ -1164,6 +1173,7 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 pub struct NetApi<B: BlockT, BE, C, H: ExHashT> {
 	client: Arc<C>,
 	network: Arc<NetworkService<B, H>>,
+	peer_count_as_hex: bool,
 	_marker: PhantomData<BE>,
 }
 
@@ -1171,10 +1181,12 @@ impl<B: BlockT, BE, C, H: ExHashT> NetApi<B, BE, C, H> {
 	pub fn new(
 		client: Arc<C>,
 		network: Arc<NetworkService<B, H>>,
+		peer_count_as_hex: bool,
 	) -> Self {
 		Self {
 			client,
 			network,
+			peer_count_as_hex,
 			_marker: PhantomData,
 		}
 	}
@@ -1193,8 +1205,14 @@ impl<B: BlockT, BE, C, H: ExHashT> NetApiT for NetApi<B, BE, C, H> where
 		Ok(true)
 	}
 
-	fn peer_count(&self) -> Result<u32> {
-		Ok(self.network.num_connected() as u32)
+	fn peer_count(&self) -> Result<PeerCount> {
+		let peer_count = self.network.num_connected();
+		Ok(
+			match self.peer_count_as_hex {
+				true => PeerCount::String(format!("0x{:x}", peer_count)),
+				false => PeerCount::U32(peer_count as u32)
+			}
+		)
 	}
 
 	fn version(&self) -> Result<String> {

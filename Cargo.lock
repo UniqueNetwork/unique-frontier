@@ -1208,9 +1208,8 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 
 [[package]]
 name = "evm"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b4bd1fb06a4962a243c8be285d8a9b2493ffa79acb32633ad07a0bc523b1acd"
+version = "0.26.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
 dependencies = [
  "ethereum",
  "evm-core",
@@ -1226,9 +1225,8 @@ dependencies = [
 
 [[package]]
 name = "evm-core"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b4eea3882c798813a6f92e8855ec1fc3f5ababd8b274cb81d4bedee701b478e"
+version = "0.26.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
 dependencies = [
  "funty",
  "parity-scale-codec",
@@ -1238,9 +1236,8 @@ dependencies = [
 
 [[package]]
 name = "evm-gasometer"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a8f04dcc8b0296652eabfa443a08ebed6071a1178e0f42a7f7b63a612bddf0b"
+version = "0.26.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
 dependencies = [
  "evm-core",
  "evm-runtime",
@@ -1249,9 +1246,8 @@ dependencies = [
 
 [[package]]
 name = "evm-runtime"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54c302f29ca8bba82a382aa52d427869964179e4f24eae57bde70958ce9b7607"
+version = "0.26.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
 dependencies = [
  "evm-core",
  "primitive-types",
@@ -1306,7 +1302,7 @@ dependencies = [
 
 [[package]]
 name = "fc-consensus"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "derive_more",
  "fc-db",
@@ -1505,7 +1501,7 @@ dependencies = [
 
 [[package]]
 name = "fp-evm"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "evm",
  "impl-trait-for-tuples 0.1.3",
@@ -1517,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "fp-rpc"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "ethereum",
  "ethereum-types",
@@ -1532,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "fp-storage"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "ethereum",
  "ethereum-types",
@@ -1692,6 +1688,7 @@ dependencies = [
  "jsonrpc-core 15.1.0",
  "jsonrpc-pubsub 15.1.0",
  "log",
+ "pallet-dynamic-fee",
  "pallet-ethereum",
  "pallet-evm",
  "pallet-transaction-payment-rpc",
@@ -1736,8 +1733,10 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "pallet-aura",
  "pallet-balances",
+ "pallet-dynamic-fee",
  "pallet-ethereum",
  "pallet-evm",
+ "pallet-evm-precompile-modexp",
  "pallet-evm-precompile-sha3fips",
  "pallet-evm-precompile-simple",
  "pallet-grandpa",
@@ -3880,10 +3879,11 @@ dependencies = [
 
 [[package]]
 name = "pallet-dynamic-fee"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-evm",
  "parity-scale-codec",
  "serde",
  "sp-core",
@@ -3922,7 +3922,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-evm"
-version = "3.0.0"
+version = "3.0.1-dev"
 dependencies = [
  "evm",
  "evm-gasometer",
@@ -3930,6 +3930,7 @@ dependencies = [
  "fp-evm",
  "frame-support",
  "frame-system",
+ "impl-trait-for-tuples 0.2.1",
  "log",
  "pallet-balances",
  "pallet-timestamp",
@@ -3946,28 +3947,44 @@ dependencies = [
 
 [[package]]
 name = "pallet-evm-precompile-blake2"
-version = "1.0.0"
+version = "1.1.0-dev"
 dependencies = [
  "evm",
  "fp-evm",
+ "pallet-evm-test-vector-support",
  "sp-core",
  "sp-io",
 ]
 
 [[package]]
 name = "pallet-evm-precompile-bn128"
-version = "1.0.0"
+version = "2.0.0-dev"
 dependencies = [
  "evm",
  "fp-evm",
+ "pallet-evm-test-vector-support",
  "sp-core",
  "sp-io",
  "substrate-bn",
 ]
 
 [[package]]
+name = "pallet-evm-precompile-curve25519"
+version = "1.0.0-dev"
+dependencies = [
+ "curve25519-dalek 3.0.2",
+ "evm",
+ "fp-evm",
+ "frame-support",
+ "pallet-evm",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+]
+
+[[package]]
 name = "pallet-evm-precompile-dispatch"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "evm",
  "fp-evm",
@@ -3980,7 +3997,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-evm-precompile-ed25519"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "ed25519-dalek",
  "evm",
@@ -3991,19 +4008,20 @@ dependencies = [
 
 [[package]]
 name = "pallet-evm-precompile-modexp"
-version = "1.0.0"
+version = "1.1.0-dev"
 dependencies = [
  "evm",
  "fp-evm",
  "hex",
  "num",
+ "pallet-evm-test-vector-support",
  "sp-core",
  "sp-io",
 ]
 
 [[package]]
 name = "pallet-evm-precompile-sha3fips"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "evm",
  "fp-evm",
@@ -4014,13 +4032,25 @@ dependencies = [
 
 [[package]]
 name = "pallet-evm-precompile-simple"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "evm",
  "fp-evm",
+ "pallet-evm-test-vector-support",
  "ripemd160",
  "sp-core",
  "sp-io",
+]
+
+[[package]]
+name = "pallet-evm-test-vector-support"
+version = "1.0.0-dev"
+dependencies = [
+ "evm",
+ "fp-evm",
+ "hex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4772,15 +4802,6 @@ dependencies = [
  "rand_core 0.3.1",
  "rdrand",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "rand"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c618c47cd3ebd209790115ab837de41425723956ad3ce2e6a7f09890947cacb9"
-dependencies = [
- "rand_core 0.3.1",
 ]
 
 [[package]]
@@ -7138,14 +7159,14 @@ dependencies = [
 
 [[package]]
 name = "substrate-bn"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acb439bec2318e98b83f1e12ddaaf2082d6fc29becc3117714ccb575fa343bc1"
+checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
 dependencies = [
  "byteorder",
  "crunchy",
  "lazy_static",
- "rand 0.5.6",
+ "rand 0.8.3",
  "rustc-hex",
 ]
 
