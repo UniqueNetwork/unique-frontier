@@ -157,6 +157,7 @@ impl pallet_evm::Config for Test {
 	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type ChainId = ChainId;
 	type BlockGasLimit = BlockGasLimit;
+	type OnMethodCall = ();
 	type OnChargeTransaction = ();
 }
 
@@ -164,6 +165,7 @@ impl Config for Test {
 	type Event = ();
 	type FindAuthor = EthereumFindAuthor;
 	type StateRoot = IntermediateStateRoot;
+	type EvmSubmitLog = pallet_evm::Module<Test>;
 }
 
 pub type System = frame_system::Module<Test>;
