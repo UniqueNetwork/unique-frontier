@@ -14,7 +14,7 @@ sp-io = { version = "3.0.0", default-features = false, git = "https://github.com
 frame-support = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
 pallet-evm = { version = "4.0.0-dev", default-features = false, path = "../.." }
 fp-evm = { version = "2.0.0-dev", default-features = false, path = "../../../../primitives/evm" }
-evm = { version = "0.26.0", default-features = false, features = ["with-codec"], git = "https://github.com/usetech-llc/evm.git", branch = "precompile-output" }
+evm = { version = "0.27.0", default-features = false, features = ["with-codec"], git = "https://github.com/usetech-llc/evm.git", branch = "precompile-output" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 
 [features]

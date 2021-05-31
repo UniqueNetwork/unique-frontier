@@ -1208,8 +1208,8 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 
 [[package]]
 name = "evm"
-version = "0.26.0"
-source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
+version = "0.27.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#081b56a17b8e587655bf45cacc1c823265530b50"
 dependencies = [
  "environmental",
  "ethereum",
@@ -1226,8 +1226,8 @@ dependencies = [
 
 [[package]]
 name = "evm-core"
-version = "0.26.0"
-source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
+version = "0.27.1"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#081b56a17b8e587655bf45cacc1c823265530b50"
 dependencies = [
  "funty",
  "parity-scale-codec",
@@ -1237,8 +1237,8 @@ dependencies = [
 
 [[package]]
 name = "evm-gasometer"
-version = "0.26.0"
-source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
+version = "0.27.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#081b56a17b8e587655bf45cacc1c823265530b50"
 dependencies = [
  "environmental",
  "evm-core",
@@ -1248,8 +1248,8 @@ dependencies = [
 
 [[package]]
 name = "evm-runtime"
-version = "0.26.0"
-source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#e667bc507590bc67024e5d12c65241d4aef2a1b9"
+version = "0.27.0"
+source = "git+https://github.com/usetech-llc/evm.git?branch=precompile-output#081b56a17b8e587655bf45cacc1c823265530b50"
 dependencies = [
  "environmental",
  "evm-core",
