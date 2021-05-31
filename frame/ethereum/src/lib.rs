@@ -41,7 +41,7 @@ use sp_runtime::{
 };
 use evm::{ExitReason, ExitSucceed};
 use fp_evm::CallOrCreateInfo;
-use pallet_evm::{EvmSubmitLog, PrecompileLog, Runner, GasWeightMapping, FeeCalculator};
+use pallet_evm::{EvmSubmitLog, Runner, GasWeightMapping, FeeCalculator};
 use sha3::{Digest, Keccak256};
 use codec::{Encode, Decode};
 use fp_consensus::{FRONTIER_ENGINE_ID, PostLog, PreLog};
@@ -409,7 +409,7 @@ impl<T: Config> Module<T> {
 		}).into()
 	}
 
-	pub fn add_transaction_result(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult {
+	pub fn add_transaction_result(transaction: ethereum::Transaction, logs: Vec<Log>) -> DispatchResult {
 		ensure!(
 			fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()).is_err(),
 			Error::<T>::PreLogExists,
@@ -419,10 +419,6 @@ impl<T: Config> Module<T> {
 			.ok_or_else(|| Error::<T>::InvalidSignature)?;
 		let transaction_hash = H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let transaction_index = Pending::get().len() as u32;
-
-		let logs: Vec<Log> = logs.into_iter()
-			.map(|PrecompileLog(address, topics, data)| Log { address, topics, data })
-			.collect();
 
 		for log in logs.iter() {
 			T::EvmSubmitLog::submit_log(log.clone());
@@ -533,11 +529,11 @@ impl<T: Config> Module<T> {
 }
 
 pub trait EthereumTransactionSender {
-	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult;
+	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<Log>) -> DispatchResult;
 }
 
 impl<T: Config> EthereumTransactionSender for Module<T> {
-	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<PrecompileLog>) -> DispatchResult {
+	fn submit_logs_transaction(transaction: ethereum::Transaction, logs: Vec<Log>) -> DispatchResult {
 		<Module<T>>::add_transaction_result(transaction, logs)
 	}
 }

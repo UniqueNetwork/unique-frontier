@@ -62,7 +62,7 @@ pub use fp_evm::{
 	PrecompileSet, LinearCostPrecompile,
 };
 pub use evm::{ExitReason, ExitSucceed, ExitError, ExitRevert, ExitFatal};
-pub use evm::executor::{PrecompileLog, PrecompileOutput};
+pub use evm::executor::{PrecompileOutput};
 
 use sp_std::vec::Vec;
 #[cfg(feature = "std")]
