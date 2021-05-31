@@ -24,7 +24,7 @@ mod eip_152;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use fp_evm::Precompile;
-use evm::{ExitSucceed, ExitError, Context, executor::PrecompileOutput};
+use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
 
 pub struct Blake2F;
 
@@ -40,11 +40,11 @@ impl Precompile for Blake2F {
 		input: &[u8],
 		target_gas: Option<u64>,
 		_context: &Context,
-	) -> core::result::Result<PrecompileOutput, ExitError> {
+	) -> PrecompileOutput {
 		const BLAKE2_F_ARG_LEN: usize = 213;
 
 		if input.len() != BLAKE2_F_ARG_LEN {
-			return Err(ExitError::Other("input length for Blake2 F precompile should be exactly 213 bytes".into()));
+			return ExitError::Other("input length for Blake2 F precompile should be exactly 213 bytes".into()).into();
 		}
 
 		let mut rounds_buf: [u8; 4] = [0; 4];
@@ -54,7 +54,7 @@ impl Precompile for Blake2F {
 		let gas_cost: u64 = (rounds as u64) * Blake2F::GAS_COST_PER_ROUND;
 		if let Some(gas_left) = target_gas {
 			if gas_left < gas_cost {
-				return Err(ExitError::OutOfGas);
+				return ExitError::OutOfGas.into();
 			}
 		}
 
@@ -92,7 +92,7 @@ impl Precompile for Blake2F {
 		let t_1 = u64::from_le_bytes(t_1_buf);
 
 		let f = if input[212] == 1 { true } else if input[212] == 0 { false } else {
-			return Err(ExitError::Other("incorrect final block indicator flag".into()))
+			return ExitError::Other("incorrect final block indicator flag".into()).into()
 		};
 
 		crate::eip_152::compress(&mut h, m, [t_0.into(), t_1.into()], f, rounds as usize);
@@ -102,12 +102,12 @@ impl Precompile for Blake2F {
 			output_buf[i * 8..(i + 1) * 8].copy_from_slice(&state_word.to_le_bytes());
 		}
 
-		Ok(PrecompileOutput {
-			exit_status: ExitSucceed::Returned,
+		PrecompileOutput {
+			exit_status: ExitReason::Succeed(ExitSucceed::Returned),
 			cost: gas_cost,
 			output: output_buf.to_vec(),
 			logs: Default::default(),
-		})
+		}
 	}
 }
 

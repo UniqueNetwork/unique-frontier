@@ -21,7 +21,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use fp_evm::Precompile;
-use evm::{ExitSucceed, ExitError, Context, executor::PrecompileOutput};
+use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
 use num::{BigUint, Zero, One, ToPrimitive, FromPrimitive};
 
 use core::ops::BitAnd;
@@ -98,9 +98,9 @@ impl Precompile for Modexp {
 		input: &[u8],
 		target_gas: Option<u64>,
 		_context: &Context,
-	) -> core::result::Result<PrecompileOutput, ExitError> {
+	) -> PrecompileOutput {
 		if input.len() < 96 {
-			return Err(ExitError::Other("input must contain at least 96 bytes".into()));
+			return ExitError::Other("input must contain at least 96 bytes".into()).into();
 		};
 
 		// reasonable assumption: this must fit within the Ethereum EVM's max stack size
@@ -110,19 +110,19 @@ impl Precompile for Modexp {
 		buf.copy_from_slice(&input[0..32]);
 		let base_len_big = BigUint::from_bytes_be(&buf);
 		if base_len_big > max_size_big {
-			return Err(ExitError::Other("unreasonably large base length".into()));
+			return ExitError::Other("unreasonably large base length".into()).into();
 		}
 
 		buf.copy_from_slice(&input[32..64]);
 		let exp_len_big = BigUint::from_bytes_be(&buf);
 		if exp_len_big > max_size_big {
-			return Err(ExitError::Other("unreasonably large exponent length".into()));
+			return ExitError::Other("unreasonably large exponent length".into()).into();
 		}
 
 		buf.copy_from_slice(&input[64..96]);
 		let mod_len_big = BigUint::from_bytes_be(&buf);
 		if mod_len_big > max_size_big {
-			return Err(ExitError::Other("unreasonably large exponent length".into()));
+			return ExitError::Other("unreasonably large exponent length".into()).into();
 		}
 
 		// bounds check handled above
@@ -133,7 +133,7 @@ impl Precompile for Modexp {
 		// input length should be at least 96 + user-specified length of base + exp + mod
 		let total_len = base_len + exp_len + mod_len + 96;
 		if input.len() < total_len {
-			return Err(ExitError::Other("insufficient input size".into()));
+			return ExitError::Other("insufficient input size".into()).into();
 		}
 
 		// Gas formula allows arbitrary large exp_len when base and modulus are empty, so we need to handle empty base first.
@@ -153,7 +153,7 @@ impl Precompile for Modexp {
 			let gas_cost = calculate_gas_cost(base_len as u64, exp_len as u64, mod_len as u64, &exponent);
 			if let Some(gas_left) = target_gas {
 				if gas_left < gas_cost {
-					return Err(ExitError::OutOfGas);
+					return ExitError::OutOfGas.into();
 				}
 			};
 
@@ -173,24 +173,24 @@ impl Precompile for Modexp {
 		// always true except in the case of zero-length modulus, which leads to
 		// output of length and value 1.
 		if bytes.len() == mod_len {
-			Ok(PrecompileOutput {
-				exit_status: ExitSucceed::Returned,
+			PrecompileOutput {
+				exit_status: ExitReason::Succeed(ExitSucceed::Returned),
 				cost: gas_cost,
 				output: bytes.to_vec(),
 				logs: Default::default(),
-			})
+			}
 		} else if bytes.len() < mod_len {
 			let mut ret = Vec::with_capacity(mod_len);
 			ret.extend(core::iter::repeat(0).take(mod_len - bytes.len()));
 			ret.extend_from_slice(&bytes[..]);
-			Ok(PrecompileOutput {
-				exit_status: ExitSucceed::Returned,
+			PrecompileOutput {
+				exit_status: ExitReason::Succeed(ExitSucceed::Returned),
 				cost: gas_cost,
 				output: ret.to_vec(),
 				logs: Default::default(),
-			})
+			}
 		} else {
-			Err(ExitError::Other("failed".into()))
+			ExitError::Other("failed".into()).into()
 		}
 	}
 }

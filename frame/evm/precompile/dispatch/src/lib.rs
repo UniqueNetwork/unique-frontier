@@ -22,7 +22,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 use fp_evm::Precompile;
-use evm::{ExitSucceed, ExitError, Context, executor::PrecompileOutput};
+use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
 use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, weights::{Pays, DispatchClass}};
 use pallet_evm::{AddressMapping, GasWeightMapping};
 use codec::Decode;
@@ -40,19 +40,22 @@ impl<T> Precompile for Dispatch<T> where
 		input: &[u8],
 		target_gas: Option<u64>,
 		context: &Context,
-	) -> core::result::Result<PrecompileOutput, ExitError> {
-		let call = T::Call::decode(&mut &input[..]).map_err(|_| ExitError::Other("decode failed".into()))?;
+	) -> PrecompileOutput {
+		let call = match T::Call::decode(&mut &input[..]).map_err(|_| ExitError::Other("decode failed".into())) {
+			Ok(call) => call,
+			Err(e) => return e.into(),
+		};
 		let info = call.get_dispatch_info();
 
 		let valid_call = info.pays_fee == Pays::Yes && info.class == DispatchClass::Normal;
 		if !valid_call {
-			return Err(ExitError::Other("invalid call".into()))
+			return ExitError::Other("invalid call".into()).into()
 		}
 
 		if let Some(gas) = target_gas {
 			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(gas);
 			if !valid_weight {
-				return Err(ExitError::OutOfGas)
+				return ExitError::OutOfGas.into()
 			}
 		}
 
@@ -61,14 +64,14 @@ impl<T> Precompile for Dispatch<T> where
 		match call.dispatch(Some(origin).into()) {
 			Ok(post_info) => {
 				let cost = T::GasWeightMapping::weight_to_gas(post_info.actual_weight.unwrap_or(info.weight));
-				Ok(PrecompileOutput {
-					exit_status: ExitSucceed::Stopped,
+				PrecompileOutput {
+					exit_status: ExitReason::Succeed(ExitSucceed::Stopped),
 					cost,
 					output: Default::default(),
 					logs: Default::default(),
-				})
+				}
 			},
-			Err(_) => Err(ExitError::Other("dispatch execution failed".into())),
+			Err(_) => ExitError::Other("dispatch execution failed".into()).into(),
 		}
 	}
 }

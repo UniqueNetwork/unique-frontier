@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use fp_evm::Precompile;
-use evm::{ExitSucceed, Context, executor::PrecompileOutput};
+use evm::{ExitReason, ExitSucceed, Context, executor::PrecompileOutput};
 
 #[cfg(feature = "std")]
 use serde::Deserialize;
@@ -59,9 +59,9 @@ pub fn test_precompile_test_vectors<P: Precompile>(filepath: &str)
 		};
 
 		match P::execute(&input, Some(cost), &context) {
-			Ok(result) => {
+			result if matches!(result.exit_status, ExitReason::Succeed(_)) => {
 				let as_hex: String = hex::encode(result.output);
-				assert_eq!(result.exit_status, ExitSucceed::Returned,
+				assert_eq!(result.exit_status, ExitReason::Succeed(ExitSucceed::Returned),
 						"test '{}' returned {:?} (expected 'Returned')", test.Name, result.exit_status);
 				assert_eq!(as_hex, test.Expected,
 						"test '{}' failed (different output)", test.Name);
@@ -70,7 +70,7 @@ pub fn test_precompile_test_vectors<P: Precompile>(filepath: &str)
 							"test '{}' failed (different gas cost)", test.Name);
 				}
 			},
-			Err(err) => {
+			err => {
 				return Err(format!("Test '{}' returned error: {:?}", test.Name, err));
 			}
 		}

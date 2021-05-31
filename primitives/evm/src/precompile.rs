@@ -32,7 +32,7 @@ pub trait PrecompileSet {
 		input: &[u8],
 		target_gas: Option<u64>,
 		context: &Context,
-	) -> Option<core::result::Result<PrecompileOutput, ExitError>>;
+	) -> Option<PrecompileOutput>;
 }
 
 /// One single precompile used by EVM engine.
@@ -44,7 +44,7 @@ pub trait Precompile {
 		input: &[u8],
 		target_gas: Option<u64>,
 		context: &Context,
-	) -> core::result::Result<PrecompileOutput, ExitError>;
+	) -> PrecompileOutput;
 }
 
 #[impl_for_tuples(16)]
@@ -57,7 +57,7 @@ impl PrecompileSet for Tuple {
 		input: &[u8],
 		target_gas: Option<u64>,
 		context: &Context,
-	) -> Option<core::result::Result<PrecompileOutput, ExitError>> {
+	) -> Option<PrecompileOutput> {
 		let mut index = 0;
 
 		for_tuples!( #(
@@ -86,16 +86,33 @@ impl<T: LinearCostPrecompile> Precompile for T {
 		input: &[u8],
 		target_gas: Option<u64>,
 		_: &Context,
-	) -> core::result::Result<PrecompileOutput, ExitError> {
-		let cost = ensure_linear_cost(target_gas, input.len() as u64, T::BASE, T::WORD)?;
+	) -> PrecompileOutput {
+		let cost = match ensure_linear_cost(target_gas, input.len() as u64, T::BASE, T::WORD) {
+			Ok(cost) => cost,
+			Err(e) => {
+				return PrecompileOutput {
+					exit_status: evm::ExitReason::Error(e),
+					cost: 0,
+					output: Default::default(),
+					logs: Default::default(),
+				}
+			},
+		};
 
-		let (exit_status, output) = T::execute(input, cost)?;
-		Ok(PrecompileOutput {
-			exit_status,
-			cost,
-			output,
-			logs: Default::default(),
-		})
+		match T::execute(input, cost) {
+			Ok((exit_status, output)) => PrecompileOutput {
+				exit_status: evm::ExitReason::Succeed(exit_status),
+				cost,
+				output,
+				logs: Default::default(),
+			},
+			Err(e) => PrecompileOutput {
+				exit_status: evm::ExitReason::Error(e),
+				cost: 0,
+				output: Default::default(),
+				logs: Default::default(),
+			},
+		}
 	}
 }
 
