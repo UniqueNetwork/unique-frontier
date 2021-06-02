@@ -639,7 +639,9 @@ pub trait OnMethodCall<T> {
 	fn call(
 		source: &H160,
 		target: &H160,
+		gas_left: u64,
 		input: &[u8],
+		value: U256,
 	) -> Option<PrecompileOutput>;
 
 	/// Get hardcoded contract code
@@ -658,7 +660,9 @@ impl<T> OnMethodCall<T> for () {
 	fn call(
 		_source: &H160,
 		_target: &H160,
+		_gas_left: u64,
 		_input: &[u8],
+		_value: U256
 	) -> Option<PrecompileOutput> {
 		None
 	}
@@ -694,10 +698,12 @@ impl<T> OnMethodCall<T> for Tuple {
 	fn call(
 		source: &H160,
 		target: &H160,
+		gas_left: u64,
 		input: &[u8],
+		value: U256,
 	) -> Option<PrecompileOutput> {
 		for_tuples!(#(
-			if let Some(r) = Tuple::call(source, target, input) {
+			if let Some(r) = Tuple::call(source, target, gas_left, input, value) {
 				return Some(r);
 			}
 		)*);

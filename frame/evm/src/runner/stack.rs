@@ -37,7 +37,13 @@ pub struct Runner<T: Config> {
 }
 
 fn run_precompiles<T: Config>(addr: H160, value: &[u8], target_gas: Option<u64>, context: &Context) -> Option<PrecompileOutput> {
-	if let Some(value) = T::OnMethodCall::call(&context.caller, &addr, value) {
+	if let Some(value) = T::OnMethodCall::call(
+		&context.caller,
+		&addr,
+		target_gas.unwrap_or(u64::MAX),
+		value,
+		context.apparent_value,
+	) {
 		return Some(value)
 	}
 	T::Precompiles::execute(addr, value, target_gas, context).map(|v| v.into())
