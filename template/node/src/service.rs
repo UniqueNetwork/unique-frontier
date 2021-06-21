@@ -10,7 +10,7 @@ use fc_consensus::FrontierBlockImport;
 use fc_mapping_sync::MappingSyncWorker;
 use frontier_template_runtime::{self, opaque::Block, RuntimeApi, SLOT_DURATION};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, BasePath};
-use sp_inherents::{InherentDataProviders, ProvideInherentData, InherentIdentifier, InherentData};
+use sp_inherents::{InherentDataProvider, InherentIdentifier, InherentData};
 use sc_executor::native_executor_instance;
 pub use sc_executor::NativeExecutor;
 use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
@@ -39,7 +39,7 @@ type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
 #[cfg(feature = "aura")]
 pub type ConsensusResult = (
-	sc_consensus_aura::AuraBlockImport<
+	sc_consensus_aura::BlockImport<
 		Block,
 		FullClient,
 		FrontierBlockImport<
@@ -188,7 +188,7 @@ pub fn new_partial(config: &Configuration, #[allow(unused_variables)] cli: &Cli)
 
 	#[cfg(feature = "aura")] {
 		inherent_data_providers
-			.register_provider(pallet_dynamic_fee::InherentDataProvider(U256::from(cli.run.target_gas_price)))
+			// .register_provider(pallet_dynamic_fee::InherentDataProvider(U256::from(cli.run.target_gas_price)))
 			.map_err(Into::into)
 			.map_err(sp_consensus::Error::InherentData)?;
 
@@ -205,7 +205,7 @@ pub fn new_partial(config: &Configuration, #[allow(unused_variables)] cli: &Cli)
 			frontier_backend.clone(),
 		);
 
-		let aura_block_import = sc_consensus_aura::AuraBlockImport::<_, _, _, AuraPair>::new(
+		let aura_block_import = sc_consensus_aura::BlockImport::<_, _, _, AuraPair>::new(
 			frontier_block_import, client.clone(),
 		);
 
