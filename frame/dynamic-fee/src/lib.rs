@@ -24,7 +24,7 @@ use sp_runtime::RuntimeDebug;
 use sp_core::U256;
 use sp_inherents::{InherentIdentifier, InherentData, IsFatalError};
 use frame_support::{
-	decl_module, decl_storage, decl_event,
+	decl_module, decl_storage,
 	traits::Get, weights::Weight,
 	pallet_prelude::ProvideInherent,
 };
@@ -55,7 +55,7 @@ decl_module! {
 			T::DbWeight::get().writes(1)
 		}
 
-		fn on_finalize(n: T::BlockNumber) {
+		fn on_finalize(_n: T::BlockNumber) {
 			if let Some(target) = TargetMinGasPrice::get() {
 				let bound = MinGasPrice::get() / T::MinGasPriceBoundDivisor::get() + U256::one();
 

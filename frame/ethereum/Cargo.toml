@@ -1,6 +1,6 @@
 [package]
 name = "pallet-ethereum"
-version = "2.0.0-dev"
+version = "3.0.0-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Ethereum compatibility full block processing emulation pallet for Substrate."
@@ -14,7 +14,7 @@ frame-support = { version = "3.0.0", default-features = false, git = "https://gi
 frame-system = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
 pallet-balances = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
 pallet-timestamp = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
-pallet-evm = { version = "4.0.0-dev", default-features = false, path = "../evm" }
+pallet-evm = { version = "5.0.0-dev", default-features = false, path = "../evm" }
 sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
 sp-std = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
 sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.3" }
@@ -24,7 +24,7 @@ ethereum = { version = "0.7.1", default-features = false, features = ["with-code
 ethereum-types = { version = "0.11", default-features = false }
 rlp = { version = "0.5", default-features = false }
 sha3 = { version = "0.8", default-features = false }
-libsecp256k1 = { version = "0.3", default-features = false }
+libsecp256k1 = { version = "0.5", default-features = false, features = ["static-context", "hmac"] }
 fp-consensus = { version = "1.0.0", path = "../../primitives/consensus", default-features = false }
 fp-rpc = { version = "2.0.0", path = "../../primitives/rpc", default-features = false }
 fp-storage = { version = "1.0.1", path = "../../primitives/storage", default-features = false}
