@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Encode, Decode};
-use sp_std::{result, cmp::{min, max}};
+use sp_std::cmp::{min, max};
 use sp_runtime::RuntimeDebug;
 use sp_core::U256;
 use sp_inherents::{InherentIdentifier, InherentData, IsFatalError};

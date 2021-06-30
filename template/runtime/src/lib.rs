@@ -43,7 +43,7 @@ pub use frame_support::{
 	ConsensusEngineId,
 };
 use pallet_evm::{
-	Account as EVMAccount, FeeCalculator, HashedAddressMapping, EnsureAddressTruncated, Runner,
+	Account as EVMAccount, HashedAddressMapping, EnsureAddressTruncated, Runner,
 };
 use fp_rpc::TransactionStatus;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -192,6 +192,8 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
 }
@@ -247,6 +249,8 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {

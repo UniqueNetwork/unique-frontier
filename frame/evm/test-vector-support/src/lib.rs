@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use fp_evm::Precompile;
-use evm::{ExitReason, ExitSucceed, Context, executor::PrecompileOutput};
+use evm::{ExitReason, ExitSucceed, Context};
 
 #[cfg(feature = "std")]
 use serde::Deserialize;

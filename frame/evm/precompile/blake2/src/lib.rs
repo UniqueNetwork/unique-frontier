@@ -21,7 +21,6 @@ extern crate alloc;
 
 mod eip_152;
 
-use alloc::vec::Vec;
 use core::mem::size_of;
 use fp_evm::Precompile;
 use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
