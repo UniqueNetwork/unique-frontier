@@ -485,7 +485,7 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config> for SubstrateStackState
 	}
 
 	fn reset_storage(&mut self, address: H160) {
-		AccountStorages::remove_prefix(address);
+		AccountStorages::remove_prefix(address, None);
 	}
 
 	fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
