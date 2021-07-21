@@ -21,7 +21,8 @@ use super::*;
 use crate::{Module, Config, IntermediateStateRoot};
 use ethereum::{TransactionAction, TransactionSignature};
 use frame_support::{
-	impl_outer_origin, parameter_types, ConsensusEngineId
+	impl_outer_origin, parameter_types, ConsensusEngineId,
+	traits::FindAuthor
 };
 use pallet_evm::{FeeCalculator, AddressMapping, EnsureAddressTruncated};
 use rlp::*;
@@ -122,8 +123,8 @@ impl FeeCalculator for FixedGasPrice {
 	}
 }
 
-pub struct EthereumFindAuthor;
-impl FindAuthor<H160> for EthereumFindAuthor {
+pub struct FindAuthorTruncated;
+impl FindAuthor<H160> for FindAuthorTruncated {
 	fn find_author<'a, I>(_digests: I) -> Option<H160> where
 		I: 'a + IntoIterator<Item=(ConsensusEngineId, &'a [u8])>
 	{
@@ -162,12 +163,12 @@ impl pallet_evm::Config for Test {
 	type BlockGasLimit = BlockGasLimit;
 	type OnMethodCall = ();
 	type OnChargeTransaction = ();
+	type FindAuthor = FindAuthorTruncated;
 	type BlockHashMapping = crate::EthereumBlockHashMapping;
 }
 
 impl Config for Test {
 	type Event = ();
-	type FindAuthor = EthereumFindAuthor;
 	type StateRoot = IntermediateStateRoot;
 	type EvmSubmitLog = pallet_evm::Module<Test>;
 }

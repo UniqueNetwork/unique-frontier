@@ -25,20 +25,16 @@
 
 use frame_support::{
 	decl_module, decl_storage, decl_error, decl_event,
-	traits::Get, traits::FindAuthor,
-	weights::{Pays, PostDispatchInfo, Weight},
-	dispatch::{DispatchResult, DispatchResultWithPostInfo},
+	traits::Get, weights::{Pays, PostDispatchInfo, Weight},
+	dispatch::DispatchResultWithPostInfo,
 };
 use sp_std::prelude::*;
 use frame_system::ensure_none;
 use frame_support::ensure;
 use ethereum_types::{H160, H64, H256, U256, Bloom, BloomInput};
-use sp_runtime::{
-	transaction_validity::{
+use sp_runtime::{DispatchError, DispatchResult, generic::DigestItem, traits::{Saturating, UniqueSaturatedInto, One, Zero}, transaction_validity::{
 		TransactionValidity, TransactionSource, InvalidTransaction, ValidTransactionBuilder,
-	},
-	generic::DigestItem, traits::{Saturating, UniqueSaturatedInto, One, Zero}, DispatchError,
-};
+	}};
 use evm::{ExitReason, ExitSucceed};
 use fp_evm::CallOrCreateInfo;
 use pallet_evm::{EvmSubmitLog, Runner, GasWeightMapping, FeeCalculator, BlockHashMapping};
@@ -91,8 +87,6 @@ impl Get<H256> for IntermediateStateRoot {
 pub trait Config: frame_system::Config<Hash=H256> + pallet_balances::Config + pallet_timestamp::Config + pallet_evm::Config {
 	/// The overarching event type.
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
-	/// Find author for Ethereum.
-	type FindAuthor: FindAuthor<H160>;
 	/// How Ethereum state root is calculated.
 	type StateRoot: Get<H256>;
 
@@ -249,12 +243,7 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 
 			let mut builder = ValidTransactionBuilder::default()
 				.and_provides((origin, transaction.nonce))
-				.priority(if min_gas_price == U256::zero() {
-						0
-					} else {
-						let target_gas = (transaction.gas_limit * transaction.gas_price) / min_gas_price;
-						T::GasWeightMapping::gas_to_weight(target_gas.unique_saturated_into())
-				});
+				.priority(transaction.gas_price.unique_saturated_into());
 
 			if transaction.nonce > account_data.nonce {
 				if let Some(prev_nonce) = transaction.nonce.checked_sub(1.into()) {
@@ -300,7 +289,7 @@ impl<T: Config> Module<T> {
 		let ommers = Vec::<ethereum::Header>::new();
 		let partial_header = ethereum::PartialHeader {
 			parent_hash: Self::current_block_hash().unwrap_or_default(),
-			beneficiary: <Module<T>>::find_author(),
+			beneficiary: pallet_evm::Module::<T>::find_author(),
 			// TODO: figure out if there's better way to get a sort-of-valid state root.
 			state_root: H256::default(),
 			receipts_root: H256::from_slice(
@@ -475,14 +464,6 @@ impl<T: Config> Module<T> {
 		Self::deposit_event(Event::Executed(source, H160::default(), transaction_hash, ExitReason::Succeed(ExitSucceed::Returned)));
 
 		Ok(())
-	}
-
-	/// Get the author using the FindAuthor trait.
-	pub fn find_author() -> H160 {
-		let digest = <frame_system::Module<T>>::digest();
-		let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
-
-		T::FindAuthor::find_author(pre_runtime_digests).unwrap_or_default()
 	}
 
 	/// Get the transaction status with given index.
