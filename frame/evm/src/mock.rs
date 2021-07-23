@@ -145,5 +145,6 @@ impl Config for Test {
 	type FindAuthor = FindAuthorTruncated;
 
 	type OnMethodCall = ();
+	type OnCreate = ();
 }
 

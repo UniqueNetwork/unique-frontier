@@ -289,6 +289,8 @@ pub trait Config: frame_system::Config + pallet_timestamp::Config {
 	/// where the chain implementing `pallet_ethereum` should be able to configure what happens to the fees
 	/// Similar to `OnChargeTransaction` of `pallet_transaction_payment`
 	type OnChargeTransaction: OnChargeEVMTransaction<Self>;
+	/// Called on create calls
+	type OnCreate: OnCreate<Self>;
 
 	/// Find author for the current block.
 	type FindAuthor: FindAuthor<H160>;
@@ -723,6 +725,23 @@ impl<T> OnMethodCall<T> for Tuple {
 			}
 		)*);
 		None
+	}
+}
+
+pub trait OnCreate<T> {
+	fn on_create(owner: H160, contract: H160);
+}
+
+impl<T> OnCreate<T> for () {
+	fn on_create(_owner: H160, _contract: H160) {}
+}
+
+#[impl_for_tuples(1, 12)]
+impl<T> OnCreate<T> for Tuple {
+	fn on_create(owner: H160, contract: H160) {
+		for_tuples!(#(
+			Tuple::on_create(owner, contract);
+		)*)
 	}
 }
 

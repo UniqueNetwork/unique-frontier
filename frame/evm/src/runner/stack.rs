@@ -32,7 +32,7 @@ use evm::executor::{PrecompileOutput, StackExecutor, StackSubstateMetadata, Stac
 use crate::{
 	Config, AccountStorages, FeeCalculator, AccountCodes, Module, Event,
 	Error, AddressMapping, PrecompileSet, OnChargeEVMTransaction, BlockHashMapping,
-	OnMethodCall, WithdrawReason,
+	OnMethodCall, WithdrawReason, OnCreate,
 };
 use crate::runner::Runner as RunnerT;
 
@@ -213,6 +213,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				let address = executor.create_address(
 					evm::CreateScheme::Legacy { caller: source },
 				);
+				T::OnCreate::on_create(source, address);
 				(executor.transact_create(
 					source,
 					value,
@@ -246,6 +247,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				let address = executor.create_address(
 					evm::CreateScheme::Create2 { caller: source, code_hash, salt },
 				);
+				T::OnCreate::on_create(source, address);
 				(executor.transact_create2(
 					source,
 					value,
