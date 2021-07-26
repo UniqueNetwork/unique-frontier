@@ -310,6 +310,7 @@ impl pallet_evm::Config for Runtime {
 		pallet_evm_precompile_sha3fips::Sha3FIPS512,
 	);
 	type OnMethodCall = ();
+	type OnCreate = ();
 	type ChainId = ChainId;
 	type BlockGasLimit = BlockGasLimit;
 	type OnChargeTransaction = ();
@@ -320,6 +321,7 @@ impl pallet_ethereum::Config for Runtime {
 	type Event = Event;
 	type StateRoot = pallet_ethereum::IntermediateStateRoot;
 	type EvmSubmitLog = pallet_evm::Module<Runtime>;
+	type TransactionValidityHack = ();
 }
 
 frame_support::parameter_types! {

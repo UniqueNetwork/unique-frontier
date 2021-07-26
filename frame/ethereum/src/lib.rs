@@ -28,6 +28,7 @@ use frame_support::{
 	traits::Get, weights::{Pays, PostDispatchInfo, Weight},
 	dispatch::DispatchResultWithPostInfo,
 };
+use impl_trait_for_tuples::impl_for_tuples;
 use sp_std::prelude::*;
 use frame_system::ensure_none;
 use frame_support::ensure;
@@ -91,6 +92,30 @@ pub trait Config: frame_system::Config<Hash=H256> + pallet_balances::Config + pa
 	type StateRoot: Get<H256>;
 
 	type EvmSubmitLog: pallet_evm::EvmSubmitLog;
+	type TransactionValidityHack: TransactionValidityHack;
+}
+
+// TODO: Refactor into something less specific
+pub trait TransactionValidityHack {
+	fn who_pays_fee(origin: H160, target: H160, input: Vec<u8>) -> Option<H160>;
+}
+
+impl TransactionValidityHack for () {
+	fn who_pays_fee(_origin: H160, _target: H160, _input: Vec<u8>) -> Option<H160> {
+		None
+	}
+}
+
+#[impl_for_tuples(1, 12)]
+impl TransactionValidityHack for Tuple {
+	fn who_pays_fee(origin: H160, target: H160, input: Vec<u8>) -> Option<H160> {
+		for_tuples!(#(
+			if let Some(who) = Tuple::who_pays_fee(origin, target, input.clone()) {
+				return Some(who);
+			}
+		)*);
+		None
+	}
 }
 
 decl_storage! {
@@ -230,9 +255,22 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 			}
 
 			let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
-			let total_payment = transaction.value.saturating_add(fee);
-			if account_data.balance < total_payment {
-				return InvalidTransaction::Payment.into();
+			let value = transaction.value;
+			let fee_payer = match transaction.action {
+				TransactionAction::Call(target) => T::TransactionValidityHack::who_pays_fee(origin, target, transaction.input.clone()).unwrap_or(origin),
+				_ => origin,
+			};
+
+			if fee_payer == origin {
+				let total_payment = value.saturating_add(fee);
+				if account_data.balance < total_payment {
+					return InvalidTransaction::Payment.into();
+				}
+			} else {
+				let fee_payer_data = pallet_evm::Module::<T>::account_basic(&fee_payer);
+				if account_data.balance < value || fee_payer_data.balance < fee {
+					return InvalidTransaction::Payment.into();
+				}
 			}
 
 			let min_gas_price = T::FeeCalculator::min_gas_price();
