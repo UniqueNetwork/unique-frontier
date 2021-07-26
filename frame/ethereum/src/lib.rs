@@ -28,7 +28,6 @@ use frame_support::{
 	traits::Get, weights::{Pays, PostDispatchInfo, Weight},
 	dispatch::DispatchResultWithPostInfo,
 };
-use impl_trait_for_tuples::impl_for_tuples;
 use sp_std::prelude::*;
 use frame_system::ensure_none;
 use frame_support::ensure;
@@ -37,7 +36,7 @@ use sp_runtime::{DispatchError, DispatchResult, generic::DigestItem, traits::{Sa
 		TransactionValidity, TransactionSource, InvalidTransaction, ValidTransactionBuilder,
 	}};
 use evm::{ExitReason, ExitSucceed};
-use fp_evm::CallOrCreateInfo;
+use fp_evm::{CallOrCreateInfo, TransactionValidityHack, WithdrawReason};
 use pallet_evm::{EvmSubmitLog, Runner, GasWeightMapping, FeeCalculator, BlockHashMapping};
 use sha3::{Digest, Keccak256};
 use codec::{Encode, Decode};
@@ -92,30 +91,6 @@ pub trait Config: frame_system::Config<Hash=H256> + pallet_balances::Config + pa
 	type StateRoot: Get<H256>;
 
 	type EvmSubmitLog: pallet_evm::EvmSubmitLog;
-	type TransactionValidityHack: TransactionValidityHack;
-}
-
-// TODO: Refactor into something less specific
-pub trait TransactionValidityHack {
-	fn who_pays_fee(origin: H160, target: H160, input: Vec<u8>) -> Option<H160>;
-}
-
-impl TransactionValidityHack for () {
-	fn who_pays_fee(_origin: H160, _target: H160, _input: Vec<u8>) -> Option<H160> {
-		None
-	}
-}
-
-#[impl_for_tuples(1, 12)]
-impl TransactionValidityHack for Tuple {
-	fn who_pays_fee(origin: H160, target: H160, input: Vec<u8>) -> Option<H160> {
-		for_tuples!(#(
-			if let Some(who) = Tuple::who_pays_fee(origin, target, input.clone()) {
-				return Some(who);
-			}
-		)*);
-		None
-	}
 }
 
 decl_storage! {
@@ -256,10 +231,13 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 
 			let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
 			let value = transaction.value;
-			let fee_payer = match transaction.action {
-				TransactionAction::Call(target) => T::TransactionValidityHack::who_pays_fee(origin, target, transaction.input.clone()).unwrap_or(origin),
-				_ => origin,
-			};
+			let fee_payer = T::TransactionValidityHack::who_pays_fee(origin, &match transaction.action {
+				TransactionAction::Call(target) => WithdrawReason::Call {
+					target,
+					input: transaction.input.clone(),
+				},
+				TransactionAction::Create => WithdrawReason::Create,
+			}).unwrap_or(origin);
 
 			if fee_payer == origin {
 				let total_payment = value.saturating_add(fee);

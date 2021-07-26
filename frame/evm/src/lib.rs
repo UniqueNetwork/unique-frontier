@@ -61,9 +61,10 @@ pub mod benchmarks;
 mod mock;
 
 pub use crate::runner::Runner;
+use fp_evm::WithdrawReason;
 pub use fp_evm::{
 	Account, Log, Vicinity, ExecutionInfo, CallInfo, CreateInfo, Precompile,
-	PrecompileSet, LinearCostPrecompile,
+	PrecompileSet, LinearCostPrecompile, TransactionValidityHack,
 };
 pub use evm::{ExitReason, ExitSucceed, ExitError, ExitRevert, ExitFatal};
 pub use evm::executor::{PrecompileOutput};
@@ -291,6 +292,7 @@ pub trait Config: frame_system::Config + pallet_timestamp::Config {
 	type OnChargeTransaction: OnChargeEVMTransaction<Self>;
 	/// Called on create calls
 	type OnCreate: OnCreate<Self>;
+	type TransactionValidityHack: TransactionValidityHack;
 
 	/// Find author for the current block.
 	type FindAuthor: FindAuthor<H160>;
@@ -743,15 +745,6 @@ impl<T> OnCreate<T> for Tuple {
 			Tuple::on_create(owner, contract);
 		)*)
 	}
-}
-
-pub enum WithdrawReason {
-	Call {
-		target: H160,
-		input: Vec<u8>,
-	},
-	Create,
-	Create2,
 }
 
 /// Handle withdrawing, refunding and depositing of transaction fees.

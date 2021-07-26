@@ -25,6 +25,7 @@ use serde::{Serialize, Deserialize};
 use sp_std::vec::Vec;
 use sp_core::{U256, H160};
 use evm::ExitReason;
+use impl_trait_for_tuples::impl_for_tuples;
 
 pub use evm::backend::{Basic as Account, Log};
 pub use precompile::{Precompile, PrecompileSet, LinearCostPrecompile};
@@ -56,4 +57,36 @@ pub type CreateInfo = ExecutionInfo<H160>;
 pub enum CallOrCreateInfo {
 	Call(CallInfo),
 	Create(CreateInfo),
+}
+
+pub enum WithdrawReason {
+	Call {
+		target: H160,
+		input: Vec<u8>,
+	},
+	Create,
+	Create2,
+}
+
+// TODO: Refactor into something less specific
+pub trait TransactionValidityHack {
+	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<H160>;
+}
+
+impl TransactionValidityHack for () {
+	fn who_pays_fee(_origin: H160, _reason: &WithdrawReason) -> Option<H160> {
+		None
+	}
+}
+
+#[impl_for_tuples(1, 12)]
+impl TransactionValidityHack for Tuple {
+	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<H160> {
+		for_tuples!(#(
+			if let Some(who) = Tuple::who_pays_fee(origin, reason) {
+				return Some(who);
+			}
+		)*);
+		None
+	}
 }

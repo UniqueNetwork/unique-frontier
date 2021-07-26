@@ -25,7 +25,7 @@ use frame_support::{
 	storage::{StorageMap, StorageDoubleMap},
 };
 use sha3::{Keccak256, Digest};
-use fp_evm::{ExecutionInfo, CallInfo, CreateInfo, Log, Vicinity};
+use fp_evm::{ExecutionInfo, CallInfo, CreateInfo, Log, Vicinity, TransactionValidityHack};
 use evm::{Context, ExitReason, ExitError, Transfer};
 use evm::backend::Backend as BackendT;
 use evm::executor::{PrecompileOutput, StackExecutor, StackSubstateMetadata, StackState as StackStateT};
@@ -90,14 +90,27 @@ impl<T: Config> Runner<T> {
 			run_precompiles::<T>,
 		);
 
-		let total_fee = gas_price.checked_mul(U256::from(gas_limit))
-			.ok_or(Error::<T>::FeeOverflow)?;
-		let total_payment = value.checked_add(total_fee).ok_or(Error::<T>::PaymentOverflow)?;
 		let source_account = Module::<T>::account_basic(&source);
-		ensure!(source_account.balance >= total_payment, Error::<T>::BalanceLow);
 
 		if let Some(nonce) = nonce {
 			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
+		}
+
+		let total_fee = gas_price.checked_mul(U256::from(gas_limit))
+			.ok_or(Error::<T>::FeeOverflow)?;
+
+		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source);
+
+		if fee_payer == source {
+			let total_payment = value.checked_add(total_fee).ok_or(Error::<T>::PaymentOverflow)?;
+			if source_account.balance < total_payment {
+				return Err(Error::<T>::BalanceLow.into());
+			}
+		} else {
+			let fee_payer_data = crate::Pallet::<T>::account_basic(&fee_payer);
+			if source_account.balance < value || fee_payer_data.balance < total_fee {
+				return Err(Error::<T>::BalanceLow.into());
+			}
 		}
 
 		// Deduct fee from the `source` account.

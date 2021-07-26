@@ -314,6 +314,7 @@ impl pallet_evm::Config for Runtime {
 	type ChainId = ChainId;
 	type BlockGasLimit = BlockGasLimit;
 	type OnChargeTransaction = ();
+	type TransactionValidityHack = ();
 	type FindAuthor = FindAuthorTruncated<Aura>;
 }
 
@@ -321,7 +322,6 @@ impl pallet_ethereum::Config for Runtime {
 	type Event = Event;
 	type StateRoot = pallet_ethereum::IntermediateStateRoot;
 	type EvmSubmitLog = pallet_evm::Module<Runtime>;
-	type TransactionValidityHack = ();
 }
 
 frame_support::parameter_types! {

@@ -141,6 +141,7 @@ impl Config for Test {
 	type ChainId = ();
 	type BlockGasLimit = ();
 	type OnChargeTransaction = ();
+	type TransactionValidityHack = ();
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
 	type FindAuthor = FindAuthorTruncated;
 
