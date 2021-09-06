@@ -19,16 +19,18 @@
 
 mod precompile;
 
-use codec::{Encode, Decode};
-#[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
-use sp_std::vec::Vec;
-use sp_core::{U256, H160};
+use codec::{Decode, Encode};
+use evm::ExitReason;
 use evm::ExitReason;
 use impl_trait_for_tuples::impl_for_tuples;
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
+use sp_core::{H160, U256};
+use sp_core::{H160, U256};
+use sp_std::vec::Vec;
 
 pub use evm::backend::{Basic as Account, Log};
-pub use precompile::{Precompile, PrecompileSet, LinearCostPrecompile};
+pub use precompile::{LinearCostPrecompile, Precompile, PrecompileSet};
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
@@ -60,10 +62,7 @@ pub enum CallOrCreateInfo {
 }
 
 pub enum WithdrawReason {
-	Call {
-		target: H160,
-		input: Vec<u8>,
-	},
+	Call { target: H160, input: Vec<u8> },
 	Create,
 	Create2,
 }

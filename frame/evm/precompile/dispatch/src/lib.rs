@@ -19,20 +19,27 @@
 
 extern crate alloc;
 
+use alloc::vec::Vec;
+use codec::Decode;
 use core::marker::PhantomData;
+use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
 use fp_evm::Precompile;
 use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
 use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, weights::{Pays, DispatchClass}};
+use frame_support::{
+	dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
+	weights::{DispatchClass, Pays},
+};
 use pallet_evm::{AddressMapping, GasWeightMapping};
-use codec::Decode;
 
 pub struct Dispatch<T: pallet_evm::Config> {
 	_marker: PhantomData<T>,
 }
 
-impl<T> Precompile for Dispatch<T> where
+impl<T> Precompile for Dispatch<T>
+where
 	T: pallet_evm::Config,
-	T::Call: Dispatchable<PostInfo=PostDispatchInfo> + GetDispatchInfo + Decode,
+	T::Call: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo + Decode,
 	<T::Call as Dispatchable>::Origin: From<Option<T::AccountId>>,
 {
 	fn execute(

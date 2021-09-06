@@ -20,34 +20,38 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use sp_core::U256;
+use evm::{executor::PrecompileOutput, Context, ExitError, ExitReason, ExitSucceed};
+use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
 use fp_evm::Precompile;
-use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
+use sp_core::U256;
 
 fn read_fr(input: &[u8], start_inx: usize) -> Result<bn::Fr, ExitError> {
 	if input.len() < start_inx + 32 {
 		return Err(ExitError::Other("Input not long enough".into()));
 	}
 
-	bn::Fr::from_slice(&input[start_inx..(start_inx + 32)]).map_err(|_| ExitError::Other("Invalid field element".into()))
+	bn::Fr::from_slice(&input[start_inx..(start_inx + 32)])
+		.map_err(|_| ExitError::Other("Invalid field element".into()))
 }
 
 fn read_point(input: &[u8], start_inx: usize) -> Result<bn::G1, ExitError> {
-	use bn::{Fq, AffineG1, G1, Group};
+	use bn::{AffineG1, Fq, Group, G1};
 
 	if input.len() < start_inx + 64 {
 		return Err(ExitError::Other("Input not long enough".into()));
 	}
 
-	let px = Fq::from_slice(&input[start_inx..(start_inx + 32)]).map_err(|_| ExitError::Other("Invalid point x coordinate".into()))?;
-	let py = Fq::from_slice(&input[(start_inx + 32)..(start_inx + 64)]).map_err(|_| ExitError::Other("Invalid point y coordinate".into()))?;
-	Ok(
-		if px == Fq::zero() && py == Fq::zero() {
-			G1::zero()
-		} else {
-			AffineG1::new(px, py).map_err(|_| ExitError::Other("Invalid curve point".into()))?.into()
-		}
-	)
+	let px = Fq::from_slice(&input[start_inx..(start_inx + 32)])
+		.map_err(|_| ExitError::Other("Invalid point x coordinate".into()))?;
+	let py = Fq::from_slice(&input[(start_inx + 32)..(start_inx + 64)])
+		.map_err(|_| ExitError::Other("Invalid point y coordinate".into()))?;
+	Ok(if px == Fq::zero() && py == Fq::zero() {
+		G1::zero()
+	} else {
+		AffineG1::new(px, py)
+			.map_err(|_| ExitError::Other("Invalid curve point".into()))?
+			.into()
+	})
 }
 
 /// The Bn128Add builtin
@@ -58,12 +62,7 @@ impl Bn128Add {
 }
 
 impl Precompile for Bn128Add {
-
-	fn execute(
-		input: &[u8],
-		_target_gas: Option<u64>,
-		_context: &Context,
-	) -> PrecompileOutput {
+	fn execute(input: &[u8], _target_gas: Option<u64>, _context: &Context) -> PrecompileOutput {
 		use bn::AffineG1;
 
 		let p1 = match read_point(input, 0) {
@@ -78,10 +77,18 @@ impl Precompile for Bn128Add {
 		let mut buf = [0u8; 64];
 		if let Some(sum) = AffineG1::from_jacobian(p1 + p2) {
 			// point not at infinity
-			if let Err(e) = sum.x().to_big_endian(&mut buf[0..32]).map_err(|_| ExitError::Other("Cannot fail since 0..32 is 32-byte length".into())) {
+			if let Err(e) = sum
+				.x()
+				.to_big_endian(&mut buf[0..32])
+				.map_err(|_| ExitError::Other("Cannot fail since 0..32 is 32-byte length".into()))
+			{
 				return e.into();
 			};
-			if let Err(e) = sum.y().to_big_endian(&mut buf[32..64]).map_err(|_| ExitError::Other("Cannot fail since 32..64 is 32-byte length".into())) {
+			if let Err(e) = sum
+				.y()
+				.to_big_endian(&mut buf[32..64])
+				.map_err(|_| ExitError::Other("Cannot fail since 32..64 is 32-byte length".into()))
+			{
 				return e.into();
 			};
 		}
@@ -103,12 +110,7 @@ impl Bn128Mul {
 }
 
 impl Precompile for Bn128Mul {
-
-	fn execute(
-		input: &[u8],
-		_target_gas: Option<u64>,
-		_context: &Context,
-	) -> PrecompileOutput {
+	fn execute(input: &[u8], _target_gas: Option<u64>, _context: &Context) -> PrecompileOutput {
 		use bn::AffineG1;
 
 		let p = match read_point(input, 0) {
@@ -123,10 +125,18 @@ impl Precompile for Bn128Mul {
 		let mut buf = [0u8; 64];
 		if let Some(sum) = AffineG1::from_jacobian(p * fr) {
 			// point not at infinity
-			if let Err(e) = sum.x().to_big_endian(&mut buf[0..32]).map_err(|_| ExitError::Other("Cannot fail since 0..32 is 32-byte length".into())) {
+			if let Err(e) = sum
+				.x()
+				.to_big_endian(&mut buf[0..32])
+				.map_err(|_| ExitError::Other("Cannot fail since 0..32 is 32-byte length".into()))
+			{
 				return e.into();
 			};
-			if let Err(e) = sum.y().to_big_endian(&mut buf[32..64]).map_err(|_| ExitError::Other("Cannot fail since 32..64 is 32-byte length".into())) {
+			if let Err(e) = sum
+				.y()
+				.to_big_endian(&mut buf[32..64])
+				.map_err(|_| ExitError::Other("Cannot fail since 32..64 is 32-byte length".into()))
+			{
 				return e.into();
 			};
 		}
@@ -150,13 +160,8 @@ impl Bn128Pairing {
 }
 
 impl Precompile for Bn128Pairing {
-
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		_context: &Context,
-	) -> PrecompileOutput {
-		use bn::{AffineG1, AffineG2, Fq, Fq2, pairing_batch, G1, G2, Gt, Group};
+	fn execute(input: &[u8], target_gas: Option<u64>, _context: &Context) -> PrecompileOutput {
+		use bn::{pairing_batch, AffineG1, AffineG2, Fq, Fq2, Group, Gt, G1, G2};
 
 		let (ret_val, gas_cost) = if input.is_empty() {
 			(U256::one(), Bn128Pairing::BASE_GAS_COST)
@@ -164,8 +169,8 @@ impl Precompile for Bn128Pairing {
 			// (a, b_a, b_b - each 64-byte affine coordinates)
 			let elements = input.len() / 192;
 
-			let gas_cost: u64 =
-				Bn128Pairing::BASE_GAS_COST + (elements as u64 * Bn128Pairing::GAS_COST_PER_PAIRING);
+			let gas_cost: u64 = Bn128Pairing::BASE_GAS_COST
+				+ (elements as u64 * Bn128Pairing::GAS_COST_PER_PAIRING);
 			if let Some(gas_left) = target_gas {
 				if gas_left < gas_cost {
 					return ExitError::OutOfGas.into();
@@ -174,38 +179,48 @@ impl Precompile for Bn128Pairing {
 
 			let mut vals = Vec::new();
 			for idx in 0..elements {
-				let a_x = match Fq::from_slice(&input[idx*192..idx*192+32])
-					.map_err(|_| ExitError::Other("Invalid a argument x coordinate".into())) {
+				let a_x = match Fq::from_slice(&input[idx * 192..idx * 192 + 32])
+					.map_err(|_| ExitError::Other("Invalid a argument x coordinate".into()))
+				{
+					Ok(v) => v,
+					Err(e) => return e.into(),
+				};
+
+				let a_y = match Fq::from_slice(&input[idx * 192 + 32..idx * 192 + 64])
+					.map_err(|_| ExitError::Other("Invalid a argument y coordinate".into()))
+				{
+					Ok(v) => v,
+					Err(e) => return e.into(),
+				};
+
+				let b_a_y =
+					match Fq::from_slice(&input[idx * 192 + 64..idx * 192 + 96]).map_err(|_| {
+						ExitError::Other("Invalid b argument imaginary coeff x coordinate".into())
+					}) {
 						Ok(v) => v,
 						Err(e) => return e.into(),
 					};
 
-				let a_y = match Fq::from_slice(&input[idx*192+32..idx*192+64])
-					.map_err(|_| ExitError::Other("Invalid a argument y coordinate".into())) {
+				let b_a_x =
+					match Fq::from_slice(&input[idx * 192 + 96..idx * 192 + 128]).map_err(|_| {
+						ExitError::Other("Invalid b argument imaginary coeff y coordinate".into())
+					}) {
 						Ok(v) => v,
 						Err(e) => return e.into(),
 					};
 
-				let b_a_y = match Fq::from_slice(&input[idx*192+64..idx*192+96])
-					.map_err(|_| ExitError::Other("Invalid b argument imaginary coeff x coordinate".into())) {
+				let b_b_y =
+					match Fq::from_slice(&input[idx * 192 + 128..idx * 192 + 160]).map_err(|_| {
+						ExitError::Other("Invalid b argument real coeff x coordinate".into())
+					}) {
 						Ok(v) => v,
 						Err(e) => return e.into(),
 					};
 
-				let b_a_x = match Fq::from_slice(&input[idx*192+96..idx*192+128])
-					.map_err(|_| ExitError::Other("Invalid b argument imaginary coeff y coordinate".into())) {
-						Ok(v) => v,
-						Err(e) => return e.into(),
-					};
-
-				let b_b_y = match Fq::from_slice(&input[idx*192+128..idx*192+160])
-					.map_err(|_| ExitError::Other("Invalid b argument real coeff x coordinate".into())) {
-						Ok(v) => v,
-						Err(e) => return e.into(),
-					};
-
-				let b_b_x = match Fq::from_slice(&input[idx*192+160..idx*192+192])
-					.map_err(|_| ExitError::Other("Invalid b argument real coeff y coordinate".into())) {
+				let b_b_x =
+					match Fq::from_slice(&input[idx * 192 + 160..idx * 192 + 192]).map_err(|_| {
+						ExitError::Other("Invalid b argument real coeff y coordinate".into())
+					}) {
 						Ok(v) => v,
 						Err(e) => return e.into(),
 					};
@@ -215,21 +230,29 @@ impl Precompile for Bn128Pairing {
 				let b = if b_a.is_zero() && b_b.is_zero() {
 					G2::zero()
 				} else {
-					G2::from(match AffineG2::new(b_a, b_b).map_err(|_| ExitError::Other("Invalid b argument - not on curve".into())) {
-						Ok(v) => v,
-						Err(e) => return e.into(),
-					})
+					G2::from(
+						match AffineG2::new(b_a, b_b).map_err(|_| {
+							ExitError::Other("Invalid b argument - not on curve".into())
+						}) {
+							Ok(v) => v,
+							Err(e) => return e.into(),
+						},
+					)
 				};
 				let a = if a_x.is_zero() && a_y.is_zero() {
 					G1::zero()
 				} else {
-					G1::from(match AffineG1::new(a_x, a_y).map_err(|_| ExitError::Other("Invalid a argument - not on curve".into())) {
-						Ok(v) => v,
-						Err(e) => return e.into(),
-					})
+					G1::from(
+						match AffineG1::new(a_x, a_y).map_err(|_| {
+							ExitError::Other("Invalid a argument - not on curve".into())
+						}) {
+							Ok(v) => v,
+							Err(e) => return e.into(),
+						},
+					)
 				};
 				vals.push((a, b));
-			};
+			}
 
 			let mul = pairing_batch(&vals);
 

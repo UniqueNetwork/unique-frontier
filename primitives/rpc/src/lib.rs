@@ -17,12 +17,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_core::{H160, H256, U256};
-use ethereum::{Log, Block as EthereumBlock};
+use codec::{Decode, Encode};
+use ethereum::{BlockV0 as EthereumBlock, Log};
 use ethereum_types::Bloom;
-use codec::{Encode, Decode};
-use sp_std::vec::Vec;
+use sp_core::{H160, H256, U256};
 use sp_runtime::traits::Block as BlockT;
+use sp_std::vec::Vec;
 
 #[derive(Eq, PartialEq, Clone, Encode, Decode, sp_runtime::RuntimeDebug)]
 pub struct TransactionStatus {
@@ -100,10 +100,10 @@ sp_api::decl_runtime_apis! {
 		/// Receives a `Vec<OpaqueExtrinsic>` and filters all the ethereum transactions.
 		fn extrinsic_filter(
 			xts: Vec<<Block as BlockT>::Extrinsic>,
-		) -> Vec<ethereum::Transaction>;
+		) -> Vec<ethereum::TransactionV0>;
 	}
 }
 
 pub trait ConvertTransaction<E> {
-	fn convert_transaction(&self, transaction: ethereum::Transaction) -> E;
+	fn convert_transaction(&self, transaction: ethereum::TransactionV0) -> E;
 }
