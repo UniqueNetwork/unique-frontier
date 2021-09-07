@@ -19,13 +19,10 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use codec::Decode;
 use core::marker::PhantomData;
-use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
+use evm::{executor::PrecompileOutput, Context, ExitError, ExitReason, ExitSucceed};
 use fp_evm::Precompile;
-use evm::{ExitReason, ExitSucceed, ExitError, Context, executor::PrecompileOutput};
-use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, weights::{Pays, DispatchClass}};
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
 	weights::{DispatchClass, Pays},
@@ -42,12 +39,10 @@ where
 	T::Call: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo + Decode,
 	<T::Call as Dispatchable>::Origin: From<Option<T::AccountId>>,
 {
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		context: &Context,
-	) -> PrecompileOutput {
-		let call = match T::Call::decode(&mut &input[..]).map_err(|_| ExitError::Other("decode failed".into())) {
+	fn execute(input: &[u8], target_gas: Option<u64>, context: &Context) -> PrecompileOutput {
+		let call = match T::Call::decode(&mut &input[..])
+			.map_err(|_| ExitError::Other("decode failed".into()))
+		{
 			Ok(call) => call,
 			Err(e) => return e.into(),
 		};
@@ -55,13 +50,13 @@ where
 
 		let valid_call = info.pays_fee == Pays::Yes && info.class == DispatchClass::Normal;
 		if !valid_call {
-			return ExitError::Other("invalid call".into()).into()
+			return ExitError::Other("invalid call".into()).into();
 		}
 
 		if let Some(gas) = target_gas {
 			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(gas);
 			if !valid_weight {
-				return ExitError::OutOfGas.into()
+				return ExitError::OutOfGas.into();
 			}
 		}
 
@@ -69,14 +64,16 @@ where
 
 		match call.dispatch(Some(origin).into()) {
 			Ok(post_info) => {
-				let cost = T::GasWeightMapping::weight_to_gas(post_info.actual_weight.unwrap_or(info.weight));
+				let cost = T::GasWeightMapping::weight_to_gas(
+					post_info.actual_weight.unwrap_or(info.weight),
+				);
 				PrecompileOutput {
 					exit_status: ExitReason::Succeed(ExitSucceed::Stopped),
 					cost,
 					output: Default::default(),
 					logs: Default::default(),
 				}
-			},
+			}
 			Err(_) => ExitError::Other("dispatch execution failed".into()).into(),
 		}
 	}

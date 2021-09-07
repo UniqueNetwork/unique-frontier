@@ -16,6 +16,7 @@ use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 #[cfg(feature = "manual-seal")]
 use sc_consensus_manual_seal::{self as manual_seal};
+use sc_executor::Externalities;
 pub use sc_executor::NativeExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -39,8 +40,13 @@ pub struct Executor;
 impl sc_executor::NativeExecutionDispatch for Executor {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+	fn dispatch(
+		ext: &mut dyn Externalities,
+		method: &str,
+		data: &[u8],
+	) -> sc_service::Result<Vec<u8>, sc_executor::error::Error> {
 		frontier_template_runtime::api::dispatch(method, data)
+			.ok_or(sc_executor::error::Error::Runtime)
 	}
 
 	fn native_version() -> sc_executor::NativeVersion {

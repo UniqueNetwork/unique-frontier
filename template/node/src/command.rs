@@ -124,7 +124,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| {
 				// Remove Frontier offchain db
-				let frontier_database_config = sc_service::DatabaseSource::RocksDb {
+				let frontier_database_config = sc_service::DatabaseConfig::RocksDb {
 					path: frontier_database_dir(&config),
 					cache_size: 0,
 				};

@@ -26,8 +26,10 @@
 use codec::{Decode, Encode};
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
+use evm::ExitSucceed;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
 use fp_evm::CallOrCreateInfo;
+use fp_evm::TransactionValidityHack;
 use fp_storage::PALLET_ETHEREUM_SCHEMA;
 use frame_support::ensure;
 use frame_support::{
@@ -35,8 +37,10 @@ use frame_support::{
 	traits::Get,
 	weights::{Pays, PostDispatchInfo, Weight},
 };
+use pallet_evm::EvmSubmitLog;
 use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
 use sha3::{Digest, Keccak256};
+use sp_runtime::DispatchResult;
 use sp_runtime::{
 	generic::DigestItem,
 	traits::{One, Saturating, UniqueSaturatedInto, Zero},
@@ -61,6 +65,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use fp_evm::WithdrawReason;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -259,7 +264,7 @@ pub mod pallet {
 						return InvalidTransaction::Payment.into();
 					}
 				} else {
-					let fee_payer_data = pallet_evm::Module::<T>::account_basic(&fee_payer);
+					let fee_payer_data = pallet_evm::Pallet::<T>::account_basic(&fee_payer);
 					if account_data.balance < value || fee_payer_data.balance < fee {
 						return InvalidTransaction::Payment.into();
 					}
@@ -455,12 +460,9 @@ impl<T: Config> Pallet<T> {
 		.into()
 	}
 
-	pub fn add_transaction_result(
-		transaction: ethereum::Transaction,
-		logs: Vec<Log>,
-	) -> DispatchResult {
+	pub fn add_transaction_result(transaction: Transaction, logs: Vec<Log>) -> DispatchResult {
 		ensure!(
-			fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()).is_err(),
+			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
 			Error::<T>::PreLogExists,
 		);
 
@@ -468,7 +470,7 @@ impl<T: Config> Pallet<T> {
 			Self::recover_signer(&transaction).ok_or_else(|| Error::<T>::InvalidSignature)?;
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
-		let transaction_index = Pending::get().len() as u32;
+		let transaction_index = <Pending<T>>::get().len() as u32;
 
 		for log in logs.iter() {
 			T::EvmSubmitLog::submit_log(log.clone());
@@ -497,7 +499,7 @@ impl<T: Config> Pallet<T> {
 			logs: logs.clone(),
 		};
 
-		Pending::append((transaction, status, receipt));
+		<Pending<T>>::append((transaction, status, receipt));
 
 		Self::deposit_event(Event::Executed(
 			source,
@@ -575,18 +577,12 @@ impl<T: Config> Pallet<T> {
 }
 
 pub trait EthereumTransactionSender {
-	fn submit_logs_transaction(
-		transaction: ethereum::Transaction,
-		logs: Vec<Log>,
-	) -> DispatchResult;
+	fn submit_logs_transaction(transaction: Transaction, logs: Vec<Log>) -> DispatchResult;
 }
 
-impl<T: Config> EthereumTransactionSender for Module<T> {
-	fn submit_logs_transaction(
-		transaction: ethereum::Transaction,
-		logs: Vec<Log>,
-	) -> DispatchResult {
-		<Module<T>>::add_transaction_result(transaction, logs)
+impl<T: Config> EthereumTransactionSender for Pallet<T> {
+	fn submit_logs_transaction(transaction: Transaction, logs: Vec<Log>) -> DispatchResult {
+		<Pallet<T>>::add_transaction_result(transaction, logs)
 	}
 }
 

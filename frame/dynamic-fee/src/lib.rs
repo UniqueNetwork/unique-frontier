@@ -123,8 +123,8 @@ pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"dynfee0_";
 
 pub type InherentType = U256;
 
-// #[cfg(feature = "std")]
-// pub struct InherentDataProvider(pub InherentType);
+#[cfg(feature = "std")]
+pub struct InherentDataProvider(pub InherentType);
 
 #[cfg(feature = "std")]
 #[async_trait]

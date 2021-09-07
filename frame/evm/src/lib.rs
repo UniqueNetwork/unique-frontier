@@ -63,7 +63,9 @@ mod tests;
 pub mod benchmarks;
 
 pub use crate::runner::Runner;
+use evm::executor::PrecompileOutput;
 pub use evm::{ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
+use fp_evm::WithdrawReason;
 pub use fp_evm::{
 	Account, CallInfo, CreateInfo, ExecutionInfo, LinearCostPrecompile, Log, Precompile,
 	PrecompileSet, Vicinity,
@@ -79,6 +81,7 @@ use frame_support::traits::{
 };
 use frame_support::weights::{Pays, PostDispatchInfo, Weight};
 use frame_system::RawOrigin;
+use impl_trait_for_tuples::impl_for_tuples;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_core::{Hasher, H160, H256, U256};
@@ -93,6 +96,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use fp_evm::TransactionValidityHack;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -646,7 +650,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn add_log_record(log: Log) {
-		Module::<T>::deposit_event(Event::<T>::Log(log));
+		Pallet::<T>::deposit_event(Event::<T>::Log(log));
 	}
 
 	/// Get the author using the FindAuthor trait.
@@ -662,7 +666,7 @@ pub trait EvmSubmitLog {
 	fn submit_log(log: Log);
 }
 
-impl<T: Config> EvmSubmitLog for Module<T> {
+impl<T: Config> EvmSubmitLog for Pallet<T> {
 	fn submit_log(log: Log) {
 		Self::add_log_record(log);
 	}
@@ -702,7 +706,7 @@ impl<T> OnMethodCall<T> for () {
 		_target: &H160,
 		_gas_left: u64,
 		_input: &[u8],
-		_value: U256
+		_value: U256,
 	) -> Option<PrecompileOutput> {
 		None
 	}
@@ -750,9 +754,7 @@ impl<T> OnMethodCall<T> for Tuple {
 		None
 	}
 
-	fn get_code(
-		address: &H160,
-	) -> Option<Vec<u8>> {
+	fn get_code(address: &H160) -> Option<Vec<u8>> {
 		for_tuples!(#(
 			if let Some(r) = Tuple::get_code(address) {
 				return Some(r);
@@ -786,7 +788,11 @@ pub trait OnChargeEVMTransaction<T: Config> {
 
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
-	fn withdraw_fee(who: &H160, reason: WithdrawReason, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
+	fn withdraw_fee(
+		who: &H160,
+		reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>>;
 
 	/// After the transaction was executed the actual fee can be calculated.
 	/// This function should refund any overpaid fees and optionally deposit
@@ -821,7 +827,11 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
-	fn withdraw_fee(who: &H160, _reason: WithdrawReason, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
+	fn withdraw_fee(
+		who: &H160,
+		_reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>> {
 		let account_id = T::AddressMapping::into_account_id(*who);
 		let imbalance = C::withdraw(
 			&account_id,

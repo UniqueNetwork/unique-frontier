@@ -22,10 +22,14 @@ use crate::{
 	AccountCodes, AccountStorages, AddressMapping, BlockHashMapping, Config, Error, Event,
 	FeeCalculator, OnChargeEVMTransaction, Pallet, PrecompileSet,
 };
+use crate::{OnCreate, OnMethodCall};
 use evm::backend::Backend as BackendT;
-use evm::executor::{StackExecutor, StackState as StackStateT, StackSubstateMetadata};
-use evm::{ExitError, ExitReason, Transfer};
-use fp_evm::{CallInfo, CreateInfo, ExecutionInfo, Log, Vicinity};
+use evm::executor::{
+	PrecompileOutput, StackExecutor, StackState as StackStateT, StackSubstateMetadata,
+};
+use evm::{Context, ExitError, ExitReason, Transfer};
+use fp_evm::TransactionValidityHack;
+use fp_evm::{CallInfo, CreateInfo, ExecutionInfo, Log, Vicinity, WithdrawReason};
 use frame_support::{
 	ensure,
 	traits::{Currency, ExistenceRequirement, Get},
@@ -94,8 +98,7 @@ impl<T: Config> Runner<T> {
 
 		let metadata = StackSubstateMetadata::new(gas_limit, &config);
 		let state = SubstrateStackState::new(&vicinity, metadata);
-		let mut executor =
-			StackExecutor::new_with_precompile(state, config, T::Precompiles::execute);
+		let mut executor = StackExecutor::new_with_precompile(state, config, run_precompiles::<T>);
 
 		let total_fee = gas_price
 			.checked_mul(U256::from(gas_limit))

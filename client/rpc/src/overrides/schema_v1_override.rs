@@ -49,7 +49,7 @@ impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE, ()> {
 	}
 }
 
-impl<B, C, BE> SchemaV1Override<B, C, BE>
+impl<B, C, BE, A> SchemaV1Override<B, C, BE, A>
 where
 	C: StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,

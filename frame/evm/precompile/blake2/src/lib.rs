@@ -23,7 +23,6 @@ mod eip_152;
 
 use core::mem::size_of;
 use evm::{executor::PrecompileOutput, Context, ExitError, ExitReason, ExitSucceed};
-use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
 use fp_evm::Precompile;
 
 pub struct Blake2F;

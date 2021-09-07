@@ -21,11 +21,9 @@ mod precompile;
 
 use codec::{Decode, Encode};
 use evm::ExitReason;
-use evm::ExitReason;
 use impl_trait_for_tuples::impl_for_tuples;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_core::{H160, U256};
 use sp_core::{H160, U256};
 use sp_std::vec::Vec;
 

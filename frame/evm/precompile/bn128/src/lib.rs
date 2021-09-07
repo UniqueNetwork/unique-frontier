@@ -21,7 +21,6 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use evm::{executor::PrecompileOutput, Context, ExitError, ExitReason, ExitSucceed};
-use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
 use fp_evm::Precompile;
 use sp_core::U256;
 

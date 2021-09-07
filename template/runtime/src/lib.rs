@@ -42,7 +42,6 @@ pub use frame_support::{
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
 use pallet_evm::{Account as EVMAccount, EnsureAddressTruncated, HashedAddressMapping, Runner};
-use pallet_evm::{Account as EVMAccount, EnsureAddressTruncated, HashedAddressMapping, Runner};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]
@@ -253,8 +252,6 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -324,7 +321,7 @@ impl pallet_evm::Config for Runtime {
 impl pallet_ethereum::Config for Runtime {
 	type Event = Event;
 	type StateRoot = pallet_ethereum::IntermediateStateRoot;
-	type EvmSubmitLog = pallet_evm::Module<Runtime>;
+	type EvmSubmitLog = pallet_evm::Pallet<Runtime>;
 }
 
 frame_support::parameter_types! {
@@ -334,8 +331,6 @@ frame_support::parameter_types! {
 impl pallet_dynamic_fee::Config for Runtime {
 	type MinGasPriceBoundDivisor = BoundDivision;
 }
-
-impl pallet_randomness_collective_flip::Config for Runtime {}
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -412,7 +407,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules,
+	AllPallets,
 >;
 
 impl_runtime_apis! {
@@ -507,7 +502,7 @@ impl_runtime_apis! {
 		}
 
 		fn author() -> H160 {
-			<pallet_evm::Module<Runtime>>::find_author()
+			<pallet_evm::Pallet<Runtime>>::find_author()
 		}
 
 		fn storage_at(address: H160, index: U256) -> H256 {

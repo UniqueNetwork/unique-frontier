@@ -38,6 +38,10 @@ use fc_rpc_core::types::{
 	Bytes, FilteredParams, Header, Log, Rich,
 };
 use fc_rpc_core::EthPubSubApi::{self as EthPubSubApiT};
+use futures::StreamExt;
+use futures::TryStreamExt;
+use jsonrpc_core::futures::Future;
+use jsonrpc_core::futures::Sink;
 use jsonrpc_pubsub::{
 	manager::{IdProvider, SubscriptionManager},
 	typed::Subscriber,
@@ -46,7 +50,6 @@ use jsonrpc_pubsub::{
 use sha3::{Digest, Keccak256};
 
 pub use fc_rpc_core::EthPubSubApiServer;
-use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use fp_rpc::EthereumRuntimeRPCApi;
 use jsonrpc_core::Result as JsonRpcResult;
@@ -275,12 +278,12 @@ where
 
 								match (receipts, block) {
 									(Some(receipts), Some(block)) => {
-										futures::future::ready(Some((block, receipts)))
+										core::future::ready(Some((block, receipts)))
 									}
-									_ => futures::future::ready(None),
+									_ => core::future::ready(None),
 								}
 							} else {
-								futures::future::ready(None)
+								core::future::ready(None)
 							}
 						})
 						.flat_map(move |(block, receipts)| {
@@ -294,11 +297,10 @@ where
 							return Ok::<Result<PubSubResult, jsonrpc_core::types::error::Error>, ()>(
 								Ok(PubSubResult::Log(Box::new(x))),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -321,18 +323,17 @@ where
 									.unwrap_or(&overrides.fallback);
 
 								let block = handler.current_block(&id);
-								futures::future::ready(block)
+								core::future::ready(block)
 							} else {
-								futures::future::ready(None)
+								core::future::ready(None)
 							}
 						})
 						.map(|block| {
 							return Ok::<_, ()>(Ok(SubscriptionResult::new().new_heads(block)));
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -358,9 +359,9 @@ where
 									}
 									_ => None,
 								};
-								futures::future::ready(res)
+								core::future::ready(res)
 							} else {
-								futures::future::ready(None)
+								core::future::ready(None)
 							}
 						})
 						.map(|transaction| {
@@ -369,11 +370,10 @@ where
 									Keccak256::digest(&rlp::encode(&transaction)).as_slice(),
 								))),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -386,9 +386,9 @@ where
 							let syncing = network.is_major_syncing();
 							if notification.is_new_best && previous_syncing != syncing {
 								previous_syncing = syncing;
-								futures::future::ready(Some(syncing))
+								core::future::ready(Some(syncing))
 							} else {
-								futures::future::ready(None)
+								core::future::ready(None)
 							}
 						})
 						.map(|syncing| {
@@ -397,11 +397,10 @@ where
 									syncing: syncing,
 								})),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
