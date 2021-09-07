@@ -63,7 +63,7 @@ mod tests;
 pub mod benchmarks;
 
 pub use crate::runner::Runner;
-use evm::executor::PrecompileOutput;
+pub use evm::executor::PrecompileOutput;
 pub use evm::{ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
 use fp_evm::WithdrawReason;
 pub use fp_evm::{
