@@ -28,7 +28,7 @@ mod schema_v1_override;
 
 pub use fc_rpc_core::{EthApiServer, NetApiServer};
 use pallet_ethereum::EthereumStorageSchema;
-pub use schema_v1_override::SchemaV1Override;
+pub use schema_v1_override::{SchemaV1Override, AccountCodeProvider};
 
 pub struct OverrideHandle<Block: BlockT> {
 	pub schemas: BTreeMap<EthereumStorageSchema, Box<dyn StorageOverride<Block> + Send + Sync>>,
