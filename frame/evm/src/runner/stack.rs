@@ -100,21 +100,7 @@ impl<T: Config> Runner<T> {
 		let state = SubstrateStackState::new(&vicinity, metadata);
 		let mut executor = StackExecutor::new_with_precompile(state, config, run_precompiles::<T>);
 
-		let total_fee = gas_price
-			.checked_mul(U256::from(gas_limit))
-			.ok_or(Error::<T>::FeeOverflow)?;
-		let total_payment = value
-			.checked_add(total_fee)
-			.ok_or(Error::<T>::PaymentOverflow)?;
 		let source_account = Pallet::<T>::account_basic(&source);
-		ensure!(
-			source_account.balance >= total_payment,
-			Error::<T>::BalanceLow
-		);
-
-		if let Some(nonce) = nonce {
-			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
-		}
 
 		let total_fee = gas_price
 			.checked_mul(U256::from(gas_limit))
@@ -134,6 +120,10 @@ impl<T: Config> Runner<T> {
 			if source_account.balance < value || fee_payer_data.balance < total_fee {
 				return Err(Error::<T>::BalanceLow.into());
 			}
+		}
+
+		if let Some(nonce) = nonce {
+			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
 		}
 
 		// Deduct fee from the `source` account.

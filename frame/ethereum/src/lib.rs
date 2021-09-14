@@ -240,10 +240,6 @@ pub mod pallet {
 
 				let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
-				if transaction.nonce < account_data.nonce {
-					return InvalidTransaction::Stale.into();
-				}
-
 				let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
 				let value = transaction.value;
 				let fee_payer = T::TransactionValidityHack::who_pays_fee(
@@ -268,6 +264,10 @@ pub mod pallet {
 					if account_data.balance < value || fee_payer_data.balance < fee {
 						return InvalidTransaction::Payment.into();
 					}
+				}
+
+				if transaction.nonce < account_data.nonce {
+					return InvalidTransaction::Stale.into();
 				}
 
 				let min_gas_price = T::FeeCalculator::min_gas_price();
