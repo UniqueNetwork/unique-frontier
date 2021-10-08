@@ -28,7 +28,7 @@ use evm::executor::{
 	PrecompileOutput, StackExecutor, StackState as StackStateT, StackSubstateMetadata,
 };
 use evm::{Context, ExitError, ExitReason, Transfer};
-use fp_evm::TransactionValidityHack;
+use fp_evm::{TransactionValidityHack};
 use fp_evm::{CallInfo, CreateInfo, ExecutionInfo, Log, Vicinity, WithdrawReason};
 use frame_support::{
 	ensure,

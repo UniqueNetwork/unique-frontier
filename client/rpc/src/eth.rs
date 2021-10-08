@@ -735,18 +735,18 @@ where
 		Ok(Bytes(vec![]))
 	}
 
-	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<H256> {
+	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<Result<H256>> {
 		let from = match request.from {
 			Some(from) => from,
 			None => {
 				let accounts = match self.accounts() {
 					Ok(accounts) => accounts,
-					Err(e) => return Box::new(future::err(e)),
+					Err(e) => return Box::pin(future::err(e)),
 				};
 
 				match accounts.get(0) {
 					Some(account) => account.clone(),
-					None => return Box::new(future::err(internal_err("no signer available"))),
+					None => return Box::pin(future::err(internal_err("no signer available"))),
 				}
 			}
 		};
@@ -755,13 +755,13 @@ where
 			Some(nonce) => nonce,
 			None => match self.transaction_count(from, None) {
 				Ok(nonce) => nonce,
-				Err(e) => return Box::new(future::err(e)),
+				Err(e) => return Box::pin(future::err(e)),
 			},
 		};
 
 		let chain_id = match self.chain_id() {
 			Ok(chain_id) => chain_id,
-			Err(e) => return Box::new(future::err(e)),
+			Err(e) => return Box::pin(future::err(e)),
 		};
 
 		let message = ethereum::LegacyTransactionMessage {
@@ -783,7 +783,7 @@ where
 			if signer.accounts().contains(&from) {
 				match signer.sign(message, &from) {
 					Ok(t) => transaction = Some(t),
-					Err(e) => return Box::new(future::err(e)),
+					Err(e) => return Box::pin(future::err(e)),
 				}
 				break;
 			}
@@ -791,14 +791,14 @@ where
 
 		let transaction = match transaction {
 			Some(transaction) => transaction,
-			None => return Box::new(future::err(internal_err("no signer available"))),
+			None => return Box::pin(future::err(internal_err("no signer available"))),
 		};
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let hash = self.client.info().best_hash;
 		let number = self.client.info().best_number;
 		let pending = self.pending_transactions.clone();
-		Box::new(
+		Box::pin(
 			self.pool
 				.submit_one(
 					&BlockId::hash(hash),
@@ -822,22 +822,21 @@ where
 				})
 				.map_err(|err| {
 					internal_err(format!("submit transaction to pool failed: {:?}", err))
-				})
-				.compat(),
+				}),
 		)
 	}
 
-	fn send_raw_transaction(&self, bytes: Bytes) -> BoxFuture<H256> {
+	fn send_raw_transaction(&self, bytes: Bytes) -> BoxFuture<Result<H256>> {
 		let transaction = match rlp::decode::<ethereum::TransactionV0>(&bytes.0[..]) {
 			Ok(transaction) => transaction,
-			Err(_) => return Box::new(future::err(internal_err("decode transaction failed"))),
+			Err(_) => return Box::pin(future::err(internal_err("decode transaction failed"))),
 		};
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let hash = self.client.info().best_hash;
 		let number = self.client.info().best_number;
 		let pending = self.pending_transactions.clone();
-		Box::new(
+		Box::pin(
 			self.pool
 				.submit_one(
 					&BlockId::hash(hash),
@@ -861,8 +860,7 @@ where
 				})
 				.map_err(|err| {
 					internal_err(format!("submit transaction to pool failed: {:?}", err))
-				})
-				.compat(),
+				}),
 		)
 	}
 

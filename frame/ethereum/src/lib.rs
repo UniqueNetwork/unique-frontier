@@ -196,7 +196,7 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			if let Call::transact(transaction) = call {
+			if let Call::transact { transaction } = call {
 				// We must ensure a transaction can pay the cost of its data bytes.
 				// If it can't it should not be included in a block.
 				let mut gasometer = evm::gasometer::Gasometer::new(
@@ -381,7 +381,7 @@ impl<T: Config> Pallet<T> {
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let transaction_index = Pending::<T>::get().len() as u32;
 
-		let (to, contract_address, info) = Self::execute(
+		let (to, _contract_address, info) = Self::execute(
 			source,
 			transaction.input.clone(),
 			transaction.value,

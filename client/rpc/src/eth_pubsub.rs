@@ -38,8 +38,9 @@ use fc_rpc_core::types::{
 	Bytes, FilteredParams, Header, Log, Rich,
 };
 use fc_rpc_core::EthPubSubApi::{self as EthPubSubApiT};
-use futures::StreamExt;
+use futures::FutureExt;
 use futures::TryStreamExt;
+use futures::{SinkExt, StreamExt};
 use jsonrpc_core::futures::Future;
 use jsonrpc_core::futures::Sink;
 use jsonrpc_pubsub::{
@@ -297,10 +298,11 @@ where
 							return Ok::<Result<PubSubResult, jsonrpc_core::types::error::Error>, ()>(
 								Ok(PubSubResult::Log(Box::new(x))),
 							);
-						})
-						.compat();
-					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
-						.send_all(stream)
+						});
+					stream
+						.forward(
+							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
+						)
 						.map(|_| ())
 				});
 			}
@@ -330,10 +332,11 @@ where
 						})
 						.map(|block| {
 							return Ok::<_, ()>(Ok(SubscriptionResult::new().new_heads(block)));
-						})
-						.compat();
-					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
-						.send_all(stream)
+						});
+					stream
+						.forward(
+							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
+						)
 						.map(|_| ())
 				});
 			}
@@ -370,10 +373,11 @@ where
 									Keccak256::digest(&rlp::encode(&transaction)).as_slice(),
 								))),
 							);
-						})
-						.compat();
-					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
-						.send_all(stream)
+						});
+					stream
+						.forward(
+							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
+						)
 						.map(|_| ())
 				});
 			}
@@ -397,10 +401,11 @@ where
 									syncing: syncing,
 								})),
 							);
-						})
-						.compat();
-					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
-						.send_all(stream)
+						});
+					stream
+						.forward(
+							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
+						)
 						.map(|_| ())
 				});
 			}
