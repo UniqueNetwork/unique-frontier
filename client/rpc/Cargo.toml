@@ -22,6 +22,7 @@ sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "polkado
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
 sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
 sp-storage = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.12" }
@@ -41,6 +42,8 @@ sha3 = "0.8"
 rustc-hex = { version = "2.1.0", default-features = false }
 libsecp256k1 = "0.3"
 rand = "0.7"
+lru = "0.6.6"
+parking_lot = "0.11.1"
 
 [features]
 rpc_binary_search_estimate = []

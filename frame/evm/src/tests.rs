@@ -20,8 +20,10 @@
 use super::*;
 use crate::mock::*;
 
-use frame_support::assert_ok;
-use frame_support::traits::{GenesisBuild, LockIdentifier, LockableCurrency, WithdrawReasons};
+use frame_support::{
+	assert_ok,
+	traits::{GenesisBuild, LockIdentifier, LockableCurrency, WithdrawReasons},
+};
 use std::{collections::BTreeMap, str::FromStr};
 
 type Balances = pallet_balances::Pallet<Test>;
@@ -106,7 +108,7 @@ fn fee_deduction() {
 		assert_eq!(Balances::free_balance(&substrate_addr), 90);
 
 		// Refund fees as 5 units
-		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&evm_addr, U256::from(5), imbalance).unwrap();
+		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&evm_addr, U256::from(5), imbalance);
 		assert_eq!(Balances::free_balance(&substrate_addr), 95);
 	});
 }

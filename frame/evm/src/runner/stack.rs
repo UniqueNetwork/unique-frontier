@@ -17,19 +17,19 @@
 
 //! EVM stack-based runner.
 
-use crate::runner::Runner as RunnerT;
 use crate::{
-	AccountCodes, AccountStorages, AddressMapping, BlockHashMapping, Config, Error, Event,
-	FeeCalculator, OnChargeEVMTransaction, Pallet, PrecompileSet,
+	runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
+	Config, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet,
+	PrecompileSet,
 };
-use crate::{OnCreate, OnMethodCall};
-use evm::backend::Backend as BackendT;
-use evm::executor::{
-	PrecompileOutput, StackExecutor, StackState as StackStateT, StackSubstateMetadata,
+use evm::{
+	backend::Backend as BackendT,
+	executor::{PrecompileOutput, StackExecutor, StackState as StackStateT, StackSubstateMetadata},
+	Context, ExitError, ExitReason, Transfer,
 };
-use evm::{Context, ExitError, ExitReason, Transfer};
-use fp_evm::{TransactionValidityHack};
-use fp_evm::{CallInfo, CreateInfo, ExecutionInfo, Log, Vicinity, WithdrawReason};
+use fp_evm::{
+	CallInfo, CreateInfo, ExecutionInfo, Log, TransactionValidityHack, Vicinity, WithdrawReason,
+};
 use frame_support::{
 	ensure,
 	traits::{Currency, ExistenceRequirement, Get},
@@ -145,7 +145,7 @@ impl<T: Config> Runner<T> {
 		);
 
 		// Refund fees to the `source` account if deducted more before,
-		T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_fee, fee)?;
+		T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_fee, fee);
 
 		let state = executor.into_state();
 

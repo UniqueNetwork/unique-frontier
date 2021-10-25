@@ -20,7 +20,7 @@
 mod precompile;
 
 use codec::{Decode, Encode};
-use evm::ExitReason;
+pub use evm::ExitReason;
 use impl_trait_for_tuples::impl_for_tuples;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,10 @@ use sp_core::{H160, U256};
 use sp_std::vec::Vec;
 
 pub use evm::backend::{Basic as Account, Log};
-pub use precompile::{LinearCostPrecompile, Precompile, PrecompileSet};
+pub use precompile::{
+	Context, ExitError, ExitSucceed, LinearCostPrecompile, Precompile, PrecompileOutput,
+	PrecompileSet,
+};
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]

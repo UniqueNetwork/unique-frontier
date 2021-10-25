@@ -21,6 +21,7 @@ members = [
 	"primitives/consensus",
 	"primitives/evm",
 	"primitives/rpc",
+	"primitives/self-contained",
 	"template/node",
 	"template/runtime",
 ]
