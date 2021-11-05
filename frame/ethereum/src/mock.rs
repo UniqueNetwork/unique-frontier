@@ -170,7 +170,6 @@ impl pallet_evm::Config for Test {
 impl crate::Config for Test {
 	type Event = Event;
 	type StateRoot = IntermediateStateRoot;
-	type EvmSubmitLog = pallet_evm::Module<Test>;
 }
 
 impl fp_self_contained::SelfContainedCall for Call {

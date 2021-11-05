@@ -25,18 +25,17 @@
 
 use codec::{Decode, Encode};
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
-use evm::{ExitReason, ExitSucceed};
+use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
 use fp_evm::{CallOrCreateInfo, TransactionValidityHack, WithdrawReason};
 use fp_storage::PALLET_ETHEREUM_SCHEMA;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	ensure,
 	traits::{EnsureOrigin, Get},
 	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::pallet_prelude::OriginFor;
-use pallet_evm::{BlockHashMapping, EvmSubmitLog, FeeCalculator, GasWeightMapping, Runner};
+use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
@@ -45,7 +44,7 @@ use sp_runtime::{
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
-	DispatchError, DispatchResult, RuntimeDebug,
+	DispatchError, RuntimeDebug,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 
@@ -164,8 +163,6 @@ pub mod pallet {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 		/// How Ethereum state root is calculated.
 		type StateRoot: Get<H256>;
-
-		type EvmSubmitLog: pallet_evm::EvmSubmitLog;
 	}
 
 	#[pallet::pallet]
@@ -563,21 +560,15 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn add_transaction_result(transaction: Transaction, logs: Vec<Log>) -> DispatchResult {
-		ensure!(
+	pub fn add_transaction_result(source: H160, transaction: Transaction, logs: Vec<Log>) {
+		assert!(
 			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
-			Error::<T>::PreLogExists,
+			"this method is supposed to be called only from other pallets",
 		);
 
-		let source =
-			Self::recover_signer(&transaction).ok_or_else(|| Error::<T>::InvalidSignature)?;
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let transaction_index = <Pending<T>>::get().len() as u32;
-
-		for log in logs.iter() {
-			T::EvmSubmitLog::submit_log(log.clone());
-		}
 
 		let logs_bloom = {
 			let mut bloom: Bloom = Bloom::default();
@@ -603,15 +594,6 @@ impl<T: Config> Pallet<T> {
 		};
 
 		<Pending<T>>::append((transaction, status, receipt));
-
-		Self::deposit_event(Event::Executed(
-			source,
-			H160::default(),
-			transaction_hash,
-			ExitReason::Succeed(ExitSucceed::Returned),
-		));
-
-		Ok(())
 	}
 
 	/// Get the transaction status with given index.
@@ -703,12 +685,12 @@ impl<T: Config> Pallet<T> {
 }
 
 pub trait EthereumTransactionSender {
-	fn submit_logs_transaction(transaction: Transaction, logs: Vec<Log>) -> DispatchResult;
+	fn submit_logs_transaction(source: H160, transaction: Transaction, logs: Vec<Log>);
 }
 
 impl<T: Config> EthereumTransactionSender for Pallet<T> {
-	fn submit_logs_transaction(transaction: Transaction, logs: Vec<Log>) -> DispatchResult {
-		<Pallet<T>>::add_transaction_result(transaction, logs)
+	fn submit_logs_transaction(source: H160, transaction: Transaction, logs: Vec<Log>) {
+		<Pallet<T>>::add_transaction_result(source, transaction, logs)
 	}
 }
 

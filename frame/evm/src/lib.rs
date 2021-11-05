@@ -63,8 +63,9 @@ mod tests;
 pub mod benchmarks;
 
 pub use crate::runner::Runner;
-pub use evm::executor::PrecompileOutput;
-pub use evm::{ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
+pub use evm::{
+	executor::PrecompileOutput, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
+};
 use fp_evm::WithdrawReason;
 pub use fp_evm::{
 	Account, CallInfo, CreateInfo, ExecutionInfo, LinearCostPrecompile, Log, Precompile,
@@ -650,26 +651,12 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn add_log_record(log: Log) {
-		Pallet::<T>::deposit_event(Event::<T>::Log(log));
-	}
-
 	/// Get the author using the FindAuthor trait.
 	pub fn find_author() -> H160 {
 		let digest = <frame_system::Pallet<T>>::digest();
 		let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 
 		T::FindAuthor::find_author(pre_runtime_digests).unwrap_or_default()
-	}
-}
-
-pub trait EvmSubmitLog {
-	fn submit_log(log: Log);
-}
-
-impl<T: Config> EvmSubmitLog for Pallet<T> {
-	fn submit_log(log: Log) {
-		Self::add_log_record(log);
 	}
 }
 
