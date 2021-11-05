@@ -40,11 +40,7 @@ pub trait Precompile {
 	/// Try to execute the precompile. Calculate the amount of gas needed with given `input` and
 	/// `target_gas`. Return `Ok(status, output, gas_used)` if the execution is
 	/// successful. Otherwise return `Err(_)`.
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		context: &Context,
-	) -> PrecompileOutput;
+	fn execute(input: &[u8], target_gas: Option<u64>, context: &Context) -> PrecompileOutput;
 }
 
 #[impl_for_tuples(16)]
@@ -79,11 +75,7 @@ pub trait LinearCostPrecompile {
 }
 
 impl<T: LinearCostPrecompile> Precompile for T {
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		_: &Context,
-	) -> PrecompileOutput {
+	fn execute(input: &[u8], target_gas: Option<u64>, _: &Context) -> PrecompileOutput {
 		let cost = match ensure_linear_cost(target_gas, input.len() as u64, T::BASE, T::WORD) {
 			Ok(cost) => cost,
 			Err(e) => {
@@ -93,7 +85,7 @@ impl<T: LinearCostPrecompile> Precompile for T {
 					output: Default::default(),
 					logs: Default::default(),
 				}
-			},
+			}
 		};
 
 		match T::execute(input, cost) {
