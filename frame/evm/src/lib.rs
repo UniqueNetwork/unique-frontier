@@ -64,11 +64,11 @@ pub mod benchmarks;
 
 pub use crate::runner::Runner;
 pub use evm::{ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
+use fp_evm::WithdrawReason;
 pub use fp_evm::{
 	Account, CallInfo, CreateInfo, ExecutionInfo, LinearCostPrecompile, Log, Precompile,
-	StaticPrecompileSet, Vicinity,
+	PrecompileOutput, PrecompileResult, StaticPrecompileSet, Vicinity, PrecompileFailure,
 };
-use fp_evm::{PrecompileResult, WithdrawReason};
 
 #[cfg(feature = "std")]
 use codec::{Decode, Encode};
