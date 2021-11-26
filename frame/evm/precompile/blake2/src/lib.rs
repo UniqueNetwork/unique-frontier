@@ -22,7 +22,7 @@ extern crate alloc;
 mod eip_152;
 
 use core::mem::size_of;
-use fp_evm::{Context, ExitError, ExitReason, ExitSucceed, Precompile, PrecompileOutput};
+use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
 
 pub struct Blake2F;
 
@@ -33,14 +33,19 @@ impl Blake2F {
 impl Precompile for Blake2F {
 	/// Format of `input`:
 	/// [4 bytes for rounds][64 bytes for h][128 bytes for m][8 bytes for t_0][8 bytes for t_1][1 byte for f]
-	fn execute(input: &[u8], target_gas: Option<u64>, _context: &Context) -> PrecompileOutput {
+	fn execute(
+		input: &[u8],
+		target_gas: Option<u64>,
+		_context: &Context,
+		_is_static: bool,
+	) -> PrecompileResult {
 		const BLAKE2_F_ARG_LEN: usize = 213;
 
 		if input.len() != BLAKE2_F_ARG_LEN {
-			return ExitError::Other(
+			return Err(ExitError::Other(
 				"input length for Blake2 F precompile should be exactly 213 bytes".into(),
 			)
-			.into();
+			.into());
 		}
 
 		let mut rounds_buf: [u8; 4] = [0; 4];
@@ -50,7 +55,7 @@ impl Precompile for Blake2F {
 		let gas_cost: u64 = (rounds as u64) * Blake2F::GAS_COST_PER_ROUND;
 		if let Some(gas_left) = target_gas {
 			if gas_left < gas_cost {
-				return ExitError::OutOfGas.into();
+				return Err(ExitError::OutOfGas.into());
 			}
 		}
 
@@ -91,7 +96,7 @@ impl Precompile for Blake2F {
 		} else if input[212] == 0 {
 			false
 		} else {
-			return ExitError::Other("incorrect final block indicator flag".into()).into();
+			return Err(ExitError::Other("incorrect final block indicator flag".into()).into());
 		};
 
 		crate::eip_152::compress(&mut h, m, [t_0.into(), t_1.into()], f, rounds as usize);
@@ -101,12 +106,12 @@ impl Precompile for Blake2F {
 			output_buf[i * 8..(i + 1) * 8].copy_from_slice(&state_word.to_le_bytes());
 		}
 
-		PrecompileOutput {
-			exit_status: ExitReason::Succeed(ExitSucceed::Returned),
+		Ok(PrecompileOutput {
+			exit_status: ExitSucceed::Returned,
 			cost: gas_cost,
 			output: output_buf.to_vec(),
 			logs: Default::default(),
-		}
+		})
 	}
 }
 

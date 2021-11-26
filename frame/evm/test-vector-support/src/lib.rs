@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use evm::{Context, ExitReason, ExitSucceed};
+use evm::{Context, ExitSucceed};
 use fp_evm::Precompile;
 
 #[cfg(feature = "std")]
@@ -52,15 +52,15 @@ pub fn test_precompile_test_vectors<P: Precompile>(
 		let context: Context = Context {
 			address: Default::default(),
 			caller: Default::default(),
-			apparent_value: From::from(0),
+			apparent_value: From::from(0u32),
 		};
 
-		match P::execute(&input, Some(cost), &context) {
-			result if matches!(result.exit_status, ExitReason::Succeed(_)) => {
+		match P::execute(&input, Some(cost), &context, false) {
+			Ok(result) => {
 				let as_hex: String = hex::encode(result.output);
 				assert_eq!(
 					result.exit_status,
-					ExitReason::Succeed(ExitSucceed::Returned),
+					ExitSucceed::Returned,
 					"test '{}' returned {:?} (expected 'Returned')",
 					test.Name,
 					result.exit_status
@@ -78,7 +78,7 @@ pub fn test_precompile_test_vectors<P: Precompile>(
 					);
 				}
 			}
-			err => {
+			Err(err) => {
 				return Err(format!("Test '{}' returned error: {:?}", test.Name, err));
 			}
 		}

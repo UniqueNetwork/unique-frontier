@@ -381,9 +381,11 @@ impl<T: Config> Pallet<T> {
 			<T as pallet_evm::Config>::config(),
 		);
 		let transaction_cost = match transaction.action {
-			TransactionAction::Call(_) => evm::gasometer::call_transaction_cost(&transaction.input),
+			TransactionAction::Call(_) => {
+				evm::gasometer::call_transaction_cost(&transaction.input, &[])
+			}
 			TransactionAction::Create => {
-				evm::gasometer::create_transaction_cost(&transaction.input)
+				evm::gasometer::create_transaction_cost(&transaction.input, &[])
 			}
 		};
 		if gasometer.record_transaction(transaction_cost).is_err() {

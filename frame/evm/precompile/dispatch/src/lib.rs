@@ -22,7 +22,7 @@ extern crate alloc;
 use codec::Decode;
 use core::marker::PhantomData;
 
-use fp_evm::{Context, ExitError, ExitReason, ExitSucceed, Precompile, PrecompileOutput};
+use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
 	weights::{DispatchClass, Pays},
@@ -39,24 +39,25 @@ where
 	T::Call: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo + Decode,
 	<T::Call as Dispatchable>::Origin: From<Option<T::AccountId>>,
 {
-	fn execute(input: &[u8], target_gas: Option<u64>, context: &Context) -> PrecompileOutput {
-		let call = match T::Call::decode(&mut &input[..])
-			.map_err(|_| ExitError::Other("decode failed".into()))
-		{
-			Ok(call) => call,
-			Err(e) => return e.into(),
-		};
+	fn execute(
+		input: &[u8],
+		target_gas: Option<u64>,
+		context: &Context,
+		_is_static: bool,
+	) -> PrecompileResult {
+		let call = T::Call::decode(&mut &input[..])
+			.map_err(|_| ExitError::Other("decode failed".into()))?;
 		let info = call.get_dispatch_info();
 
 		let valid_call = info.pays_fee == Pays::Yes && info.class == DispatchClass::Normal;
 		if !valid_call {
-			return ExitError::Other("invalid call".into()).into();
+			return Err(ExitError::Other("invalid call".into()).into());
 		}
 
 		if let Some(gas) = target_gas {
 			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(gas);
 			if !valid_weight {
-				return ExitError::OutOfGas.into();
+				return Err(ExitError::OutOfGas.into());
 			}
 		}
 
@@ -67,14 +68,14 @@ where
 				let cost = T::GasWeightMapping::weight_to_gas(
 					post_info.actual_weight.unwrap_or(info.weight),
 				);
-				PrecompileOutput {
-					exit_status: ExitReason::Succeed(ExitSucceed::Stopped),
+				Ok(PrecompileOutput {
+					exit_status: ExitSucceed::Stopped,
 					cost,
 					output: Default::default(),
 					logs: Default::default(),
-				}
+				})
 			}
-			Err(_) => ExitError::Other("dispatch execution failed".into()).into(),
+			Err(_) => Err(ExitError::Other("dispatch execution failed".into()).into()),
 		}
 	}
 }

@@ -20,15 +20,15 @@
 use crate::{
 	runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
 	Config, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet,
-	PrecompileSet,
 };
 use evm::{
 	backend::Backend as BackendT,
-	executor::{PrecompileOutput, StackExecutor, StackState as StackStateT, StackSubstateMetadata},
+	executor::stack::{Accessed, PrecompileSet, StackExecutor, StackState, StackSubstateMetadata},
 	Context, ExitError, ExitReason, Transfer,
 };
 use fp_evm::{
-	CallInfo, CreateInfo, ExecutionInfo, Log, TransactionValidityHack, Vicinity, WithdrawReason,
+	CallInfo, CreateInfo, ExecutionInfo, Log, PrecompileResult, StaticPrecompileSet,
+	TransactionValidityHack, Vicinity, WithdrawReason,
 };
 use frame_support::{
 	ensure,
@@ -44,22 +44,38 @@ pub struct Runner<T: Config> {
 	_marker: PhantomData<T>,
 }
 
-fn run_precompiles<T: Config>(
-	addr: H160,
-	value: &[u8],
-	target_gas: Option<u64>,
-	context: &Context,
-) -> Option<PrecompileOutput> {
-	if let Some(value) = T::OnMethodCall::call(
-		&context.caller,
-		&addr,
-		target_gas.unwrap_or(u64::MAX),
-		value,
-		context.apparent_value,
-	) {
-		return Some(value);
+pub struct PrecompileSetWithMethods<T: Config>(PhantomData<T>);
+
+impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
+	fn execute(
+		&self,
+		address: H160,
+		input: &[u8],
+		gas_limit: Option<u64>,
+		context: &Context,
+		is_static: bool,
+	) -> Option<PrecompileResult> {
+		if let Some(result) = <T::Precompiles as StaticPrecompileSet>::execute(
+			address, input, gas_limit, context, is_static,
+		) {
+			Some(result)
+		} else if let Some(result) = T::OnMethodCall::call(
+			&context.caller,
+			&address,
+			gas_limit.unwrap_or(u64::MAX),
+			input,
+			context.apparent_value,
+		) {
+			Some(result)
+		} else {
+			None
+		}
 	}
-	T::Precompiles::execute(addr, value, target_gas, context).map(|v| v.into())
+
+	fn is_precompile(&self, address: H160) -> bool {
+		<T::Precompiles as StaticPrecompileSet>::is_precompile(address)
+			|| T::OnMethodCall::is_used(&address)
+	}
 }
 
 impl<T: Config> Runner<T> {
@@ -76,7 +92,12 @@ impl<T: Config> Runner<T> {
 	) -> Result<ExecutionInfo<R>, Error<T>>
 	where
 		F: FnOnce(
-			&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>>,
+			&mut StackExecutor<
+				'config,
+				'_,
+				SubstrateStackState<'_, 'config, T>,
+				PrecompileSetWithMethods<T>,
+			>,
 		) -> (ExitReason, R),
 	{
 		// Gas price check is skipped when performing a gas estimation.
@@ -98,7 +119,11 @@ impl<T: Config> Runner<T> {
 
 		let metadata = StackSubstateMetadata::new(gas_limit, &config);
 		let state = SubstrateStackState::new(&vicinity, metadata);
-		let mut executor = StackExecutor::new_with_precompile(state, config, run_precompiles::<T>);
+		let mut executor = StackExecutor::new_with_precompiles(
+			state,
+			config,
+			&PrecompileSetWithMethods::<T>(PhantomData),
+		);
 
 		let source_account = Pallet::<T>::account_basic(&source);
 
@@ -208,7 +233,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			},
 			nonce,
 			config,
-			|executor| executor.transact_call(source, target, value, input, gas_limit),
+			|executor| executor.transact_call(source, target, value, input, gas_limit, Vec::new()),
 		)
 	}
 
@@ -233,7 +258,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				let address = executor.create_address(evm::CreateScheme::Legacy { caller: source });
 				T::OnCreate::on_create(source, address);
 				(
-					executor.transact_create(source, value, init, gas_limit),
+					executor.transact_create(source, value, init, gas_limit, Vec::new()),
 					address,
 				)
 			},
@@ -267,7 +292,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				});
 				T::OnCreate::on_create(source, address);
 				(
-					executor.transact_create2(source, value, init, salt, gas_limit),
+					executor.transact_create2(source, value, init, salt, gas_limit, Vec::new()),
 					address,
 				)
 			},
@@ -358,6 +383,18 @@ impl<'config> SubstrateStackSubstate<'config> {
 			data,
 		});
 	}
+
+	fn recursive_is_cold<F: Fn(&Accessed) -> bool>(&self, f: &F) -> bool {
+		let local_is_accessed = self.metadata.accessed().as_ref().map(f).unwrap_or(false);
+		if local_is_accessed {
+			false
+		} else {
+			self.parent
+				.as_ref()
+				.map(|p| p.recursive_is_cold(f))
+				.unwrap_or(true)
+		}
+	}
 }
 
 /// Substrate backend for EVM.
@@ -421,6 +458,10 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 		T::BlockGasLimit::get()
 	}
 
+	fn block_base_fee_per_gas(&self) -> U256 {
+		T::FeeCalculator::min_gas_price()
+	}
+
 	fn chain_id(&self) -> U256 {
 		U256::from(T::ChainId::get())
 	}
@@ -452,7 +493,7 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 	}
 }
 
-impl<'vicinity, 'config, T: Config> StackStateT<'config>
+impl<'vicinity, 'config, T: Config> StackState<'config>
 	for SubstrateStackState<'vicinity, 'config, T>
 {
 	fn metadata(&self) -> &StackSubstateMetadata<'config> {
@@ -562,5 +603,15 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config>
 		// EVM pallet considers all accounts to exist, and distinguish
 		// only empty and non-empty accounts. This avoids many of the
 		// subtle issues in EIP-161.
+	}
+
+	fn is_cold(&self, address: H160) -> bool {
+		self.substate
+			.recursive_is_cold(&|a| a.accessed_addresses.contains(&address))
+	}
+
+	fn is_storage_cold(&self, address: H160, key: H256) -> bool {
+		self.substate
+			.recursive_is_cold(&|a: &Accessed| a.accessed_storage.contains(&(address, key)))
 	}
 }

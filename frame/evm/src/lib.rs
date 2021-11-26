@@ -63,14 +63,12 @@ mod tests;
 pub mod benchmarks;
 
 pub use crate::runner::Runner;
-pub use evm::{
-	executor::PrecompileOutput, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
-};
-use fp_evm::WithdrawReason;
+pub use evm::{ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
 pub use fp_evm::{
 	Account, CallInfo, CreateInfo, ExecutionInfo, LinearCostPrecompile, Log, Precompile,
-	PrecompileSet, Vicinity,
+	StaticPrecompileSet, Vicinity,
 };
+use fp_evm::{PrecompileResult, WithdrawReason};
 
 #[cfg(feature = "std")]
 use codec::{Decode, Encode};
@@ -131,7 +129,7 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// Precompiles associated with this EVM engine.
-		type Precompiles: PrecompileSet;
+		type Precompiles: StaticPrecompileSet;
 		/// Chain ID of EVM.
 		type ChainId: Get<u64>;
 		/// The block gas limit. Can be a simple constant, or an adjustment algorithm in another pallet.
@@ -674,7 +672,7 @@ pub trait OnMethodCall<T> {
 		gas_left: u64,
 		input: &[u8],
 		value: U256,
-	) -> Option<PrecompileOutput>;
+	) -> Option<PrecompileResult>;
 
 	/// Get hardcoded contract code
 	fn get_code(contract: &H160) -> Option<Vec<u8>>;
@@ -695,7 +693,7 @@ impl<T> OnMethodCall<T> for () {
 		_gas_left: u64,
 		_input: &[u8],
 		_value: U256,
-	) -> Option<PrecompileOutput> {
+	) -> Option<PrecompileResult> {
 		None
 	}
 
@@ -733,7 +731,7 @@ impl<T> OnMethodCall<T> for Tuple {
 		gas_left: u64,
 		input: &[u8],
 		value: U256,
-	) -> Option<PrecompileOutput> {
+	) -> Option<PrecompileResult> {
 		for_tuples!(#(
 			if let Some(r) = Tuple::call(source, target, gas_left, input, value) {
 				return Some(r);

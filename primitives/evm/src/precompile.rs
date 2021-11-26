@@ -15,56 +15,84 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use evm::{executor::PrecompileOutput, Context, ExitError, ExitSucceed};
+pub use evm::{
+	executor::stack::{PrecompileFailure, PrecompileFn, PrecompileOutput},
+	Context, ExitError, ExitSucceed,
+};
 use impl_trait_for_tuples::impl_for_tuples;
 use sp_core::H160;
 use sp_std::vec::Vec;
 
-/// Custom precompiles to be used by EVM engine.
-pub trait PrecompileSet {
-	/// Try to execute the code address as precompile. If the code address is not
-	/// a precompile or the precompile is not yet available, return `None`.
-	/// Otherwise, calculate the amount of gas needed with given `input` and
-	/// `target_gas`. Return `Some(Ok(status, output, gas_used))` if the execution
-	/// is successful. Otherwise return `Some(Err(_))`.
+pub type PrecompileResult = Result<PrecompileOutput, PrecompileFailure>;
+
+pub trait StaticPrecompileSet {
 	fn execute(
 		address: H160,
 		input: &[u8],
 		target_gas: Option<u64>,
 		context: &Context,
-	) -> Option<PrecompileOutput>;
+		is_static: bool,
+	) -> Option<PrecompileResult>;
+
+	fn is_precompile(address: H160) -> bool;
 }
 
-/// One single precompile used by EVM engine.
-pub trait Precompile {
-	/// Try to execute the precompile. Calculate the amount of gas needed with given `input` and
-	/// `target_gas`. Return `Ok(status, output, gas_used)` if the execution is
-	/// successful. Otherwise return `Err(_)`.
-	fn execute(input: &[u8], target_gas: Option<u64>, context: &Context) -> PrecompileOutput;
-}
-
-#[impl_for_tuples(16)]
-#[tuple_types_no_default_trait_bound]
-impl PrecompileSet for Tuple {
-	for_tuples!( where #( Tuple: Precompile )* );
-
+impl StaticPrecompileSet for () {
 	fn execute(
-		address: H160,
-		input: &[u8],
-		target_gas: Option<u64>,
-		context: &Context,
-	) -> Option<PrecompileOutput> {
-		let mut index = 0;
-
-		for_tuples!( #(
-			index += 1;
-			if address == H160::from_low_u64_be(index) {
-				return Some(Tuple::execute(input, target_gas, context))
-			}
-		)* );
-
+		_address: H160,
+		_input: &[u8],
+		_target_gas: Option<u64>,
+		_context: &Context,
+		_is_static: bool,
+	) -> Option<PrecompileResult> {
 		None
 	}
+
+	fn is_precompile(_address: H160) -> bool {
+		false
+	}
+}
+
+#[impl_for_tuples(1, 12)]
+#[tuple_types_custom_trait_bound(Precompile)]
+impl StaticPrecompileSet for Tuple {
+	fn execute(
+		address: H160,
+		input: &[u8],
+		target_gas: Option<u64>,
+		context: &Context,
+		is_static: bool,
+	) -> Option<PrecompileResult> {
+		let mut index = 0;
+		for_tuples!(#(
+			index += 1;
+			if address == H160::from_low_u64_be(index) {
+				return Some(<Tuple as Precompile>::execute(input, target_gas, context, is_static))
+			}
+		)*);
+		None
+	}
+
+	fn is_precompile(address: H160) -> bool {
+		let mut index = 0;
+		for_tuples!(#(
+			index += 1;
+			if address == H160::from_low_u64_be(index) {
+				return true
+			}
+		)*);
+		false
+	}
+}
+
+pub trait Precompile {
+	// Implements PrecompileFn
+	fn execute(
+		input: &[u8],
+		target_gas: Option<u64>,
+		context: &Context,
+		is_static: bool,
+	) -> PrecompileResult;
 }
 
 pub trait LinearCostPrecompile {
@@ -75,33 +103,20 @@ pub trait LinearCostPrecompile {
 }
 
 impl<T: LinearCostPrecompile> Precompile for T {
-	fn execute(input: &[u8], target_gas: Option<u64>, _: &Context) -> PrecompileOutput {
+	fn execute(input: &[u8], target_gas: Option<u64>, _: &Context, _: bool) -> PrecompileResult {
 		let cost = match ensure_linear_cost(target_gas, input.len() as u64, T::BASE, T::WORD) {
 			Ok(cost) => cost,
-			Err(e) => {
-				return PrecompileOutput {
-					exit_status: evm::ExitReason::Error(e),
-					cost: 0,
-					output: Default::default(),
-					logs: Default::default(),
-				}
-			}
+			Err(exit_status) => return Err(PrecompileFailure::Error { exit_status }),
 		};
 
-		match T::execute(input, cost) {
-			Ok((exit_status, output)) => PrecompileOutput {
-				exit_status: evm::ExitReason::Succeed(exit_status),
+		Self::execute(input, cost)
+			.map(|(exit_status, output)| PrecompileOutput {
+				exit_status,
 				cost,
 				output,
-				logs: Default::default(),
-			},
-			Err(e) => PrecompileOutput {
-				exit_status: evm::ExitReason::Error(e),
-				cost: 0,
-				output: Default::default(),
-				logs: Default::default(),
-			},
-		}
+				logs: Vec::new(),
+			})
+			.map_err(|exit_status| PrecompileFailure::Error { exit_status })
 	}
 }
 
