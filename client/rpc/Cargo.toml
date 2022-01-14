@@ -10,8 +10,8 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 jsonrpc-core = "18.0.0"
 jsonrpc-pubsub = "18.0.0"
 log = "0.4.8"
-ethereum-types = "0.12.0"
-evm = { version = "0.33.0", git = "https://github.com/uniquenetwork/evm.git", branch = "unique-weights" }
+ethereum-types = "0.12"
+evm = { version = "0.33.0", git = "https://github.com/uniquenetwork/evm.git", branch = "unique-polkadot-v0.9.15" }
 fc-consensus = { version = "2.0.0-dev", path = "../consensus" }
 fc-db = { version = "2.0.0-dev", path = "../db" }
 fc-rpc-core = { version = "1.1.0-dev", path = "../rpc-core" }
@@ -26,6 +26,7 @@ sc-transaction-pool = { git = "https://github.com/paritytech/substrate.git", bra
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sp-storage = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sc-service = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sc-rpc = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
@@ -33,7 +34,7 @@ sc-network = { git = "https://github.com/paritytech/substrate.git", branch = "po
 pallet-evm = { version = "6.0.0-dev", path = "../../frame/evm" }
 fp-evm = { version = "3.0.0-dev", path = "../../primitives/evm" }
 pallet-ethereum = { version = "4.0.0-dev", path = "../../frame/ethereum" }
-ethereum = { version = "0.10.0", features = ["with-codec"], default-features = false }
+ethereum = { version = "0.11.1", features = ["with-codec"], default-features = false }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 rlp = "0.5"
 futures = { version = "0.3.4" }
@@ -44,6 +45,7 @@ libsecp256k1 = "0.3"
 rand = "0.7"
 lru = "0.6.6"
 parking_lot = "0.11.1"
+tokio = { version = "1.14", features = [ "sync" ] }
 
 [features]
 rpc_binary_search_estimate = []

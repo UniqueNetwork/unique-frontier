@@ -23,11 +23,11 @@ use crate::{
 };
 use evm::{
 	backend::Backend as BackendT,
-	executor::stack::{Accessed, PrecompileSet, StackExecutor, StackState, StackSubstateMetadata},
+	executor::stack::{Accessed, StackExecutor, StackState as StackStateT, StackSubstateMetadata},
 	Context, ExitError, ExitReason, Transfer,
 };
 use fp_evm::{
-	CallInfo, CreateInfo, ExecutionInfo, Log, PrecompileResult, StaticPrecompileSet,
+	CallInfo, CreateInfo, ExecutionInfo, Log, PrecompileResult, PrecompileSet,
 	TransactionValidityHack, Vicinity, WithdrawReason,
 };
 use frame_support::{
@@ -44,7 +44,7 @@ pub struct Runner<T: Config> {
 	_marker: PhantomData<T>,
 }
 
-pub struct PrecompileSetWithMethods<T: Config>(PhantomData<T>);
+pub struct PrecompileSetWithMethods<T: Config>(T::PrecompilesType);
 
 impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 	fn execute(
@@ -55,9 +55,10 @@ impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 		context: &Context,
 		is_static: bool,
 	) -> Option<PrecompileResult> {
-		if let Some(result) = <T::Precompiles as StaticPrecompileSet>::execute(
-			address, input, gas_limit, context, is_static,
-		) {
+		if let Some(result) = self
+			.0
+			.execute(address, input, gas_limit, context, is_static)
+		{
 			Some(result)
 		} else if let Some(result) = T::OnMethodCall::call(
 			&context.caller,
@@ -73,62 +74,69 @@ impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 	}
 
 	fn is_precompile(&self, address: H160) -> bool {
-		<T::Precompiles as StaticPrecompileSet>::is_precompile(address)
-			|| T::OnMethodCall::is_used(&address)
+		self.0.is_precompile(address) || T::OnMethodCall::is_used(&address)
 	}
 }
 
 impl<T: Config> Runner<T> {
 	/// Execute an EVM operation.
-	pub fn execute<'config, F, R>(
+	pub fn execute<'config, 'precompiles, F, R>(
 		source: H160,
 		value: U256,
 		gas_limit: u64,
-		gas_price: Option<U256>,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
 		nonce: Option<U256>,
 		config: &'config evm::Config,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		f: F,
 	) -> Result<ExecutionInfo<R>, Error<T>>
 	where
 		F: FnOnce(
 			&mut StackExecutor<
 				'config,
-				'_,
+				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
 				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 	{
+		let base_fee = T::FeeCalculator::min_gas_price();
 		// Gas price check is skipped when performing a gas estimation.
-		let gas_price = match gas_price {
-			Some(gas_price) => {
-				ensure!(
-					gas_price >= T::FeeCalculator::min_gas_price(),
-					Error::<T>::GasPriceTooLow
-				);
-				gas_price
+		let max_fee_per_gas = match max_fee_per_gas {
+			Some(max_fee_per_gas) => {
+				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
+				max_fee_per_gas
 			}
 			None => Default::default(),
 		};
 
 		let vicinity = Vicinity {
-			gas_price,
+			gas_price: max_fee_per_gas,
 			origin: source,
 		};
 
 		let metadata = StackSubstateMetadata::new(gas_limit, &config);
 		let state = SubstrateStackState::new(&vicinity, metadata);
-		let mut executor = StackExecutor::new_with_precompiles(
-			state,
-			config,
-			&PrecompileSetWithMethods::<T>(PhantomData),
-		);
-
+		let mut executor = StackExecutor::new_with_precompiles(state, config, precompiles);
 		let source_account = Pallet::<T>::account_basic(&source);
 
-		let total_fee = gas_price
+		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
+		let max_base_fee = max_fee_per_gas
 			.checked_mul(U256::from(gas_limit))
+			.ok_or(Error::<T>::FeeOverflow)?;
+
+		let max_priority_fee = if let Some(max_priority_fee) = max_priority_fee_per_gas {
+			max_priority_fee
+				.checked_mul(U256::from(gas_limit))
+				.ok_or(Error::<T>::FeeOverflow)?
+		} else {
+			U256::zero()
+		};
+
+		let total_fee = max_base_fee
+			.checked_add(max_priority_fee)
 			.ok_or(Error::<T>::FeeOverflow)?;
 
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source);
@@ -150,7 +158,6 @@ impl<T: Config> Runner<T> {
 		if let Some(nonce) = nonce {
 			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
 		}
-
 		// Deduct fee from the `source` account.
 		let fee = T::OnChargeTransaction::withdraw_fee(&source, reason, total_fee)?;
 
@@ -158,7 +165,19 @@ impl<T: Config> Runner<T> {
 		let (reason, retv) = f(&mut executor);
 
 		let used_gas = U256::from(executor.used_gas());
-		let actual_fee = executor.fee(gas_price);
+		let (actual_fee, actual_priority_fee) =
+			if let Some(max_priority_fee) = max_priority_fee_per_gas {
+				let actual_priority_fee = max_priority_fee
+					.checked_mul(U256::from(used_gas))
+					.ok_or(Error::<T>::FeeOverflow)?;
+				let actual_fee = executor
+					.fee(base_fee)
+					.checked_add(actual_priority_fee)
+					.unwrap_or(U256::max_value());
+				(actual_fee, Some(actual_priority_fee))
+			} else {
+				(executor.fee(base_fee), None)
+			};
 		log::debug!(
 			target: "evm",
 			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}]",
@@ -168,9 +187,31 @@ impl<T: Config> Runner<T> {
 			gas_limit,
 			actual_fee
 		);
-
-		// Refund fees to the `source` account if deducted more before,
+		// The difference between initially withdrawn and the actual cost is refunded.
+		//
+		// Considered the following request:
+		// +-----------+---------+--------------+
+		// | Gas_limit | Max_Fee | Max_Priority |
+		// +-----------+---------+--------------+
+		// |        20 |      10 |            6 |
+		// +-----------+---------+--------------+
+		//
+		// And execution:
+		// +----------+----------+
+		// | Gas_used | Base_Fee |
+		// +----------+----------+
+		// |        5 |        2 |
+		// +----------+----------+
+		//
+		// Initially withdrawn (10 + 6) * 20 = 320.
+		// Actual cost (2 + 6) * 5 = 40.
+		// Refunded 320 - 40 = 280.
+		// Tip 5 * 6 = 30.
+		// Burned 320 - (280 + 30) = 10. Which is equivalent to gas_used * base_fee.
 		T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_fee, fee);
+		if let Some(actual_priority_fee) = actual_priority_fee {
+			T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
+		}
 
 		let state = executor.into_state();
 
@@ -218,22 +259,27 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		input: Vec<u8>,
 		value: U256,
 		gas_limit: u64,
-		gas_price: Option<U256>,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
+		access_list: Vec<(H160, Vec<H256>)>,
 		config: &evm::Config,
 	) -> Result<CallInfo, Self::Error> {
+		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
 			source,
 			value,
 			gas_limit,
-			gas_price,
+			max_fee_per_gas,
+			max_priority_fee_per_gas,
 			WithdrawReason::Call {
 				target,
 				input: input.clone(),
 			},
 			nonce,
 			config,
-			|executor| executor.transact_call(source, target, value, input, gas_limit, Vec::new()),
+			&PrecompileSetWithMethods(precompiles),
+			|executor| executor.transact_call(source, target, value, input, gas_limit, access_list),
 		)
 	}
 
@@ -242,23 +288,28 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		init: Vec<u8>,
 		value: U256,
 		gas_limit: u64,
-		gas_price: Option<U256>,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
+		access_list: Vec<(H160, Vec<H256>)>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, Self::Error> {
+		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
 			source,
 			value,
 			gas_limit,
-			gas_price,
+			max_fee_per_gas,
+			max_priority_fee_per_gas,
 			WithdrawReason::Create,
 			nonce,
 			config,
+			&PrecompileSetWithMethods(precompiles),
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Legacy { caller: source });
 				T::OnCreate::on_create(source, address);
 				(
-					executor.transact_create(source, value, init, gas_limit, Vec::new()),
+					executor.transact_create(source, value, init, gas_limit, access_list),
 					address,
 				)
 			},
@@ -271,19 +322,24 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		salt: H256,
 		value: U256,
 		gas_limit: u64,
-		gas_price: Option<U256>,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
+		access_list: Vec<(H160, Vec<H256>)>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, Self::Error> {
+		let precompiles = T::PrecompilesValue::get();
 		let code_hash = H256::from_slice(Keccak256::digest(&init).as_slice());
 		Self::execute(
 			source,
 			value,
 			gas_limit,
-			gas_price,
+			max_fee_per_gas,
+			max_priority_fee_per_gas,
 			WithdrawReason::Create2,
 			nonce,
 			config,
+			&PrecompileSetWithMethods(precompiles),
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Create2 {
 					caller: source,
@@ -292,7 +348,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				});
 				T::OnCreate::on_create(source, address);
 				(
-					executor.transact_create2(source, value, init, salt, gas_limit, Vec::new()),
+					executor.transact_create2(source, value, init, salt, gas_limit, access_list),
 					address,
 				)
 			},
@@ -493,7 +549,7 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 	}
 }
 
-impl<'vicinity, 'config, T: Config> StackState<'config>
+impl<'vicinity, 'config, T: Config> StackStateT<'config>
 	for SubstrateStackState<'vicinity, 'config, T>
 {
 	fn metadata(&self) -> &StackSubstateMetadata<'config> {

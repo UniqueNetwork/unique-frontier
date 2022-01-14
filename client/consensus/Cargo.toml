@@ -23,7 +23,7 @@ sp-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "
 sc-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 log = "0.4.8"
-futures = { version = "0.3.1", features = ["compat"] }
+futures = { version = "0.3.17", features = ["compat"] }
 sp-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14" }
 derive_more = "0.99.2"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.14"}

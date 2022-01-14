@@ -30,7 +30,7 @@ use sp_std::vec::Vec;
 pub use evm::backend::{Basic as Account, Log};
 pub use precompile::{
 	Context, ExitError, ExitSucceed, LinearCostPrecompile, Precompile, PrecompileFailure,
-	PrecompileOutput, PrecompileResult, StaticPrecompileSet,
+	PrecompileOutput, PrecompileResult, PrecompileSet,
 };
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Default)]

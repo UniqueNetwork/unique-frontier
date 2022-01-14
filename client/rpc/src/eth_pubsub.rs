@@ -31,6 +31,7 @@ use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT, UniqueSaturatedInto};
 use std::{collections::BTreeMap, iter, marker::PhantomData, sync::Arc};
 
+use ethereum::BlockV2 as EthereumBlock;
 use ethereum_types::{H256, U256};
 use fc_rpc_core::{
 	types::{
@@ -118,7 +119,7 @@ impl SubscriptionResult {
 	pub fn new() -> Self {
 		SubscriptionResult {}
 	}
-	pub fn new_heads(&self, block: ethereum::BlockV0) -> PubSubResult {
+	pub fn new_heads(&self, block: EthereumBlock) -> PubSubResult {
 		PubSubResult::Header(Box::new(Rich {
 			inner: Header {
 				hash: Some(H256::from_slice(
@@ -149,8 +150,8 @@ impl SubscriptionResult {
 	}
 	pub fn logs(
 		&self,
-		block: ethereum::BlockV0,
-		receipts: Vec<ethereum::Receipt>,
+		block: EthereumBlock,
+		receipts: Vec<ethereum::ReceiptV3>,
 		params: &FilteredParams,
 	) -> Vec<Log> {
 		let block_hash = Some(H256::from_slice(
@@ -159,16 +160,18 @@ impl SubscriptionResult {
 		let mut logs: Vec<Log> = vec![];
 		let mut log_index: u32 = 0;
 		for (receipt_index, receipt) in receipts.into_iter().enumerate() {
+			let receipt_logs = match receipt {
+				ethereum::ReceiptV3::Legacy(d)
+				| ethereum::ReceiptV3::EIP2930(d)
+				| ethereum::ReceiptV3::EIP1559(d) => d.logs,
+			};
 			let mut transaction_log_index: u32 = 0;
-			let transaction_hash: Option<H256> = if receipt.logs.len() > 0 {
-				Some(H256::from_slice(
-					Keccak256::digest(&rlp::encode(&block.transactions[receipt_index as usize]))
-						.as_slice(),
-				))
+			let transaction_hash: Option<H256> = if receipt_logs.len() > 0 {
+				Some(block.transactions[receipt_index as usize].hash())
 			} else {
 				None
 			};
-			for log in receipt.logs {
+			for log in receipt_logs {
 				if self.add_log(block_hash.unwrap(), &log, &block, params) {
 					logs.push(Log {
 						address: log.address,
@@ -193,7 +196,7 @@ impl SubscriptionResult {
 		&self,
 		block_hash: H256,
 		ethereum_log: &ethereum::Log,
-		block: &ethereum::BlockV0,
+		block: &EthereumBlock,
 		params: &FilteredParams,
 	) -> bool {
 		let log = Log {
@@ -365,9 +368,7 @@ where
 						})
 						.map(|transaction| {
 							return Ok::<Result<PubSubResult, jsonrpc_core::types::error::Error>, ()>(
-								Ok(PubSubResult::TransactionHash(H256::from_slice(
-									Keccak256::digest(&rlp::encode(&transaction)).as_slice(),
-								))),
+								Ok(PubSubResult::TransactionHash(transaction.hash())),
 							);
 						});
 					stream

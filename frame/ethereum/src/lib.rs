@@ -34,7 +34,7 @@ use frame_support::{
 	traits::{EnsureOrigin, Get},
 	weights::{Pays, PostDispatchInfo, Weight},
 };
-use frame_system::pallet_prelude::OriginFor;
+use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -49,8 +49,8 @@ use sp_runtime::{
 use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
-	BlockV0 as Block, LegacyTransactionMessage, Log, Receipt, TransactionAction,
-	TransactionV0 as Transaction,
+	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
+	TransactionAction, TransactionV2 as Transaction,
 };
 pub use fp_rpc::TransactionStatus;
 
@@ -72,6 +72,20 @@ where
 		Ok(RawOrigin::EthereumTransaction(n)) => Ok(n),
 		_ => Err("bad origin: expected to be an Ethereum transaction"),
 	}
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+struct TransactionData {
+	action: TransactionAction,
+	input: Vec<u8>,
+	nonce: U256,
+	gas_limit: U256,
+	gas_price: Option<U256>,
+	max_fee_per_gas: Option<U256>,
+	max_priority_fee_per_gas: Option<U256>,
+	value: U256,
+	chain_id: Option<u64>,
+	access_list: Vec<(H160, Vec<H256>)>,
 }
 
 pub struct EnsureEthereumTransaction;
@@ -196,6 +210,7 @@ pub mod pallet {
 
 		fn on_initialize(_: T::BlockNumber) -> Weight {
 			Pending::<T>::kill();
+			let mut weight = T::SystemWeightInfo::kill_storage(1);
 
 			// If the digest contain an existing ethereum block(encoded as PreLog), If contains,
 			// execute the imported block firstly and disable transact dispatch function.
@@ -210,11 +225,25 @@ pub mod pallet {
 					Self::validate_transaction_in_block(source, &transaction).expect(
 						"pre-block transaction verification failed; the block cannot be built",
 					);
-					Self::apply_validated_transaction(source, transaction);
+					let r = Self::apply_validated_transaction(source, transaction);
+					weight = weight.saturating_add(r.actual_weight.unwrap_or(0 as Weight));
 				}
 			}
+			// Account for `on_finalize` weight:
+			//	- read: frame_system::Pallet::<T>::digest()
+			//	- read: frame_system::Pallet::<T>::block_number()
+			//	- write: <Pallet<T>>::store_block()
+			//	- write: <BlockHash<T>>::remove()
+			weight.saturating_add(T::DbWeight::get().reads_writes(2, 2))
+		}
 
-			0
+		fn on_runtime_upgrade() -> Weight {
+			frame_support::storage::unhashed::put::<EthereumStorageSchema>(
+				&PALLET_ETHEREUM_SCHEMA,
+				&EthereumStorageSchema::V3,
+			);
+
+			T::DbWeight::get().write
 		}
 	}
 
@@ -224,7 +253,9 @@ pub mod pallet {
 		OriginFor<T>: Into<Result<RawOrigin, OriginFor<T>>>,
 	{
 		/// Transact an Ethereum transaction.
-		#[pallet::weight(<T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(transaction.gas_limit.unique_saturated_into()))]
+		#[pallet::weight(<T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(
+			Pallet::<T>::transaction_data(transaction).gas_limit.unique_saturated_into()
+		))]
 		pub fn transact(
 			origin: OriginFor<T>,
 			transaction: Transaction,
@@ -258,15 +289,15 @@ pub mod pallet {
 	/// Current building block's transactions and receipts.
 	#[pallet::storage]
 	pub(super) type Pending<T: Config> =
-		StorageValue<_, Vec<(Transaction, TransactionStatus, ethereum::Receipt)>, ValueQuery>;
+		StorageValue<_, Vec<(Transaction, TransactionStatus, Receipt)>, ValueQuery>;
 
 	/// The current Ethereum block.
 	#[pallet::storage]
-	pub(super) type CurrentBlock<T: Config> = StorageValue<_, ethereum::BlockV0>;
+	pub(super) type CurrentBlock<T: Config> = StorageValue<_, ethereum::BlockV2>;
 
 	/// The current Ethereum receipts.
 	#[pallet::storage]
-	pub(super) type CurrentReceipts<T: Config> = StorageValue<_, Vec<ethereum::Receipt>>;
+	pub(super) type CurrentReceipts<T: Config> = StorageValue<_, Vec<Receipt>>;
 
 	/// The current transaction statuses.
 	#[pallet::storage]
@@ -286,21 +317,91 @@ pub mod pallet {
 			<Pallet<T>>::store_block(false, U256::zero());
 			frame_support::storage::unhashed::put::<EthereumStorageSchema>(
 				&PALLET_ETHEREUM_SCHEMA,
-				&EthereumStorageSchema::V1,
+				&EthereumStorageSchema::V3,
 			);
 		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
+	fn transaction_data(transaction: &Transaction) -> TransactionData {
+		match transaction {
+			Transaction::Legacy(t) => TransactionData {
+				action: t.action,
+				input: t.input.clone(),
+				nonce: t.nonce,
+				gas_limit: t.gas_limit,
+				gas_price: Some(t.gas_price),
+				max_fee_per_gas: None,
+				max_priority_fee_per_gas: None,
+				value: t.value,
+				chain_id: t.signature.chain_id(),
+				access_list: Vec::new(),
+			},
+			Transaction::EIP2930(t) => TransactionData {
+				action: t.action,
+				input: t.input.clone(),
+				nonce: t.nonce,
+				gas_limit: t.gas_limit,
+				gas_price: Some(t.gas_price),
+				max_fee_per_gas: None,
+				max_priority_fee_per_gas: None,
+				value: t.value,
+				chain_id: Some(t.chain_id),
+				access_list: t
+					.access_list
+					.iter()
+					.map(|d| (d.address, d.slots.clone()))
+					.collect(),
+			},
+			Transaction::EIP1559(t) => TransactionData {
+				action: t.action,
+				input: t.input.clone(),
+				nonce: t.nonce,
+				gas_limit: t.gas_limit,
+				gas_price: None,
+				max_fee_per_gas: Some(t.max_fee_per_gas),
+				max_priority_fee_per_gas: Some(t.max_priority_fee_per_gas),
+				value: t.value,
+				chain_id: Some(t.chain_id),
+				access_list: t
+					.access_list
+					.iter()
+					.map(|d| (d.address, d.slots.clone()))
+					.collect(),
+			},
+		}
+	}
+
 	fn recover_signer(transaction: &Transaction) -> Option<H160> {
 		let mut sig = [0u8; 65];
 		let mut msg = [0u8; 32];
-		sig[0..32].copy_from_slice(&transaction.signature.r()[..]);
-		sig[32..64].copy_from_slice(&transaction.signature.s()[..]);
-		sig[64] = transaction.signature.standard_v();
-		msg.copy_from_slice(&LegacyTransactionMessage::from(transaction.clone()).hash()[..]);
-
+		match transaction {
+			Transaction::Legacy(t) => {
+				sig[0..32].copy_from_slice(&t.signature.r()[..]);
+				sig[32..64].copy_from_slice(&t.signature.s()[..]);
+				sig[64] = t.signature.standard_v();
+				msg.copy_from_slice(
+					&ethereum::LegacyTransactionMessage::from(t.clone()).hash()[..],
+				);
+			}
+			Transaction::EIP2930(t) => {
+				sig[0..32].copy_from_slice(&t.r[..]);
+				sig[32..64].copy_from_slice(&t.s[..]);
+				sig[64] = t.odd_y_parity as u8;
+				msg.copy_from_slice(
+					&ethereum::EIP2930TransactionMessage::from(t.clone()).hash()[..],
+				);
+			}
+			Transaction::EIP1559(t) => {
+				sig[0..32].copy_from_slice(&t.r[..]);
+				sig[32..64].copy_from_slice(&t.s[..]);
+				sig[64] = t.odd_y_parity as u8;
+				msg.copy_from_slice(
+					&ethereum::EIP1559TransactionMessage::from(t.clone()).hash()[..],
+				);
+			}
+		}
 		let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&sig, &msg).ok()?;
 		Some(H160::from(H256::from_slice(
 			Keccak256::digest(&pubkey).as_slice(),
@@ -312,11 +413,18 @@ impl<T: Config> Pallet<T> {
 		let mut statuses = Vec::new();
 		let mut receipts = Vec::new();
 		let mut logs_bloom = Bloom::default();
+		let mut cumulative_gas_used = U256::zero();
 		for (transaction, status, receipt) in Pending::<T>::get() {
 			transactions.push(transaction);
 			statuses.push(status);
 			receipts.push(receipt.clone());
-			Self::logs_bloom(receipt.logs.clone(), &mut logs_bloom);
+			let (logs, used_gas) = match receipt {
+				Receipt::Legacy(d) | Receipt::EIP2930(d) | Receipt::EIP1559(d) => {
+					(d.logs.clone(), d.used_gas)
+				}
+			};
+			cumulative_gas_used = used_gas;
+			Self::logs_bloom(logs, &mut logs_bloom);
 		}
 
 		let ommers = Vec::<ethereum::Header>::new();
@@ -331,10 +439,7 @@ impl<T: Config> Pallet<T> {
 			difficulty: U256::zero(),
 			number: block_number,
 			gas_limit: T::BlockGasLimit::get(),
-			gas_used: receipts
-				.clone()
-				.into_iter()
-				.fold(U256::zero(), |acc, r| acc + r.used_gas),
+			gas_used: cumulative_gas_used,
 			timestamp: UniqueSaturatedInto::<u64>::unique_saturated_into(
 				pallet_timestamp::Pallet::<T>::get(),
 			),
@@ -372,21 +477,25 @@ impl<T: Config> Pallet<T> {
 	// This is the case for all controls except those concerning the nonce.
 	fn validate_transaction_common(
 		origin: H160,
-		transaction: &Transaction,
-	) -> Result<U256, TransactionValidityError> {
+		transaction_data: &TransactionData,
+	) -> Result<(U256, u64), TransactionValidityError> {
+		let gas_limit = transaction_data.gas_limit;
+
 		// We must ensure a transaction can pay the cost of its data bytes.
 		// If it can't it should not be included in a block.
 		let mut gasometer = evm::gasometer::Gasometer::new(
-			transaction.gas_limit.low_u64(),
+			gas_limit.low_u64(),
 			<T as pallet_evm::Config>::config(),
 		);
-		let transaction_cost = match transaction.action {
-			TransactionAction::Call(_) => {
-				evm::gasometer::call_transaction_cost(&transaction.input, &[])
-			}
-			TransactionAction::Create => {
-				evm::gasometer::create_transaction_cost(&transaction.input, &[])
-			}
+		let transaction_cost = match transaction_data.action {
+			TransactionAction::Call(_) => evm::gasometer::call_transaction_cost(
+				&transaction_data.input,
+				&transaction_data.access_list,
+			),
+			TransactionAction::Create => evm::gasometer::create_transaction_cost(
+				&transaction_data.input,
+				&transaction_data.access_list,
+			),
 		};
 		if gasometer.record_transaction(transaction_cost).is_err() {
 			return Err(InvalidTransaction::Custom(
@@ -395,7 +504,7 @@ impl<T: Config> Pallet<T> {
 			.into());
 		}
 
-		if let Some(chain_id) = transaction.signature.chain_id() {
+		if let Some(chain_id) = transaction_data.chain_id {
 			if chain_id != T::ChainId::get() {
 				return Err(InvalidTransaction::Custom(
 					TransactionValidationError::InvalidChainId as u8,
@@ -404,16 +513,42 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		if transaction.gas_limit >= T::BlockGasLimit::get() {
+		if gas_limit >= T::BlockGasLimit::get() {
 			return Err(InvalidTransaction::Custom(
 				TransactionValidationError::InvalidGasLimit as u8,
 			)
 			.into());
 		}
 
-		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
+		let base_fee = T::FeeCalculator::min_gas_price();
+		let mut priority = 0;
 
-		let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
+		let gas_price = if let Some(gas_price) = transaction_data.gas_price {
+			// Legacy and EIP-2930 transactions.
+			// Handle priority here. On legacy transaction everything in gas_price except
+			// the current base_fee is considered a tip to the miner and thus the priority.
+			priority = gas_price.saturating_sub(base_fee).unique_saturated_into();
+			gas_price
+		} else if let Some(max_fee_per_gas) = transaction_data.max_fee_per_gas {
+			// EIP-1559 transactions.
+			max_fee_per_gas
+		} else {
+			return Err(InvalidTransaction::Payment.into());
+		};
+
+		if gas_price < base_fee {
+			return Err(InvalidTransaction::Payment.into());
+		}
+
+		let fee = gas_price.saturating_mul(gas_limit);
+		if let Some(max_priority_fee_per_gas) = transaction_data.max_priority_fee_per_gas {
+			// EIP-1559 transaction priority is determined by `max_priority_fee_per_gas`.
+			// If the transaction do not include this optional parameter, priority is now considered zero.
+			priority = max_priority_fee_per_gas.unique_saturated_into();
+			// Add the priority tip to the payable fee.
+			fee = fee.saturating_add(max_priority_fee_per_gas.saturating_mul(gas_limit));
+		}
+
 		let value = transaction.value;
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(
 			origin,
@@ -439,13 +574,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		let min_gas_price = T::FeeCalculator::min_gas_price();
-
-		if transaction.gas_price < min_gas_price {
-			return Err(InvalidTransaction::Payment.into());
-		}
-
-		Ok(account_data.nonce)
+		Ok((account_data.nonce, priority))
 	}
 
 	// Controls that must be performed by the pool.
@@ -455,21 +584,25 @@ impl<T: Config> Pallet<T> {
 		origin: H160,
 		transaction: &Transaction,
 	) -> TransactionValidity {
-		let account_nonce = Self::validate_transaction_common(origin, transaction)?;
+		let transaction_data = Pallet::<T>::transaction_data(&transaction);
+		let transaction_nonce = transaction_data.nonce;
 
-		if transaction.nonce < account_nonce {
+		let (account_nonce, priority) =
+			Self::validate_transaction_common(origin, &transaction_data)?;
+
+		if transaction_nonce < account_nonce {
 			return Err(InvalidTransaction::Stale.into());
 		}
 
 		// The tag provides and requires must be filled correctly according to the nonce.
 		let mut builder = ValidTransactionBuilder::default()
-			.and_provides((origin, transaction.nonce))
-			.priority(transaction.gas_price.unique_saturated_into());
+			.and_provides((origin, transaction_nonce))
+			.priority(priority);
 
 		// In the context of the pool, a transaction with
 		// too high a nonce is still considered valid
-		if transaction.nonce > account_nonce {
-			if let Some(prev_nonce) = transaction.nonce.checked_sub(1.into()) {
+		if transaction_nonce > account_nonce {
+			if let Some(prev_nonce) = transaction_nonce.checked_sub(1.into()) {
 				builder = builder.and_requires((origin, prev_nonce))
 			}
 		}
@@ -478,21 +611,12 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn apply_validated_transaction(source: H160, transaction: Transaction) -> PostDispatchInfo {
-		let transaction_hash =
-			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
-		let transaction_index = Pending::<T>::get().len() as u32;
+		let pending = Pending::<T>::get();
+		let transaction_hash = transaction.hash();
+		let transaction_index = pending.len() as u32;
 
-		let (to, _, info) = Self::execute(
-			source,
-			transaction.input.clone(),
-			transaction.value,
-			transaction.gas_limit,
-			Some(transaction.gas_price),
-			Some(transaction.nonce),
-			transaction.action,
-			None,
-		)
-		.expect("transaction is already validated; error indicates that the block is invalid");
+		let (to, _, info) = Self::execute(source, &transaction, None)
+			.expect("transaction is already validated; error indicates that the block is invalid");
 
 		let (reason, status, used_gas, dest) = match info {
 			CallOrCreateInfo::Call(info) => (
@@ -533,16 +657,42 @@ impl<T: Config> Pallet<T> {
 			),
 		};
 
-		let receipt = ethereum::Receipt {
-			state_root: match reason {
-				ExitReason::Succeed(_) => H256::from_low_u64_be(1),
-				ExitReason::Error(_) => H256::from_low_u64_le(0),
-				ExitReason::Revert(_) => H256::from_low_u64_le(0),
-				ExitReason::Fatal(_) => H256::from_low_u64_le(0),
-			},
-			used_gas,
-			logs_bloom: status.clone().logs_bloom,
-			logs: status.clone().logs,
+		let receipt = {
+			let status_code: u8 = match reason {
+				ExitReason::Succeed(_) => 1,
+				_ => 0,
+			};
+			let logs_bloom = status.clone().logs_bloom;
+			let logs = status.clone().logs;
+			let cumulative_gas_used = if let Some((_, _, receipt)) = pending.last() {
+				match receipt {
+					Receipt::Legacy(d) | Receipt::EIP2930(d) | Receipt::EIP1559(d) => {
+						d.used_gas.saturating_add(used_gas)
+					}
+				}
+			} else {
+				used_gas
+			};
+			match &transaction {
+				Transaction::Legacy(_) => Receipt::Legacy(ethereum::EIP658ReceiptData {
+					status_code,
+					used_gas: cumulative_gas_used,
+					logs_bloom,
+					logs,
+				}),
+				Transaction::EIP2930(_) => Receipt::EIP2930(ethereum::EIP2930ReceiptData {
+					status_code,
+					used_gas: cumulative_gas_used,
+					logs_bloom,
+					logs,
+				}),
+				Transaction::EIP1559(_) => Receipt::EIP1559(ethereum::EIP2930ReceiptData {
+					status_code,
+					used_gas: cumulative_gas_used.saturating_add(used_gas),
+					logs_bloom,
+					logs,
+				}),
+			}
 		};
 
 		Pending::<T>::append((transaction, status, receipt));
@@ -604,7 +754,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Get current block.
-	pub fn current_block() -> Option<ethereum::BlockV0> {
+	pub fn current_block() -> Option<ethereum::BlockV2> {
 		CurrentBlock::<T>::get()
 	}
 
@@ -614,21 +764,88 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Get receipts by number.
-	pub fn current_receipts() -> Option<Vec<ethereum::Receipt>> {
+	pub fn current_receipts() -> Option<Vec<Receipt>> {
 		CurrentReceipts::<T>::get()
 	}
 
 	/// Execute an Ethereum transaction.
 	pub fn execute(
 		from: H160,
-		input: Vec<u8>,
-		value: U256,
-		gas_limit: U256,
-		gas_price: Option<U256>,
-		nonce: Option<U256>,
-		action: TransactionAction,
+		transaction: &Transaction,
 		config: Option<evm::Config>,
 	) -> Result<(Option<H160>, Option<H160>, CallOrCreateInfo), DispatchError> {
+		let (
+			input,
+			value,
+			gas_limit,
+			max_fee_per_gas,
+			max_priority_fee_per_gas,
+			nonce,
+			action,
+			access_list,
+		) = {
+			match transaction {
+				// max_fee_per_gas and max_priority_fee_per_gas in legacy and 2930 transactions is
+				// the provided gas_price.
+				Transaction::Legacy(t) => {
+					let base_fee = T::FeeCalculator::min_gas_price();
+					let priority_fee = t
+						.gas_price
+						.checked_sub(base_fee)
+						.ok_or_else(|| DispatchError::Other("Gas price too low"))?;
+					(
+						t.input.clone(),
+						t.value,
+						t.gas_limit,
+						Some(base_fee),
+						Some(priority_fee),
+						Some(t.nonce),
+						t.action,
+						Vec::new(),
+					)
+				}
+				Transaction::EIP2930(t) => {
+					let base_fee = T::FeeCalculator::min_gas_price();
+					let priority_fee = t
+						.gas_price
+						.checked_sub(base_fee)
+						.ok_or_else(|| DispatchError::Other("Gas price too low"))?;
+					let access_list: Vec<(H160, Vec<H256>)> = t
+						.access_list
+						.iter()
+						.map(|item| (item.address, item.slots.clone()))
+						.collect();
+					(
+						t.input.clone(),
+						t.value,
+						t.gas_limit,
+						Some(base_fee),
+						Some(priority_fee),
+						Some(t.nonce),
+						t.action,
+						access_list,
+					)
+				}
+				Transaction::EIP1559(t) => {
+					let access_list: Vec<(H160, Vec<H256>)> = t
+						.access_list
+						.iter()
+						.map(|item| (item.address, item.slots.clone()))
+						.collect();
+					(
+						t.input.clone(),
+						t.value,
+						t.gas_limit,
+						Some(t.max_fee_per_gas),
+						Some(t.max_priority_fee_per_gas),
+						Some(t.nonce),
+						t.action,
+						access_list,
+					)
+				}
+			}
+		};
+
 		match action {
 			ethereum::TransactionAction::Call(target) => {
 				let res = T::Runner::call(
@@ -637,8 +854,10 @@ impl<T: Config> Pallet<T> {
 					input.clone(),
 					value,
 					gas_limit.low_u64(),
-					gas_price,
+					max_fee_per_gas,
+					max_priority_fee_per_gas,
 					nonce,
+					access_list,
 					config.as_ref().unwrap_or(T::config()),
 				)
 				.map_err(Into::into)?;
@@ -651,8 +870,10 @@ impl<T: Config> Pallet<T> {
 					input.clone(),
 					value,
 					gas_limit.low_u64(),
-					gas_price,
+					max_fee_per_gas,
+					max_priority_fee_per_gas,
 					nonce,
+					access_list,
 					config.as_ref().unwrap_or(T::config()),
 				)
 				.map_err(Into::into)?;
@@ -668,17 +889,19 @@ impl<T: Config> Pallet<T> {
 	/// (just before applying the extrinsic).
 	pub fn validate_transaction_in_block(
 		origin: H160,
-		transaction: &ethereum::TransactionV0,
+		transaction: &Transaction,
 	) -> Result<(), TransactionValidityError> {
-		let account_nonce = Self::validate_transaction_common(origin, transaction)?;
+		let transaction_data = Pallet::<T>::transaction_data(&transaction);
+		let transaction_nonce = transaction_data.nonce;
+		let (account_nonce, _) = Self::validate_transaction_common(origin, &transaction_data)?;
 
 		// In the context of the block, a transaction with a nonce that is
 		// too high should be considered invalid and make the whole block invalid.
-		if transaction.nonce > account_nonce {
+		if transaction_nonce > account_nonce {
 			Err(TransactionValidityError::Invalid(
 				InvalidTransaction::Future,
 			))
-		} else if transaction.nonce < account_nonce {
+		} else if transaction_nonce < account_nonce {
 			Err(TransactionValidityError::Invalid(InvalidTransaction::Stale))
 		} else {
 			Ok(())
@@ -707,6 +930,8 @@ pub enum ReturnValue {
 pub enum EthereumStorageSchema {
 	Undefined,
 	V1,
+	V2,
+	V3,
 }
 
 impl Default for EthereumStorageSchema {
