@@ -36,7 +36,9 @@ use frame_support::{
 	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
-use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
+use pallet_evm::{
+	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner,
+};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
@@ -633,7 +635,7 @@ impl<T: Config> Pallet<T> {
 					logs: info.logs.clone(),
 					logs_bloom: {
 						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs, &mut bloom);
+						Self::logs_bloom(info.logs.iter(), &mut bloom);
 						bloom
 					},
 				},
@@ -651,7 +653,7 @@ impl<T: Config> Pallet<T> {
 					logs: info.logs.clone(),
 					logs_bloom: {
 						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs, &mut bloom);
+						Self::logs_bloom(info.logs.iter(), &mut bloom);
 						bloom
 					},
 				},
@@ -715,7 +717,11 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn add_transaction_result(source: H160, transaction: Transaction, logs: Vec<Log>) {
+	pub fn inject_emulated_transaction_result(
+		source: H160,
+		transaction: Transaction,
+		logs: Vec<MaybeMirroredLog>,
+	) {
 		assert!(
 			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
 			"this method is supposed to be called only from other pallets",
@@ -727,9 +733,11 @@ impl<T: Config> Pallet<T> {
 
 		let logs_bloom = {
 			let mut bloom: Bloom = Bloom::default();
-			Self::logs_bloom(logs.clone(), &mut bloom);
+			Self::logs_bloom(logs.iter().map(|log| &log.log), &mut bloom);
 			bloom
 		};
+
+		let logs: Vec<_> = logs.into_iter().map(|log| log.log).collect();
 
 		let status = TransactionStatus {
 			transaction_hash,
@@ -741,12 +749,12 @@ impl<T: Config> Pallet<T> {
 			logs: logs.clone(),
 		};
 
-		let receipt = ethereum::Receipt {
-			state_root: H256::from_low_u64_be(1),
+		let receipt = Receipt::Legacy(EIP658ReceiptData {
+			status_code: 1,
 			used_gas: 0.into(),
 			logs_bloom: logs_bloom.clone(),
 			logs: logs.clone(),
-		};
+		});
 
 		<Pending<T>>::append((transaction, status, receipt));
 	}
@@ -913,12 +921,16 @@ impl<T: Config> Pallet<T> {
 }
 
 pub trait EthereumTransactionSender {
-	fn submit_logs_transaction(source: H160, transaction: Transaction, logs: Vec<Log>);
+	fn submit_logs_transaction(source: H160, transaction: Transaction, logs: Vec<MaybeMirroredLog>);
 }
 
 impl<T: Config> EthereumTransactionSender for Pallet<T> {
-	fn submit_logs_transaction(source: H160, transaction: Transaction, logs: Vec<Log>) {
-		<Pallet<T>>::add_transaction_result(source, transaction, logs)
+	fn submit_logs_transaction(
+		source: H160,
+		transaction: Transaction,
+		logs: Vec<MaybeMirroredLog>,
+	) {
+		<Pallet<T>>::inject_emulated_transaction_result(source, transaction, logs)
 	}
 }
 

@@ -224,7 +224,14 @@ impl<T: Config> Runner<T> {
 			Pallet::<T>::remove_account(&address)
 		}
 
-		for log in &state.substate.logs {
+		for log in state
+			.substate
+			.logs
+			.iter()
+			// Those logs already have substrate equivalent emitted, no need to emit them to substrate side again
+			.filter(|log| !log.mirrored_from_substrate)
+			.map(|log| &log.log)
+		{
 			log::trace!(
 				target: "evm",
 				"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
@@ -245,7 +252,7 @@ impl<T: Config> Runner<T> {
 			value: retv,
 			exit_reason: reason,
 			used_gas,
-			logs: state.substate.logs,
+			logs: state.substate.logs.into_iter().map(|log| log.log).collect(),
 		})
 	}
 }
@@ -356,10 +363,16 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 	}
 }
 
+pub struct MaybeMirroredLog {
+	pub log: Log,
+	/// We don't need to logging injected logs to substrate side, as they are already
+	mirrored_from_substrate: bool,
+}
+
 struct SubstrateStackSubstate<'config> {
 	metadata: StackSubstateMetadata<'config>,
 	deletes: BTreeSet<H160>,
-	logs: Vec<Log>,
+	logs: Vec<MaybeMirroredLog>,
 	parent: Option<Box<SubstrateStackSubstate<'config>>>,
 }
 
@@ -433,10 +446,13 @@ impl<'config> SubstrateStackSubstate<'config> {
 	}
 
 	pub fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
-		self.logs.push(Log {
-			address,
-			topics,
-			data,
+		self.logs.push(MaybeMirroredLog {
+			log: Log {
+				address,
+				topics,
+				data,
+			},
+			mirrored_from_substrate: false,
 		});
 	}
 
