@@ -369,6 +369,21 @@ pub struct MaybeMirroredLog {
 	mirrored_from_substrate: bool,
 }
 
+impl MaybeMirroredLog {
+	pub fn mirrored(log: Log) -> Self {
+		Self {
+			log,
+			mirrored_from_substrate: true,
+		}
+	}
+	pub fn direct(log: Log) -> Self {
+		Self {
+			log,
+			mirrored_from_substrate: false,
+		}
+	}
+}
+
 struct SubstrateStackSubstate<'config> {
 	metadata: StackSubstateMetadata<'config>,
 	deletes: BTreeSet<H160>,
