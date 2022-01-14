@@ -24,6 +24,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
+use ethereum::EIP658ReceiptData;
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
@@ -424,7 +425,7 @@ impl<T: Config> Pallet<T> {
 				}
 			};
 			cumulative_gas_used = used_gas;
-			Self::logs_bloom(logs, &mut logs_bloom);
+			Self::logs_bloom(logs.iter(), &mut logs_bloom);
 		}
 
 		let ommers = Vec::<ethereum::Header>::new();
@@ -463,10 +464,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn logs_bloom(logs: Vec<Log>, bloom: &mut Bloom) {
+	fn logs_bloom<'a>(logs: impl IntoIterator<Item = &'a Log>, bloom: &'a mut Bloom) {
 		for log in logs {
 			bloom.accrue(BloomInput::Raw(&log.address[..]));
-			for topic in log.topics {
+			for topic in &log.topics {
 				bloom.accrue(BloomInput::Raw(&topic[..]));
 			}
 		}
@@ -540,7 +541,7 @@ impl<T: Config> Pallet<T> {
 			return Err(InvalidTransaction::Payment.into());
 		}
 
-		let fee = gas_price.saturating_mul(gas_limit);
+		let mut fee = gas_price.saturating_mul(gas_limit);
 		if let Some(max_priority_fee_per_gas) = transaction_data.max_priority_fee_per_gas {
 			// EIP-1559 transaction priority is determined by `max_priority_fee_per_gas`.
 			// If the transaction do not include this optional parameter, priority is now considered zero.
@@ -549,13 +550,15 @@ impl<T: Config> Pallet<T> {
 			fee = fee.saturating_add(max_priority_fee_per_gas.saturating_mul(gas_limit));
 		}
 
-		let value = transaction.value;
+		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
+
+		let value = transaction_data.value;
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(
 			origin,
-			&match transaction.action {
+			&match transaction_data.action {
 				TransactionAction::Call(target) => WithdrawReason::Call {
 					target,
-					input: transaction.input.clone(),
+					input: transaction_data.input.clone(),
 				},
 				TransactionAction::Create => WithdrawReason::Create,
 			},
