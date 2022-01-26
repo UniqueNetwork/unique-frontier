@@ -62,6 +62,7 @@ pub enum CallOrCreateInfo {
 	Create(CreateInfo),
 }
 
+#[derive(Debug)]
 pub enum WithdrawReason {
 	Call { target: H160, input: Vec<u8> },
 	Create,

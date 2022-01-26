@@ -30,6 +30,7 @@ fp-consensus = { version = "2.0.0-dev", path = "../../primitives/consensus", def
 fp-rpc = { version = "3.0.0-dev", path = "../../primitives/rpc", default-features = false }
 fp-storage = { version = "2.0.0", path = "../../primitives/storage", default-features = false }
 fp-self-contained = { version = "1.0.0-dev", path = "../../primitives/self-contained", default-features = false }
+log = "0.4.14"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.15" }
@@ -65,3 +66,4 @@ std = [
 	"fp-self-contained/std",
 	"scale-info/std",
 ]
+debug-logging = []

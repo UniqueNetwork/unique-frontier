@@ -564,17 +564,40 @@ impl<T: Config> Pallet<T> {
 				},
 				TransactionAction::Create => WithdrawReason::Create,
 			},
-		)
-		.unwrap_or(origin);
+		);
+
+		#[cfg(feature = "debug-logging")]
+		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
+		let fee_payer = T::TransactionValidityHack::who_pays_fee(origin, &reason).unwrap_or(origin);
 
 		if fee_payer == origin {
+			#[cfg(feature = "debug-logging")]
+			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
 			let total_payment = value.saturating_add(fee);
 			if account_data.balance < total_payment {
+				#[cfg(feature = "debug-logging")]
+				log::trace!(
+					target: "sponsoring",
+					"user doesn't have enough balance ({} < {})",
+					account_data.balance,
+					total_payment
+				);
 				return Err(InvalidTransaction::Payment.into());
 			}
 		} else {
+			#[cfg(feature = "debug-logging")]
+			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
 			let fee_payer_data = pallet_evm::Pallet::<T>::account_basic(&fee_payer);
 			if account_data.balance < value || fee_payer_data.balance < fee {
+				#[cfg(feature = "debug-logging")]
+				log::trace!(
+					target: "sponsoring",
+					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
+					account_data.balance,
+					value,
+					fee_payer_data.balance,
+					fee
+				);
 				return Err(InvalidTransaction::Payment.into());
 			}
 		}
