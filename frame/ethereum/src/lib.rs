@@ -184,6 +184,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::origin]
@@ -555,6 +556,8 @@ impl<T: Config> Pallet<T> {
 		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 		let value = transaction_data.value;
+		#[cfg(feature = "debug-logging")]
+		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(
 			origin,
 			&match transaction_data.action {
@@ -564,11 +567,8 @@ impl<T: Config> Pallet<T> {
 				},
 				TransactionAction::Create => WithdrawReason::Create,
 			},
-		);
-
-		#[cfg(feature = "debug-logging")]
-		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
-		let fee_payer = T::TransactionValidityHack::who_pays_fee(origin, &reason).unwrap_or(origin);
+		)
+		.unwrap_or(origin);
 
 		if fee_payer == origin {
 			#[cfg(feature = "debug-logging")]
