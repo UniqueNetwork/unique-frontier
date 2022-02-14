@@ -43,7 +43,7 @@ pub use frame_support::{
 	ConsensusEngineId, StorageValue,
 };
 pub use pallet_balances::Call as BalancesCall;
-use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
+use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction, LegacyTransaction};
 use pallet_evm::{Account as EVMAccount, EnsureAddressTruncated, HashedAddressMapping, Runner};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -387,7 +387,7 @@ construct_runtime!(
 pub struct TransactionConverter;
 
 impl fp_rpc::ConvertTransaction<UncheckedExtrinsic> for TransactionConverter {
-	fn convert_transaction(&self, transaction: pallet_ethereum::Transaction) -> UncheckedExtrinsic {
+	fn convert_transaction(&self, transaction: LegacyTransaction) -> UncheckedExtrinsic {
 		UncheckedExtrinsic::new_unsigned(
 			pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
 		)
@@ -397,7 +397,7 @@ impl fp_rpc::ConvertTransaction<UncheckedExtrinsic> for TransactionConverter {
 impl fp_rpc::ConvertTransaction<opaque::UncheckedExtrinsic> for TransactionConverter {
 	fn convert_transaction(
 		&self,
-		transaction: pallet_ethereum::Transaction,
+		transaction: LegacyTransaction,
 	) -> opaque::UncheckedExtrinsic {
 		let extrinsic = UncheckedExtrinsic::new_unsigned(
 			pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
@@ -642,10 +642,7 @@ impl_runtime_apis! {
 		fn extrinsic_filter(
 			xts: Vec<<Block as BlockT>::Extrinsic>,
 		) -> Vec<EthereumTransaction> {
-			xts.into_iter().filter_map(|xt| match xt.0.function {
-				Call::Ethereum(transact { transaction }) => Some(transaction),
-				_ => None
-			}).collect::<Vec<EthereumTransaction>>()
+			unreachable!()
 		}
 
 		fn elasticity() -> Option<Permill> {

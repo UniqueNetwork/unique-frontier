@@ -132,5 +132,5 @@ sp_api::decl_runtime_apis! {
 }
 
 pub trait ConvertTransaction<E> {
-	fn convert_transaction(&self, transaction: ethereum::TransactionV2) -> E;
+	fn convert_transaction(&self, transaction: ethereum::LegacyTransaction) -> E;
 }

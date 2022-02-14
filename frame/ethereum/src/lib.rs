@@ -53,7 +53,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
 	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
-	TransactionAction, TransactionV2 as Transaction,
+	TransactionAction, TransactionV2 as Transaction, LegacyTransaction,
 };
 pub use fp_rpc::TransactionStatus;
 
@@ -122,9 +122,7 @@ where
 	pub fn check_self_contained(&self) -> Option<Result<H160, TransactionValidityError>> {
 		if let Call::transact { transaction } = self {
 			let check = || {
-				let origin = Pallet::<T>::recover_signer(&transaction).ok_or_else(|| {
-					InvalidTransaction::Custom(TransactionValidationError::InvalidSignature as u8)
-				})?;
+				let origin = unreachable!();
 
 				Ok(origin)
 			};
@@ -142,7 +140,7 @@ where
 		if let Call::transact { transaction } = self {
 			Some(Pallet::<T>::validate_transaction_in_block(
 				*origin,
-				&transaction,
+				unreachable!(),
 			))
 		} else {
 			None
@@ -153,7 +151,7 @@ where
 		if let Call::transact { transaction } = self {
 			Some(Pallet::<T>::validate_transaction_in_pool(
 				*origin,
-				transaction,
+				unreachable!(),
 			))
 		} else {
 			None
@@ -258,20 +256,13 @@ pub mod pallet {
 	{
 		/// Transact an Ethereum transaction.
 		#[pallet::weight(<T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(
-			Pallet::<T>::transaction_data(transaction).gas_limit.unique_saturated_into()
+			Pallet::<T>::transaction_data(unreachable!()).gas_limit.unique_saturated_into()
 		))]
 		pub fn transact(
 			origin: OriginFor<T>,
-			transaction: Transaction,
+			transaction: LegacyTransaction,
 		) -> DispatchResultWithPostInfo {
-			let source = ensure_ethereum_transaction(origin)?;
-			// Disable transact functionality if PreLog exist.
-			assert!(
-				fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
-				"pre log already exists; block is invalid",
-			);
-
-			Ok(Self::apply_validated_transaction(source, transaction))
+			unreachable!()
 		}
 	}
 

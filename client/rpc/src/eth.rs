@@ -923,119 +923,7 @@ where
 	}
 
 	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<Result<H256>> {
-		let from = match request.from {
-			Some(from) => from,
-			None => {
-				let accounts = match self.accounts() {
-					Ok(accounts) => accounts,
-					Err(e) => return Box::pin(future::err(e)),
-				};
-
-				match accounts.get(0) {
-					Some(account) => account.clone(),
-					None => return Box::pin(future::err(internal_err("no signer available"))),
-				}
-			}
-		};
-
-		let nonce = match request.nonce {
-			Some(nonce) => nonce,
-			None => match self.transaction_count(from, None) {
-				Ok(nonce) => nonce,
-				Err(e) => return Box::pin(future::err(e)),
-			},
-		};
-
-		let chain_id = match self.chain_id() {
-			Ok(Some(chain_id)) => chain_id.as_u64(),
-			Ok(None) => return Box::pin(future::err(internal_err("chain id not available"))),
-			Err(e) => return Box::pin(future::err(e)),
-		};
-
-		let hash = self.client.info().best_hash;
-
-		let gas_price = request.gas_price;
-		let gas_limit = match request.gas {
-			Some(gas_limit) => gas_limit,
-			None => {
-				let block = self
-					.client
-					.runtime_api()
-					.current_block(&BlockId::Hash(hash));
-				if let Ok(Some(block)) = block {
-					block.header.gas_limit
-				} else {
-					return Box::pin(future::err(internal_err(format!(
-						"block unavailable, cannot query gas limit"
-					))));
-				}
-			}
-		};
-		let max_fee_per_gas = request.max_fee_per_gas;
-		let message: Option<TransactionMessage> = request.into();
-		let message = match message {
-			Some(TransactionMessage::Legacy(mut m)) => {
-				m.nonce = nonce;
-				m.chain_id = Some(chain_id);
-				m.gas_limit = gas_limit;
-				if gas_price.is_none() {
-					m.gas_price = self.gas_price().unwrap_or(U256::default());
-				}
-				TransactionMessage::Legacy(m)
-			}
-			Some(TransactionMessage::EIP2930(mut m)) => {
-				m.nonce = nonce;
-				m.chain_id = chain_id;
-				m.gas_limit = gas_limit;
-				if gas_price.is_none() {
-					m.gas_price = self.gas_price().unwrap_or(U256::default());
-				}
-				TransactionMessage::EIP2930(m)
-			}
-			Some(TransactionMessage::EIP1559(mut m)) => {
-				m.nonce = nonce;
-				m.chain_id = chain_id;
-				m.gas_limit = gas_limit;
-				if max_fee_per_gas.is_none() {
-					m.max_fee_per_gas = self.gas_price().unwrap_or(U256::default());
-				}
-				TransactionMessage::EIP1559(m)
-			}
-			_ => {
-				return Box::pin(future::err(internal_err("invalid transaction parameters")));
-			}
-		};
-
-		let mut transaction = None;
-
-		for signer in &self.signers {
-			if signer.accounts().contains(&from) {
-				match signer.sign(message, &from) {
-					Ok(t) => transaction = Some(t),
-					Err(e) => return Box::pin(future::err(e)),
-				}
-				break;
-			}
-		}
-
-		let transaction = match transaction {
-			Some(transaction) => transaction,
-			None => return Box::pin(future::err(internal_err("no signer available"))),
-		};
-		let transaction_hash = transaction.hash();
-		Box::pin(
-			self.pool
-				.submit_one(
-					&BlockId::hash(hash),
-					TransactionSource::Local,
-					self.convert_transaction
-						.convert_transaction(transaction.clone()),
-				)
-				.map_ok(move |_| transaction_hash)
-				.map_err(|err| {
-					internal_err(format!("submit transaction to pool failed: {:?}", err))
-				}),
-		)
+		return Box::pin(future::err(internal_err("unsafe transaction send is disabled in compat branch")));
 	}
 
 	fn send_raw_transaction(&self, bytes: Bytes) -> BoxFuture<Result<H256>> {
@@ -1047,20 +935,11 @@ where
 		let transaction = if first > &0x7f {
 			// Legacy transaction. Decode and wrap in envelope.
 			match rlp::decode::<ethereum::TransactionV0>(slice) {
-				Ok(transaction) => ethereum::TransactionV2::Legacy(transaction),
-				Err(_) => return Box::pin(future::err(internal_err("decode transaction failed"))),
-			}
-		} else {
-			// Typed Transaction.
-			// `ethereum` crate decode implementation for `TransactionV2` expects a valid rlp input,
-			// and EIP-1559 breaks that assumption by prepending a version byte.
-			// We re-encode the payload input to get a valid rlp, and the decode implementation will strip
-			// them to check the transaction version byte.
-			let extend = rlp::encode(&slice);
-			match rlp::decode::<ethereum::TransactionV2>(&extend[..]) {
 				Ok(transaction) => transaction,
 				Err(_) => return Box::pin(future::err(internal_err("decode transaction failed"))),
 			}
+		} else {
+			return Box::pin(future::err(internal_err("only legacy transactions are supported in compat branch")));
 		};
 
 		let transaction_hash = transaction.hash();
