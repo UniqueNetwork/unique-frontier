@@ -33,7 +33,7 @@ use fp_storage::PALLET_ETHEREUM_SCHEMA;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	traits::{EnsureOrigin, Get},
-	weights::{Pays, PostDispatchInfo, Weight},
+	weights::{Pays, PostDispatchInfo, Weight}, StateVersion,
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{
@@ -981,7 +981,7 @@ impl Default for EthereumStorageSchema {
 pub struct IntermediateStateRoot;
 impl Get<H256> for IntermediateStateRoot {
 	fn get() -> H256 {
-		H256::decode(&mut &sp_io::storage::root()[..])
+		H256::decode(&mut &sp_io::storage::root(StateVersion::V0)[..])
 			.expect("Node is configured to use the same hash; qed")
 	}
 }
