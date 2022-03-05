@@ -104,11 +104,11 @@ fn fee_deduction() {
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
 
 		// Deduct fees as 10 units
-		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&evm_addr, U256::from(10)).unwrap();
+		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&substrate_addr, U256::from(10)).unwrap();
 		assert_eq!(Balances::free_balance(&substrate_addr), 90);
 
 		// Refund fees as 5 units
-		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&evm_addr, U256::from(5), imbalance);
+		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&substrate_addr, U256::from(5), imbalance);
 		assert_eq!(Balances::free_balance(&substrate_addr), 95);
 	});
 }

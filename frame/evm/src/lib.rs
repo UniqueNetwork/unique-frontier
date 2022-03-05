@@ -646,13 +646,13 @@ pub trait OnChargeEVMTransaction<T: Config> {
 
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
+	fn withdraw_fee(who: &T::AccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
 
 	/// After the transaction was executed the actual fee can be calculated.
 	/// This function should refund any overpaid fees and optionally deposit
 	/// the corrected amount.
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::AccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	);
@@ -681,10 +681,9 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
-		let account_id = T::AddressMapping::into_account_id(*who);
+	fn withdraw_fee(who: &T::AccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
 		let imbalance = C::withdraw(
-			&account_id,
+			who,
 			fee.low_u128().unique_saturated_into(),
 			WithdrawReasons::FEE,
 			ExistenceRequirement::AllowDeath,
@@ -694,13 +693,11 @@ where
 	}
 
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::AccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) {
 		if let Some(paid) = already_withdrawn {
-			let account_id = T::AddressMapping::into_account_id(*who);
-
 			// Calculate how much refund we should return
 			let refund_amount = paid
 				.peek()
@@ -708,7 +705,7 @@ where
 			// refund to the account that paid the fees. If this fails, the
 			// account might have dropped below the existential balance. In
 			// that case we don't refund anything.
-			let refund_imbalance = C::deposit_into_existing(&account_id, refund_amount)
+			let refund_imbalance = C::deposit_into_existing(who, refund_amount)
 				.unwrap_or_else(|_| C::PositiveImbalance::zero());
 			// merge the imbalance caused by paying the fees and refunding parts of it again.
 			let adjusted_paid = paid
@@ -732,14 +729,14 @@ impl<T> OnChargeEVMTransaction<T> for ()
 	type LiquidityInfo = Option<NegativeImbalanceOf<T::Currency, T>>;
 
 	fn withdraw_fee(
-		who: &H160,
+		who: &T::AccountId,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
 		EVMCurrencyAdapter::<<T as Config>::Currency, ()>::withdraw_fee(who, fee)
 	}
 
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::AccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) {

@@ -96,7 +96,8 @@ impl<T: Config> Runner<T> {
 		}
 
 		// Deduct fee from the `source` account.
-		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)?;
+		let account_id = T::AddressMapping::into_account_id(source.clone());
+		let fee = T::OnChargeTransaction::withdraw_fee(&account_id, total_fee)?;
 
 		// Execute the EVM call.
 		let (reason, retv) = f(&mut executor);
@@ -114,7 +115,8 @@ impl<T: Config> Runner<T> {
 		);
 
 		// Refund fees to the `source` account if deducted more before,
-		T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_fee, fee);
+		let account_id = T::AddressMapping::into_account_id(source.clone());
+		T::OnChargeTransaction::correct_and_deposit_fee(&account_id, actual_fee, fee);
 
 		let state = executor.into_state();
 
