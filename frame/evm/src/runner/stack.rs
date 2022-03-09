@@ -139,11 +139,12 @@ impl<T: Config> Runner<T> {
 			.checked_add(max_priority_fee)
 			.ok_or(Error::<T>::FeeOverflow)?;
 
+		let source_sub = T::AddressMapping::into_account_id(source);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
-		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source);
+		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source_sub.clone());
 
-		if fee_payer == source {
+		if fee_payer == source_sub {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "sponsor found, user will pay for itself");
 			let total_payment = value
@@ -162,7 +163,7 @@ impl<T: Config> Runner<T> {
 		} else {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
-			let fee_payer_data = crate::Pallet::<T>::account_basic(&fee_payer);
+			let fee_payer_data = crate::Pallet::<T>::account_basic_by_id(&fee_payer);
 			if source_account.balance < value || fee_payer_data.balance < total_fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(

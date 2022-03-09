@@ -144,7 +144,7 @@ pub mod pallet {
 		type OnMethodCall: OnMethodCall<Self>;
 		/// Called on create calls
 		type OnCreate: OnCreate<Self>;
-		type TransactionValidityHack: TransactionValidityHack;
+		type TransactionValidityHack: TransactionValidityHack<Self::AccountId>;
 
 		/// To handle fee deduction for EVM transactions. An example is this pallet being used by `pallet_ethereum`
 		/// where the chain implementing `pallet_ethereum` should be able to configure what happens to the fees
@@ -652,7 +652,10 @@ impl<T: Config> Pallet<T> {
 	/// Get the account basic in EVM format.
 	pub fn account_basic(address: &H160) -> Account {
 		let account_id = T::AddressMapping::into_account_id(*address);
+		Self::account_basic_by_id(&account_id)
+	}
 
+	pub fn account_basic_by_id(account_id: &T::AccountId) -> Account {
 		let nonce = frame_system::Pallet::<T>::account_nonce(&account_id);
 		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
 		let balance = T::Currency::reducible_balance(&account_id, true);
