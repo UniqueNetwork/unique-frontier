@@ -28,6 +28,7 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
+use frame_system::ConsumerLimits;
 
 pub fn new_test_ext() -> TestExternalities {
 	let t = frame_system::GenesisConfig::default()
@@ -68,6 +69,18 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConsumerLimitsMock;
+}
+
+pub struct ConsumerLimitsMock{}
+impl ConsumerLimits for ConsumerLimitsMock {
+    fn max_consumers() -> frame_system::RefCount {
+        Default::default()
+    }
+
+    fn max_overflow() -> frame_system::RefCount {
+        Default::default()
+    }
 }
 
 frame_support::parameter_types! {

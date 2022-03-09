@@ -75,7 +75,6 @@ impl frame_system::Config for Test {
 }
 
 pub struct ConsumerLimitsMock{}
-
 impl ConsumerLimits for ConsumerLimitsMock {
     fn max_consumers() -> frame_system::RefCount {
         Default::default()

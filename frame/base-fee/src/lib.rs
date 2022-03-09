@@ -256,6 +256,7 @@ mod tests {
 		traits::{BlakeTwo256, IdentityLookup},
 		Permill,
 	};
+	use frame_system::ConsumerLimits;
 
 	pub fn new_test_ext(base_fee: U256) -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default()
@@ -300,6 +301,18 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = ConsumerLimitsMock;
+	}
+
+	pub struct ConsumerLimitsMock{}
+	impl ConsumerLimits for ConsumerLimitsMock {
+		fn max_consumers() -> frame_system::RefCount {
+			Default::default()
+		}
+
+		fn max_overflow() -> frame_system::RefCount {
+			Default::default()
+		}
 	}
 
 	frame_support::parameter_types! {

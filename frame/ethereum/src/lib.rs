@@ -38,7 +38,7 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{
-	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner,
+	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner, AddressMapping
 };
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -557,6 +557,7 @@ impl<T: Config> Pallet<T> {
 		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 		let value = transaction_data.value;
+		let origin_sub = T::AddressMapping::into_account_id(origin);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(
@@ -569,9 +570,9 @@ impl<T: Config> Pallet<T> {
 				TransactionAction::Create => WithdrawReason::Create,
 			},
 		)
-		.unwrap_or(origin);
+		.unwrap_or(origin_sub.clone());
 
-		if fee_payer == origin {
+		if fee_payer == origin_sub {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
 			let total_payment = value.saturating_add(fee);
@@ -588,7 +589,7 @@ impl<T: Config> Pallet<T> {
 		} else {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
-			let fee_payer_data = pallet_evm::Pallet::<T>::account_basic(&fee_payer);
+			let fee_payer_data = pallet_evm::Pallet::<T>::account_basic_by_id(&fee_payer);
 			if account_data.balance < value || fee_payer_data.balance < fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
