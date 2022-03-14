@@ -94,6 +94,9 @@ use sp_std::vec::Vec;
 
 pub use pallet::*;
 
+pub mod account;
+use account::{CrossAccountId};
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -107,7 +110,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_timestamp::Config {
+	pub trait Config: frame_system::Config + pallet_timestamp::Config + crate::account::Config {
 		/// Calculator for current gas price.
 		type FeeCalculator: FeeCalculator;
 
@@ -792,7 +795,7 @@ pub trait OnChargeEVMTransaction<T: Config> {
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
 	fn withdraw_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>>;
@@ -801,7 +804,7 @@ pub trait OnChargeEVMTransaction<T: Config> {
 	/// This function should refund any overpaid fees and optionally deposit
 	/// the corrected amount.
 	fn correct_and_deposit_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	);
@@ -834,12 +837,12 @@ where
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
 	fn withdraw_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		_reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
 		let imbalance = C::withdraw(
-			who,
+			who.as_sub(),
 			fee.low_u128().unique_saturated_into(),
 			WithdrawReasons::FEE,
 			ExistenceRequirement::AllowDeath,
@@ -849,7 +852,7 @@ where
 	}
 
 	fn correct_and_deposit_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) {
@@ -861,7 +864,7 @@ where
 			// refund to the account that paid the fees. If this fails, the
 			// account might have dropped below the existential balance. In
 			// that case we don't refund anything.
-			let refund_imbalance = C::deposit_into_existing(who, refund_amount)
+			let refund_imbalance = C::deposit_into_existing(who.as_sub(), refund_amount)
 				.unwrap_or_else(|_| C::PositiveImbalance::zero());
 
 			// Make sure this works with 0 ExistentialDeposit
@@ -870,11 +873,11 @@ where
 			// we call `make_free_balance_be` with the refunded amount.
 			let refund_imbalance = if C::minimum_balance().is_zero()
 				&& refund_amount > C::Balance::zero()
-				&& C::total_balance(who).is_zero()
+				&& C::total_balance(who.as_sub()).is_zero()
 			{
 				// Known bug: Substrate tried to refund to a zeroed AccountData, but
 				// interpreted the account to not exist.
-				match C::make_free_balance_be(who, refund_amount) {
+				match C::make_free_balance_be(who.as_sub(), refund_amount) {
 					SignedImbalance::Positive(p) => p,
 					_ => C::PositiveImbalance::zero(),
 				}
@@ -909,7 +912,7 @@ impl<T> OnChargeEVMTransaction<T> for ()
 	type LiquidityInfo = Option<NegativeImbalanceOf<T::Currency, T>>;
 
 	fn withdraw_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
@@ -917,7 +920,7 @@ impl<T> OnChargeEVMTransaction<T> for ()
 	}
 
 	fn correct_and_deposit_fee(
-		who: &T::AccountId,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) {

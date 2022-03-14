@@ -36,6 +36,7 @@ fp-consensus = { version = "2.0.0-dev", path = "../../primitives/consensus", def
 fp-rpc = { version = "3.0.0-dev", path = "../../primitives/rpc", default-features = false }
 fp-storage = { version = "2.0.0", path = "../../primitives/storage", default-features = false }
 fp-self-contained = { version = "1.0.0-dev", path = "../../primitives/self-contained", default-features = false }
+up-evm-mapping = { default-features = false, path = '../evm-mapping' }
 log = "0.4.14"
 
 [dev-dependencies]
@@ -71,5 +72,6 @@ std = [
 	"evm/std",
 	"fp-self-contained/std",
 	"scale-info/std",
+	"up-evm-mapping/std"
 ]
 debug-logging = []

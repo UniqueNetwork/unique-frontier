@@ -25,6 +25,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::{boxed::Box, prelude::*, str::FromStr};
+use up_evm_mapping::EvmBackwardsAddressMapping;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -151,4 +152,18 @@ impl crate::Config for Test {
 
 	type OnMethodCall = ();
 	type OnCreate = ();
+}
+
+pub struct EvmToEvmBackwardAddressMap {}
+impl EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
+    fn from_account_id(account_id: H160) -> H160 {
+        account_id
+    }
+}
+
+use crate::account;
+impl account::Config for Test {
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type EvmAddressMapping = crate::IdentityAddressMapping;
+	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
 }

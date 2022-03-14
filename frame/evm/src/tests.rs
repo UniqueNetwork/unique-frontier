@@ -117,17 +117,18 @@ fn fee_deduction() {
 		// Create an EVM address and the corresponding Substrate address that will be charged fees and refunded
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as account::Config>::CrossAccountId::from_eth(evm_addr);
 
 		// Seed account
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
 
 		// Deduct fees as 10 units
-		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&substrate_addr, WithdrawReason::Create, U256::from(10)).unwrap();
+		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&cross_addr, WithdrawReason::Create, U256::from(10)).unwrap();
 		assert_eq!(Balances::free_balance(&substrate_addr), 90);
 
 		// Refund fees as 5 units
-		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&substrate_addr, U256::from(5), imbalance);
+		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&cross_addr, U256::from(5), imbalance);
 		assert_eq!(Balances::free_balance(&substrate_addr), 95);
 	});
 }
@@ -167,6 +168,7 @@ fn ed_0_refund_patch_is_required() {
 		// for ED 0 configured chains.
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as account::Config>::CrossAccountId::from_eth(evm_addr);
 
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
@@ -174,7 +176,7 @@ fn ed_0_refund_patch_is_required() {
 		// Drain funds
 		let _ =
 			<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(
-				&evm_addr,
+				&cross_addr,
 				WithdrawReason::Create,
 				U256::from(100),
 			)

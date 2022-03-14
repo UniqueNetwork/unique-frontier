@@ -1,18 +1,20 @@
-// use crate::Config;
+use crate::AddressMapping;
 use codec::{Encode, EncodeLike, Decode, MaxEncodedLen};
 use sp_core::H160;
 use scale_info::{Type, TypeInfo};
 use core::cmp::Ordering;
-use serde::{Serialize, Deserialize};
 use sp_std::vec::Vec;
 use sp_std::clone::Clone;
-use pallet_evm::AddressMapping;
 use up_evm_mapping::EvmBackwardsAddressMapping;
 use frame_system::Config as FrameSystemConfig;
 
+#[cfg(feature = "std")]
+use serde::{Serialize, Deserialize};
+
 
 pub trait Config: FrameSystemConfig {
-	type EvmAddressMapping: pallet_evm::AddressMapping<Self::AccountId>;
+	type CrossAccountId: CrossAccountId<Self::AccountId>;
+	type EvmAddressMapping: AddressMapping<Self::AccountId>;
 	type EvmBackwardsAddressMapping: up_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
 }
 
@@ -30,8 +32,9 @@ pub trait CrossAccountId<AccountId>:
 	fn conv_eq(&self, other: &Self) -> bool;
 }
 
-#[derive(Encode, Decode, Serialize, Deserialize, TypeInfo, MaxEncodedLen)]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+#[derive(Encode, Decode, TypeInfo, MaxEncodedLen)]
 enum BasicCrossAccountIdRepr<AccountId> {
 	Substrate(AccountId),
 	Ethereum(H160),
@@ -109,6 +112,8 @@ impl<T: Config> Decode for BasicCrossAccountId<T> {
 		Ok(BasicCrossAccountIdRepr::decode(input)?.into())
 	}
 }
+
+#[cfg(feature = "std")]
 impl<T> Serialize for BasicCrossAccountId<T>
 where
 	T: Config,
@@ -122,6 +127,8 @@ where
 		(&repr).serialize(serializer)
 	}
 }
+
+#[cfg(feature = "std")]
 impl<'de, T> Deserialize<'de> for BasicCrossAccountId<T>
 where
 	T: Config,
@@ -134,6 +141,7 @@ where
 		Ok(BasicCrossAccountIdRepr::deserialize(deserializer)?.into())
 	}
 }
+
 impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
 	fn as_sub(&self) -> &T::AccountId {
 		&self.substrate

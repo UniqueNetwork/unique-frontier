@@ -19,7 +19,7 @@
 
 use crate::{
 	runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
-	Config, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet,
+	Config, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet, account::CrossAccountId,
 };
 use evm::{
 	backend::Backend as BackendT,
@@ -182,8 +182,8 @@ impl<T: Config> Runner<T> {
 			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
 		}
 		// Deduct fee from the `source` account.
-		let account_id = T::AddressMapping::into_account_id(source.clone());
-		let fee = T::OnChargeTransaction::withdraw_fee(&account_id, reason, total_fee)?;
+		let cross_account = T::CrossAccountId::from_eth(source.clone());
+		let fee = T::OnChargeTransaction::withdraw_fee(&cross_account, reason, total_fee)?;
 
 		// Execute the EVM call.
 		let (reason, retv) = f(&mut executor);
@@ -232,7 +232,7 @@ impl<T: Config> Runner<T> {
 		// Refunded 320 - 40 = 280.
 		// Tip 5 * 6 = 30.
 		// Burned 320 - (280 + 30) = 10. Which is equivalent to gas_used * base_fee.
-		let account_id = T::AddressMapping::into_account_id(source.clone());
+		let account_id = T::CrossAccountId::from_eth(source.clone());
 		T::OnChargeTransaction::correct_and_deposit_fee(&account_id, actual_fee, fee);
 		if let Some(actual_priority_fee) = actual_priority_fee {
 			T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
