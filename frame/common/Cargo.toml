@@ -1,0 +1,30 @@
+[package]
+name = "frame-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.codec]
+default-features = false
+features = ['derive']
+package = 'parity-scale-codec'
+version = '2.0.0'
+
+[dependencies]
+frame-system = { default-features = false, git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.17' }
+sp-std = { default-features = false, git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.17' }
+sp-core = { default-features = false, git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.17' }
+pallet-evm = { default-features = false, path = '../evm' }
+up-evm-mapping = { default-features = false, path = '../evm-mapping' }
+serde = { version = "1.0.130", default-features = false }
+scale-info = { version = "1.0.0", default-features = false, features = [
+    "derive",
+] }
+
+[features]
+default = ["std"]
+std = [
+    "sp-std/std",
+    "up-evm-mapping/std",
+    "pallet-evm/std",
+]
+runtime-benchmarks = []
