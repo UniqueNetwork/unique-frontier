@@ -2,6 +2,7 @@ resolver = "2"
 
 [workspace]
 members = [
+	"frame/common",
 	"frame/dynamic-fee",
 	"frame/ethereum",
 	"frame/evm",
@@ -13,6 +14,7 @@ members = [
 	"frame/evm/precompile/blake2",
 	"frame/evm/precompile/dispatch",
 	"frame/evm/precompile/curve25519",
+	"frame/evm-mapping",
 	"client/consensus",
 	"client/rpc-core",
 	"client/rpc",

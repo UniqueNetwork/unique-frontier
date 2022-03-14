@@ -1872,6 +1872,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-common"
+version = "0.1.0"
+dependencies = [
+ "frame-system",
+ "pallet-evm",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-std",
+ "up-evm-mapping",
+]
+
+[[package]]
 name = "frame-executive"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.18#fc3fd073d3a0acf9933c3994b660ebd7b5833f65"
@@ -8428,6 +8442,14 @@ name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
+
+[[package]]
+name = "up-evm-mapping"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "sp-core",
+]
 
 [[package]]
 name = "url"
