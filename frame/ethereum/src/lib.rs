@@ -38,7 +38,7 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{
-	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner, AddressMapping
+	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner, account::CrossAccountId
 };
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -557,7 +557,7 @@ impl<T: Config> Pallet<T> {
 		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 		let value = transaction_data.value;
-		let origin_sub = T::AddressMapping::into_account_id(origin);
+		let origin_sub = T::CrossAccountId::from_eth(origin);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(

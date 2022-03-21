@@ -139,7 +139,7 @@ impl<T: Config> Runner<T> {
 			.checked_add(max_priority_fee)
 			.ok_or(Error::<T>::FeeOverflow)?;
 
-		let source_sub = T::AddressMapping::into_account_id(source);
+		let source_sub = T::CrossAccountId::from_eth(source);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source_sub.clone());
