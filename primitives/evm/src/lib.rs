@@ -70,19 +70,19 @@ pub enum WithdrawReason {
 }
 
 // TODO: Refactor into something less specific
-pub trait TransactionValidityHack<TCrossAccountId> {
-	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<TCrossAccountId>;
+pub trait TransactionValidityHack<CrossAccountId> {
+	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<CrossAccountId>;
 }
 
-impl<T> TransactionValidityHack<T> for () {
-	fn who_pays_fee(_origin: H160, _reason: &WithdrawReason) -> Option<T> {
+impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for () {
+	fn who_pays_fee(_origin: H160, _reason: &WithdrawReason) -> Option<CrossAccountId> {
 		None
 	}
 }
 
 #[impl_for_tuples(1, 12)]
-impl<T> TransactionValidityHack<T> for Tuple {
-	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<T> {
+impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for Tuple {
+	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<CrossAccountId> {
 		for_tuples!(#(
 			if let Some(who) = Tuple::who_pays_fee(origin, reason) {
 				return Some(who);
