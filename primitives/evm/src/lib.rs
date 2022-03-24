@@ -70,8 +70,8 @@ pub enum WithdrawReason {
 }
 
 // TODO: Refactor into something less specific
-pub trait TransactionValidityHack<T> {
-	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<T>;
+pub trait TransactionValidityHack<TCrossAccountId> {
+	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<TCrossAccountId>;
 }
 
 impl<T> TransactionValidityHack<T> for () {

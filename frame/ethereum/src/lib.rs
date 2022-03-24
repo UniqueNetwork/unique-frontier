@@ -557,7 +557,7 @@ impl<T: Config> Pallet<T> {
 		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 		let value = transaction_data.value;
-		let origin_sub = T::CrossAccountId::from_eth(origin);
+		let origin_cross = T::CrossAccountId::from_eth(origin);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
 		let fee_payer = T::TransactionValidityHack::who_pays_fee(
@@ -570,9 +570,9 @@ impl<T: Config> Pallet<T> {
 				TransactionAction::Create => WithdrawReason::Create,
 			},
 		)
-		.unwrap_or(origin_sub.clone());
+		.unwrap_or(origin_cross.clone());
 
-		if fee_payer == origin_sub {
+		if fee_payer == origin_cross {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
 			let total_payment = value.saturating_add(fee);

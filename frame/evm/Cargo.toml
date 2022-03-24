@@ -38,7 +38,7 @@ evm = { version = "0.33.0", default-features = false, features = [
 ], git = "https://github.com/uniquenetwork/evm.git", branch = "unique-polkadot-v0.9.18" }
 evm-runtime = { version = "0.33.0", default-features = false, git = "https://github.com/uniquenetwork/evm.git", branch = "unique-polkadot-v0.9.18" }
 evm-gasometer = { version = "0.33.0", default-features = false, git = "https://github.com/uniquenetwork/evm.git", branch = "unique-polkadot-v0.9.18" }
-up-evm-mapping = { default-features = false, path = '../evm-mapping' }
+fp-evm-mapping = { default-features = false, path = '../evm-mapping' }
 sha3 = { version = "0.8", default-features = false }
 log = { version = "0.4", default-features = false }
 impl-trait-for-tuples = "0.2.1"
@@ -69,7 +69,7 @@ std = [
 	"log/std",
 	"hex/std",
 	"scale-info/std",
-	"up-evm-mapping/std",
+	"fp-evm-mapping/std",
 ]
 runtime-benchmarks = ["frame-benchmarking"]
 debug-logging = []

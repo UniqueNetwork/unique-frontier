@@ -1773,6 +1773,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fp-evm-mapping"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "sp-core",
+]
+
+[[package]]
 name = "fp-rpc"
 version = "3.0.0-dev"
 dependencies = [
@@ -4440,6 +4448,7 @@ dependencies = [
  "evm",
  "fp-consensus",
  "fp-evm",
+ "fp-evm-mapping",
  "fp-rpc",
  "fp-self-contained",
  "fp-storage",
@@ -4460,7 +4469,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "up-evm-mapping",
 ]
 
 [[package]]
@@ -4471,6 +4479,7 @@ dependencies = [
  "evm-gasometer",
  "evm-runtime",
  "fp-evm",
+ "fp-evm-mapping",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -4489,7 +4498,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "up-evm-mapping",
 ]
 
 [[package]]
@@ -8430,14 +8438,6 @@ name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
-
-[[package]]
-name = "up-evm-mapping"
-version = "0.1.0"
-dependencies = [
- "frame-support",
- "sp-core",
-]
 
 [[package]]
 name = "url"

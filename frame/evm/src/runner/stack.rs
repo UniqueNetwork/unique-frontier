@@ -139,12 +139,12 @@ impl<T: Config> Runner<T> {
 			.checked_add(max_priority_fee)
 			.ok_or(Error::<T>::FeeOverflow)?;
 
-		let source_sub = T::CrossAccountId::from_eth(source);
+		let source_cross = T::CrossAccountId::from_eth(source);
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
-		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source_sub.clone());
+		let fee_payer = T::TransactionValidityHack::who_pays_fee(source, &reason).unwrap_or(source_cross.clone());
 
-		if fee_payer == source_sub {
+		if fee_payer == source_cross {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "sponsor found, user will pay for itself");
 			let total_payment = value
@@ -182,8 +182,7 @@ impl<T: Config> Runner<T> {
 			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
 		}
 		// Deduct fee from the `source` account.
-		let cross_account = T::CrossAccountId::from_eth(source.clone());
-		let fee = T::OnChargeTransaction::withdraw_fee(&cross_account, reason, total_fee)?;
+		let fee = T::OnChargeTransaction::withdraw_fee(&source_cross, reason, total_fee)?;
 
 		// Execute the EVM call.
 		let (reason, retv) = f(&mut executor);
@@ -232,8 +231,7 @@ impl<T: Config> Runner<T> {
 		// Refunded 320 - 40 = 280.
 		// Tip 5 * 6 = 30.
 		// Burned 320 - (280 + 30) = 10. Which is equivalent to gas_used * base_fee.
-		let account_id = T::CrossAccountId::from_eth(source.clone());
-		T::OnChargeTransaction::correct_and_deposit_fee(&account_id, actual_fee, fee);
+		T::OnChargeTransaction::correct_and_deposit_fee(&source_cross, actual_fee, fee);
 		if let Some(actual_priority_fee) = actual_priority_fee {
 			T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
 		}

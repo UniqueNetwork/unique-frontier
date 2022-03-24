@@ -21,7 +21,7 @@ use scale_info::{Type, TypeInfo};
 use core::cmp::Ordering;
 use sp_std::vec::Vec;
 use sp_std::clone::Clone;
-use up_evm_mapping::EvmBackwardsAddressMapping;
+use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_system::Config as FrameSystemConfig;
 
 #[cfg(feature = "std")]
@@ -31,7 +31,7 @@ use serde::{Serialize, Deserialize};
 pub trait Config: FrameSystemConfig {
 	type CrossAccountId: CrossAccountId<Self::AccountId>;
 	type EvmAddressMapping: AddressMapping<Self::AccountId>;
-	type EvmBackwardsAddressMapping: up_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
+	type EvmBackwardsAddressMapping: fp_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
 }
 
 pub trait CrossAccountId<AccountId>:

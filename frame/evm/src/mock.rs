@@ -25,7 +25,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::{boxed::Box, prelude::*, str::FromStr};
-use up_evm_mapping::EvmBackwardsAddressMapping;
+use fp_evm_mapping::EvmBackwardsAddressMapping;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;

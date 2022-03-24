@@ -1,5 +1,5 @@
 [package]
-name = "up-evm-mapping"
+name = "fp-evm-mapping"
 version = "0.1.0"
 license = "GPLv3"
 edition = "2021"

@@ -189,7 +189,7 @@ use pallet_evm::account;
 impl account::Config for Test {
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
 	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
-	type EvmBackwardsAddressMapping = up_evm_mapping::MapBackwardsAddressTruncated;
+	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
 }
 
 impl fp_self_contained::SelfContainedCall for Call {
