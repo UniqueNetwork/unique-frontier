@@ -38,6 +38,7 @@ use lru::LruCache;
 use sc_client_api::{
 	backend::{Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
+	StorageNotification,
 };
 use sc_network::{ExHashT, NetworkService};
 use sc_service::SpawnTaskHandle;
@@ -1202,7 +1203,7 @@ where
 							Some(
 								access_list
 									.into_iter()
-									.map(|item| (item.address, item.slots))
+									.map(|item| (item.address, item.storage_keys))
 									.collect(),
 							),
 						)
@@ -1272,7 +1273,7 @@ where
 							Some(
 								access_list
 									.into_iter()
-									.map(|item| (item.address, item.slots))
+									.map(|item| (item.address, item.storage_keys))
 									.collect(),
 							),
 						)
@@ -1465,7 +1466,7 @@ where
 								Some(
 									access_list
 										.into_iter()
-										.map(|item| (item.address, item.slots))
+										.map(|item| (item.address, item.storage_keys))
 										.collect(),
 								),
 							)
@@ -1523,7 +1524,7 @@ where
 								Some(
 									access_list
 										.into_iter()
-										.map(|item| (item.address, item.slots))
+										.map(|item| (item.address, item.storage_keys))
 										.collect(),
 								),
 							)
@@ -2709,9 +2710,9 @@ where
 			Some(&[StorageKey(PALLET_ETHEREUM_SCHEMA.to_vec())]),
 			None,
 		) {
-			while let Some((hash, changes)) = stream.next().await {
+			while let Some(StorageNotification { block, changes }) = stream.next().await {
 				// Make sure only block hashes marked as best are referencing cache checkpoints.
-				if hash == client.info().best_hash {
+				if block == client.info().best_hash {
 					// Just map the change set to the actual data.
 					let storage: Vec<Option<StorageData>> = changes
 						.iter()
@@ -2741,7 +2742,7 @@ where
 										);
 									}
 									_ => {
-										new_cache.push((new_schema, hash));
+										new_cache.push((new_schema, block));
 										let _ = frontier_backend_client::write_cached_schema::<B>(
 											backend.as_ref(),
 											new_cache,

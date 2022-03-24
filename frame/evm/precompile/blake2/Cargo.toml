@@ -9,8 +9,8 @@ repository = "https://github.com/paritytech/frontier/"
 description = "BLAKE2 precompiles for EVM pallet."
 
 [dependencies]
-sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17" }
-sp-io = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
+sp-io = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
 fp-evm = { default-features = false, path = "../../../../primitives/evm" }
 
 [dev-dependencies]
@@ -18,8 +18,4 @@ pallet-evm-test-vector-support = { version = "1.0.0-dev", path = "../../test-vec
 
 [features]
 default = ["std"]
-std = [
-	"sp-core/std",
-	"sp-io/std",
-	"fp-evm/std",
-]
+std = ["sp-core/std", "sp-io/std", "fp-evm/std"]
