@@ -199,10 +199,12 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			let sender = ensure_signed(origin)?;
+			let sender_cross = T::CrossAccountId::from_sub(sender);
+			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
 			let info = T::Runner::call(
-				source,
+				sender_cross,
 				target,
 				input,
 				value,
@@ -245,10 +247,12 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			let sender = ensure_signed(origin)?;
+			let sender_cross = T::CrossAccountId::from_sub(sender);
+			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
 			let info = T::Runner::create(
-				source,
+				sender_cross,
 				init,
 				value,
 				gas_limit,
@@ -298,10 +302,12 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			let sender = ensure_signed(origin)?;
+			let sender_cross = T::CrossAccountId::from_sub(sender);
+			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
 			let info = T::Runner::create2(
-				source,
+				sender_cross,
 				init,
 				salt,
 				value,
