@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,24 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use codec::{Decode, Encode};
+
 /// Current version of pallet Ethereum's storage schema is stored under this key.
 pub const PALLET_ETHEREUM_SCHEMA: &'static [u8] = b":ethereum_schema";
 /// Cached version of pallet Ethereum's storage schema is stored under this key in the AuxStore.
 pub const PALLET_ETHEREUM_SCHEMA_CACHE: &'static [u8] = b":ethereum_schema_cache";
+
+/// The schema version for Pallet Ethereum's storage
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EthereumStorageSchema {
+	Undefined,
+	V1,
+	V2,
+	V3,
+}
+
+impl Default for EthereumStorageSchema {
+	fn default() -> Self {
+		Self::Undefined
+	}
+}

@@ -9,26 +9,20 @@ homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/frontier/"
 
 [dependencies]
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
-sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = [
-	"derive",
-] }
-ethereum = { version = "0.12.0", features = [
-	"with-codec",
-], default-features = false }
-rlp = { version = "0.5", default-features = false }
-sha3 = { version = "0.8", default-features = false }
+ethereum = { version = "0.12.0", default-features = false, features = ["with-codec"] }
+
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [features]
 default = ["std"]
 std = [
-	"sp-std/std",
-	"sp-runtime/std",
-	"sp-core/std",
-	"codec/std",
 	"ethereum/std",
-	"rlp/std",
-	"sha3/std",
+
+	"codec/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-std/std",
 ]

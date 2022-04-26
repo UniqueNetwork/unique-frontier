@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Database, DatabaseSettings, DatabaseSettingsSrc, DbHash};
 use std::sync::Arc;
+
+use crate::{Database, DatabaseSettings, DatabaseSettingsSrc, DbHash};
 
 pub fn open_database(config: &DatabaseSettings) -> Result<Arc<dyn Database<DbHash>>, String> {
 	let db: Arc<dyn Database<DbHash>> = match &config.source {

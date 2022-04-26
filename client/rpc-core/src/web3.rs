@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2015-2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2015-2022 Parity Technologies (UK) Ltd.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Web3 rpc interface.
+
 use ethereum_types::H256;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;

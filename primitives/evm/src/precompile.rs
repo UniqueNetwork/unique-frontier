@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 pub use evm::{
 	executor::stack::{PrecompileFailure, PrecompileOutput, PrecompileSet},
-	Context, ExitError, ExitSucceed,
+	Context, ExitError, ExitRevert, ExitSucceed,
 };
 use sp_std::vec::Vec;
 

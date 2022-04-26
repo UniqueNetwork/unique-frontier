@@ -1,64 +1,59 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 // This file is part of Frontier.
-
-// Substrate is free software: you can redistribute it and/or modify
+//
+// Copyright (c) 2017-2022 Parity Technologies (UK) Ltd.
+//
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
-// Substrate is distributed in the hope that it will be useful,
+//
+// This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-
+//
 // You should have received a copy of the GNU General Public License
-// along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use std::{marker::PhantomData, sync::Arc};
 
 use codec::Decode;
 use ethereum_types::{H160, H256, U256};
-use fp_rpc::TransactionStatus;
-use sc_client_api::backend::{AuxStore, Backend, StateBackend, StorageProvider};
-use sp_api::BlockId;
-use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
+
+use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
+use sp_api::{BlockId, ProvideRuntimeApi};
 use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT},
 	Permill,
 };
 use sp_storage::StorageKey;
-use std::{marker::PhantomData, sync::Arc};
+
+use fp_rpc::{TransactionStatus, EthereumRuntimeRPCApi};
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
 /// An override for runtimes that use Schema V1
-pub struct SchemaV1Override<B: BlockT, C, BE, A> {
+pub struct SchemaV1Override<B: BlockT, C, BE> {
 	client: Arc<C>,
-	code_provider: Arc<A>,
 	_marker: PhantomData<(B, BE)>,
 }
 
-impl<B: BlockT, C, BE, A> SchemaV1Override<B, C, BE, A> {
-	pub fn new_with_code_provider(client: Arc<C>, code_provider: Arc<A>) -> Self {
+impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE> {
+	pub fn new(client: Arc<C>) -> Self {
 		Self {
 			client,
-			code_provider,
 			_marker: PhantomData,
 		}
 	}
 }
-impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE, ()> {
-	pub fn new(client: Arc<C>) -> Self {
-		Self::new_with_code_provider(client, Arc::new(()))
-	}
-}
 
-impl<B, C, BE, A> SchemaV1Override<B, C, BE, A>
+impl<B, C, BE> SchemaV1Override<B, C, BE>
 where
-	C: StorageProvider<B, BE> + AuxStore,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
+	B: BlockT<Hash = H256> + Send + Sync + 'static,
+	C: StorageProvider<B, BE> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
-	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: Send + Sync + 'static,
 {
 	fn query_storage<T: Decode>(&self, id: &BlockId<B>, key: &StorageKey) -> Option<T> {
 		if let Ok(Some(data)) = self.client.storage(id, key) {
@@ -70,26 +65,23 @@ where
 	}
 }
 
-impl<Block, C, BE, A> StorageOverride<Block> for SchemaV1Override<Block, C, BE, A>
+impl<Block, C, BE> StorageOverride<Block> for SchemaV1Override<Block, C, BE>
 where
-	C: StorageProvider<Block, BE>,
-	C: AuxStore,
-	C: HeaderBackend<Block>,
-	C: HeaderMetadata<Block, Error = BlockChainError> + 'static,
+	C: ProvideRuntimeApi<Block>,
+	C::Api: EthereumRuntimeRPCApi<Block>,
+	C: StorageProvider<Block, BE> + Send + Sync + 'static,
 	BE: Backend<Block> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	Block: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: Send + Sync + 'static,
-	A: AccountCodeProvider<Block>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>> {
-		if let Some(code) = self.code_provider.code(block, address.clone()) {
-			return Some(code);
-		}
-		let mut key: Vec<u8> = storage_prefix_build(b"EVM", b"AccountCodes");
-		key.extend(blake2_128_extend(address.as_bytes()));
-		self.query_storage::<Vec<u8>>(block, &StorageKey(key))
+		let api = self.client.runtime_api();
+		api.account_code_at(
+			block,
+			address
+		).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.
@@ -135,10 +127,7 @@ where
 	}
 
 	/// Return the current transaction status.
-	fn current_transaction_statuses(
-		&self,
-		block: &BlockId<Block>,
-	) -> Option<Vec<TransactionStatus>> {
+	fn current_transaction_statuses(&self, block: &BlockId<Block>) -> Option<Vec<TransactionStatus>> {
 		self.query_storage::<Vec<TransactionStatus>>(
 			block,
 			&StorageKey(storage_prefix_build(
@@ -153,22 +142,12 @@ where
 		None
 	}
 
-	/// Prior to eip-1559 there is no base fee.
+	/// Prior to eip-1559 there is no elasticity.
 	fn elasticity(&self, _block: &BlockId<Block>) -> Option<Permill> {
 		None
 	}
 
 	fn is_eip1559(&self, _block: &BlockId<Block>) -> bool {
 		false
-	}
-}
-
-pub trait AccountCodeProvider<Block: BlockT> {
-	fn code(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>>;
-}
-
-impl<Block: BlockT> AccountCodeProvider<Block> for () {
-	fn code(&self, _block: &BlockId<Block>, _address: H160) -> Option<Vec<u8>> {
-		None
 	}
 }

@@ -1,18 +1,36 @@
-use crate::{CheckedExtrinsic, CheckedSignature, SelfContainedCall};
-use codec::{Decode, Encode};
+// SPDX-License-Identifier: Apache-2.0
+// This file is part of Frontier.
+//
+// Copyright (c) 2017-2020 Parity Technologies (UK) Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use frame_support::{
+	codec::{Decode, Encode},
+	scale_info::TypeInfo,
 	traits::ExtrinsicCall,
 	weights::{DispatchInfo, GetDispatchInfo},
 };
-use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
 		self, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount, MaybeDisplay, Member,
 		SignedExtension,
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
-	RuntimeDebug,
+	OpaqueExtrinsic, RuntimeDebug,
 };
+
+use crate::{CheckedExtrinsic, CheckedSignature, SelfContainedCall};
 
 /// A extrinsic right from the external world. This is unchecked and so
 /// can contain a signature.
@@ -163,5 +181,18 @@ impl<'a, Address: Decode, Signature: Decode, Call: Decode, Extra: SignedExtensio
 	{
 		<sp_runtime::generic::UncheckedExtrinsic<Address, Call, Signature, Extra>>::deserialize(de)
 			.map(Self)
+	}
+}
+
+impl<Address, Call, Signature, Extra> From<UncheckedExtrinsic<Address, Call, Signature, Extra>>
+	for OpaqueExtrinsic
+where
+	Address: Encode,
+	Signature: Encode,
+	Call: Encode,
+	Extra: SignedExtension,
+{
+	fn from(extrinsic: UncheckedExtrinsic<Address, Call, Signature, Extra>) -> Self {
+		extrinsic.0.into()
 	}
 }

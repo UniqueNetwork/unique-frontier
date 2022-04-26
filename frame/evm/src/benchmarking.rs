@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,24 +17,25 @@
 
 #![cfg(feature = "runtime-benchmarks")]
 
-//! Benchmarking
-use crate::{runner::Runner, Config, FeeCalculator, Module};
-use frame_benchmarking::{account, benchmarks};
-use rlp::RlpStream;
-use sha3::{Digest, Keccak256};
-use sp_core::{H160, U256};
-use sp_std::prelude::*;
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+
+use super::*;
 
 benchmarks! {
 
+	runner_execute {
 	// This benchmark tests the relationship between gas and weight. It deploys a contract which
 	// has an infinite loop in a public function. We then call this function with varying amounts
 	// of gas, expecting it to OOG. The benchmarking framework measures the amount of time (aka
 	// weight) it takes before OOGing and relates that to the amount of gas provided, leaving us
 	// with an estimate for gas-to-weight mapping.
-	runner_execute {
 
 		let x in 1..10000000;
+
+		use frame_benchmarking::vec;
+		use rlp::RlpStream;
+		use sha3::{Digest, Keccak256};
+		use sp_core::{H160, U256};
 
 		// contract bytecode below is for:
 		//
@@ -81,7 +82,9 @@ benchmarks! {
 			value,
 			gas_limit_create,
 			None,
+			None,
 			Some(nonce_as_u256),
+			Vec::new(),
 			T::config(),
 		);
 		assert_eq!(create_runner_results.is_ok(), true, "create() failed");
@@ -110,31 +113,13 @@ benchmarks! {
 			value,
 			gas_limit_call,
 			None,
+			None,
 			Some(nonce_as_u256),
+			Vec::new(),
 			T::config(),
 		);
 		assert_eq!(call_runner_results.is_ok(), true, "call() failed");
 	}
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::mock::Test;
-	use frame_support::assert_ok;
-	use sp_io::TestExternalities;
-
-	pub fn new_test_ext() -> TestExternalities {
-		let t = frame_system::GenesisConfig::default()
-			.build_storage::<Test>()
-			.unwrap();
-		TestExternalities::new(t)
-	}
-
-	#[test]
-	fn test_runner_execute() {
-		new_test_ext().execute_with(|| {
-			assert_ok!(test_benchmark_runner_execute::<Test>());
-		});
-	}
-}
+impl_benchmark_test_suite!(Pallet, crate::tests::new_test_ext(), crate::tests::Test);

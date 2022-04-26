@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2021 Parity Technologies (UK) Ltd.
+// Copyright (c) 2021-2022 Parity Technologies (UK) Ltd.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,19 +18,18 @@
 
 mod utils;
 
-pub use sp_database::Database;
-
-use codec::{Decode, Encode};
-use fp_storage::PALLET_ETHEREUM_SCHEMA_CACHE;
-use pallet_ethereum::EthereumStorageSchema;
-use parking_lot::Mutex;
-use sp_core::H256;
-use sp_runtime::traits::Block as BlockT;
 use std::{
 	marker::PhantomData,
 	path::{Path, PathBuf},
 	sync::Arc,
 };
+
+use codec::{Decode, Encode};
+use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA_CACHE};
+use parking_lot::Mutex;
+use sp_core::H256;
+pub use sp_database::Database;
+use sp_runtime::traits::Block as BlockT;
 
 const DB_HASH_LEN: usize = 32;
 /// Hash type that this backend uses for the database.

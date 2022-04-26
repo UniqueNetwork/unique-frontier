@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,25 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use async_trait::async_trait;
-use fp_consensus::{ensure_log, FindLogError};
-use fp_rpc::EthereumRuntimeRPCApi;
-use sc_client_api::{self, backend::AuxStore, BlockOf};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+
+use sc_client_api::{backend::AuxStore, BlockOf};
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::{well_known_cache_keys::Id as CacheKeyId, HeaderBackend};
 use sp_consensus::Error as ConsensusError;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-#[derive(derive_more::Display, Debug)]
+use fp_consensus::{ensure_log, FindLogError};
+use fp_rpc::EthereumRuntimeRPCApi;
+
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-	#[display(fmt = "Multiple runtime Ethereum blocks, rejecting!")]
+	#[error("Multiple runtime Ethereum blocks, rejecting!")]
 	MultipleRuntimeLogs,
-	#[display(fmt = "Runtime Ethereum block not found, rejecting!")]
+	#[error("Runtime Ethereum block not found, rejecting!")]
 	NoRuntimeLog,
-	#[display(fmt = "Cannot access the runtime at genesis, rejecting!")]
+	#[error("Cannot access the runtime at genesis, rejecting!")]
 	RuntimeApiCallFailed,
 }
 
@@ -96,7 +97,7 @@ where
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<B, I, C> BlockImport<B> for FrontierBlockImport<B, I, C>
 where
 	B: BlockT,

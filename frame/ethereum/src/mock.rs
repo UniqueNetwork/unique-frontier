@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@
 
 //! Test utilities
 
-use super::*;
-use crate::IntermediateStateRoot;
 use ethereum::{TransactionAction, TransactionSignature};
-use frame_support::{parameter_types, traits::FindAuthor, ConsensusEngineId, PalletId};
+use frame_support::{
+	parameter_types,
+	traits::{ConstU32, FindAuthor},
+	ConsensusEngineId, PalletId,
+};
 use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
-use rlp::*;
+use rlp::RlpStream;
 use sha3::Digest;
 use sp_core::{H160, H256, U256};
 use sp_runtime::{
@@ -30,7 +32,9 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	AccountId32,
 };
-use frame_system::ConsumerLimits;
+
+use super::*;
+use crate::IntermediateStateRoot;
 
 pub type SignedExtra = (frame_system::CheckSpecVersion<Test>,);
 
@@ -81,18 +85,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = ConsumerLimitsMock;
-}
-
-pub struct ConsumerLimitsMock{}
-impl ConsumerLimits for ConsumerLimitsMock {
-    fn max_consumers() -> frame_system::RefCount {
-        Default::default()
-    }
-
-    fn max_overflow() -> frame_system::RefCount {
-        Default::default()
-    }
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
@@ -182,7 +175,7 @@ impl pallet_evm::Config for Test {
 
 impl crate::Config for Test {
 	type Event = Event;
-	type StateRoot = IntermediateStateRoot;
+	type StateRoot = IntermediateStateRoot<Self>;
 }
 
 use pallet_evm::account;
@@ -378,7 +371,7 @@ impl EIP2930UnsignedTransaction {
 		};
 		let chain_id = chain_id.unwrap_or(ChainId::get());
 		let msg = ethereum::EIP2930TransactionMessage {
-			chain_id: chain_id,
+			chain_id,
 			nonce: self.nonce,
 			gas_price: self.gas_price,
 			gas_limit: self.gas_limit,
@@ -428,7 +421,7 @@ impl EIP1559UnsignedTransaction {
 		};
 		let chain_id = chain_id.unwrap_or(ChainId::get());
 		let msg = ethereum::EIP1559TransactionMessage {
-			chain_id: chain_id,
+			chain_id,
 			nonce: self.nonce,
 			max_priority_fee_per_gas: self.max_priority_fee_per_gas,
 			max_fee_per_gas: self.max_fee_per_gas,

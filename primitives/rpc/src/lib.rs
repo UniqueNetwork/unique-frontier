@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -177,8 +177,26 @@ sp_api::decl_runtime_apis! {
 		/// Return the elasticity multiplier.
 		fn elasticity() -> Option<Permill>;
 	}
+
+	#[api_version(2)]
+	pub trait ConvertTransactionRuntimeApi {
+		fn convert_transaction(transaction: ethereum::TransactionV2) -> <Block as BlockT>::Extrinsic;
+		#[changed_in(2)]
+		fn convert_transaction(transaction: ethereum::TransactionV0) -> <Block as BlockT>::Extrinsic;
+	}
 }
 
 pub trait ConvertTransaction<E> {
 	fn convert_transaction(&self, transaction: ethereum::TransactionV2) -> E;
+}
+
+// `NoTransactionConverter` is a non-instantiable type (an enum with no variants),
+// so we are guaranteed at compile time that `NoTransactionConverter` can never be instantiated.
+pub enum NoTransactionConverter {}
+impl<E> ConvertTransaction<E> for NoTransactionConverter {
+	// `convert_transaction` is a method taking `&self` as a parameter, so it can only be called via an instance of type Self,
+	// so we are guaranteed at compile time that this method can never be called.
+	fn convert_transaction(&self, _transaction: ethereum::TransactionV2) -> E {
+		unreachable!()
+	}
 }

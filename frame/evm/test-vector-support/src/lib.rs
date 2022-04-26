@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,9 +35,7 @@ struct EthConsensusTest {
 /// The file is expected to be in JSON format and contain an array of test vectors, where each
 /// vector can be deserialized into an "EthConsensusTest".
 #[cfg(feature = "std")]
-pub fn test_precompile_test_vectors<P: Precompile>(
-	filepath: &str,
-) -> std::result::Result<(), String> {
+pub fn test_precompile_test_vectors<P: Precompile>(filepath: &str) -> Result<(), String> {
 	use std::fs;
 
 	let data = fs::read_to_string(&filepath).expect("Failed to read blake2F.json");

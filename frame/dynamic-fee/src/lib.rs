@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2021 Parity Technologies (UK) Ltd.
+// Copyright (c) 2021-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,19 +18,18 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use async_trait::async_trait;
+#[cfg(test)]
+mod tests;
+
 use frame_support::inherent::IsFatalError;
 use sp_core::U256;
 use sp_inherents::{InherentData, InherentIdentifier};
-use sp_std::{
-	cmp::{max, min},
-	result,
-};
+use sp_std::cmp::{max, min};
 
-pub use pallet::*;
-
-#[cfg(test)]
-mod tests;
+pub use self::pallet::*;
+#[cfg(feature = "std")]
+pub use fp_dynamic_fee::InherentDataProvider;
+pub use fp_dynamic_fee::{InherentType, INHERENT_IDENTIFIER};
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -40,6 +39,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -133,10 +133,7 @@ pub mod pallet {
 			Some(Call::note_min_gas_price_target { target })
 		}
 
-		fn check_inherent(
-			_call: &Self::Call,
-			_data: &InherentData,
-		) -> result::Result<(), Self::Error> {
+		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
 			Ok(())
 		}
 
@@ -146,35 +143,8 @@ pub mod pallet {
 	}
 }
 
-impl<T: Config> pallet_evm::FeeCalculator for Pallet<T> {
+impl<T: Config> fp_evm::FeeCalculator for Pallet<T> {
 	fn min_gas_price() -> U256 {
 		MinGasPrice::<T>::get()
-	}
-}
-
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"dynfee0_";
-
-pub type InherentType = U256;
-
-#[cfg(feature = "std")]
-pub struct InherentDataProvider(pub InherentType);
-
-#[cfg(feature = "std")]
-#[async_trait]
-impl sp_inherents::InherentDataProvider for InherentDataProvider {
-	fn provide_inherent_data(
-		&self,
-		inherent_data: &mut InherentData,
-	) -> Result<(), sp_inherents::Error> {
-		inherent_data.put_data(INHERENT_IDENTIFIER, &self.0)
-	}
-
-	async fn try_handle_error(
-		&self,
-		_identifier: &InherentIdentifier,
-		_error: &[u8],
-	) -> Option<Result<(), sp_inherents::Error>> {
-		// The pallet never reports error.
-		None
 	}
 }

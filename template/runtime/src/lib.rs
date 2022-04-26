@@ -9,14 +9,16 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
-use frame_support::traits::ConstU32;
 use pallet_evm::FeeCalculator;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160, H256, U256};
+use sp_core::{
+	crypto::{ByteArray, KeyTypeId},
+	OpaqueMetadata, H160, H256, U256,
+};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -24,7 +26,7 @@ use sp_runtime::{
 		PostDispatchInfoOf, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
-	ApplyExtrinsicResult, MultiSignature, RuntimeAppPublic,
+	ApplyExtrinsicResult, MultiSignature,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 #[cfg(feature = "std")]
@@ -35,16 +37,16 @@ use sp_version::RuntimeVersion;
 use fp_rpc::TransactionStatus;
 pub use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{FindAuthor, KeyOwnerProofSystem, Randomness},
+	traits::{ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		IdentityFee, Weight,
+		IdentityFee, Weight, ConstantMultiplier,
 	},
 	ConsensusEngineId, StorageValue,
 };
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
-use pallet_evm::{Account as EVMAccount, EnsureAddressTruncated, HashedAddressMapping, Runner};
+use pallet_evm::{Account as EVMAccount, account::CrossAccountId as _, EnsureAddressTruncated, HashedAddressMapping, Runner};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]
@@ -227,7 +229,7 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
-	type MaxAuthorities = ();
+	type MaxAuthorities = ConstU32<32>;
 }
 
 parameter_types! {
@@ -272,10 +274,10 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
-	type TransactionByteFee = TransactionByteFee;
-	type WeightToFee = IdentityFee<Balance>;
-	type FeeMultiplierUpdate = ();
 	type OperationalFeeMultiplier = ();
+	type WeightToFee = IdentityFee<Balance>;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
+	type FeeMultiplierUpdate = ();
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -303,6 +305,14 @@ parameter_types! {
 	pub PrecompilesValue: FrontierPrecompiles<Runtime> = FrontierPrecompiles::<_>::new();
 }
 
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
+impl pallet_evm::account::Config for Runtime {
+	type CrossAccountId = CrossAccountId<Self>;
+	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
+	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
+}
+
 impl pallet_evm::Config for Runtime {
 	type FeeCalculator = BaseFee;
 	type GasWeightMapping = ();
@@ -326,7 +336,7 @@ impl pallet_evm::Config for Runtime {
 
 impl pallet_ethereum::Config for Runtime {
 	type Event = Event;
-	type StateRoot = pallet_ethereum::IntermediateStateRoot;
+	type StateRoot = pallet_ethereum::IntermediateStateRoot<Self>;
 }
 
 frame_support::parameter_types! {
@@ -339,6 +349,7 @@ impl pallet_dynamic_fee::Config for Runtime {
 
 frame_support::parameter_types! {
 	pub IsActive: bool = true;
+	pub DefaultBaseFeePerGas: U256 = U256::from(1_000_000_000);
 }
 
 pub struct BaseFeeThreshold;
@@ -358,6 +369,7 @@ impl pallet_base_fee::Config for Runtime {
 	type Event = Event;
 	type Threshold = BaseFeeThreshold;
 	type IsActive = IsActive;
+	type DefaultBaseFeePerGas = DefaultBaseFeePerGas;
 }
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
@@ -439,7 +451,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPalletsReversedWithSystemFirst,
+	AllPalletsWithSystem,
 >;
 
 impl fp_self_contained::SelfContainedCall for Call {
@@ -487,6 +499,15 @@ impl fp_self_contained::SelfContainedCall for Call {
 			_ => None,
 		}
 	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benches {
+	define_benchmarks!([pallet_evm, EVM]);
 }
 
 impl_runtime_apis! {
@@ -611,7 +632,7 @@ impl_runtime_apis! {
 			};
 
 			<Runtime as pallet_evm::Config>::Runner::call(
-				from,
+				<CrossAccountId<Runtime>>::from_eth(from),
 				to,
 				data,
 				value,
@@ -644,7 +665,7 @@ impl_runtime_apis! {
 			};
 
 			<Runtime as pallet_evm::Config>::Runner::create(
-				from,
+				<CrossAccountId<Runtime>>::from_eth(from),
 				data,
 				value,
 				gas_limit.low_u64(),
@@ -691,6 +712,14 @@ impl_runtime_apis! {
 
 		fn elasticity() -> Option<Permill> {
 			Some(BaseFee::elasticity())
+		}
+	}
+
+	impl fp_rpc::ConvertTransactionRuntimeApi<Block> for Runtime {
+		fn convert_transaction(transaction: EthereumTransaction) -> <Block as BlockT>::Extrinsic {
+			UncheckedExtrinsic::new_unsigned(
+				pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
+			)
 		}
 	}
 
@@ -757,11 +786,25 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
+		fn benchmark_metadata(extra: bool) -> (
+			Vec<frame_benchmarking::BenchmarkList>,
+			Vec<frame_support::traits::StorageInfo>,
+		) {
+			use frame_benchmarking::{Benchmarking, BenchmarkList};
+			use frame_support::traits::StorageInfoTrait;
+
+			let mut list = Vec::<BenchmarkList>::new();
+			list_benchmarks!(list, extra);
+
+			let storage_info = AllPalletsWithSystem::storage_info();
+			return (list, storage_info)
+		}
+
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
-			use pallet_evm::Module as PalletEvmBench;
+			use pallet_evm::Pallet as PalletEvmBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![];

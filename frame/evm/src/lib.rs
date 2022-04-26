@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,26 +53,14 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod benchmarking;
+
 #[cfg(test)]
 mod mock;
 pub mod runner;
 #[cfg(test)]
 mod tests;
 
-#[cfg(any(test, feature = "runtime-benchmarks"))]
-pub mod benchmarks;
-
-pub use crate::runner::Runner;
-pub use evm::{Context, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed};
-use fp_evm::WithdrawReason;
-pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfo, LinearCostPrecompile, Log, Precompile,
-	PrecompileFailure, PrecompileOutput, PrecompileResult, PrecompileSet, Vicinity,
-};
-
-#[cfg(feature = "std")]
-use codec::{Decode, Encode};
-use evm::Config as EvmConfig;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	traits::{
@@ -82,17 +70,26 @@ use frame_support::{
 	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::RawOrigin;
-use impl_trait_for_tuples::impl_for_tuples;
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
 use sp_core::{Hasher, H160, H256, U256};
 use sp_runtime::{
 	traits::{BadOrigin, Saturating, UniqueSaturatedInto, Zero},
 	AccountId32,
 };
 use sp_std::vec::Vec;
+use impl_trait_for_tuples::impl_for_tuples;
 
-pub use pallet::*;
+pub use evm::{
+	Config as EvmConfig, Context, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
+};
+#[cfg(feature = "std")]
+use fp_evm::GenesisAccount;
+pub use fp_evm::{
+	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, LinearCostPrecompile, Log,
+	Precompile, PrecompileFailure, PrecompileOutput, PrecompileResult, PrecompileSet, Vicinity,
+	WithdrawReason,
+};
+
+pub use self::{pallet::*, runner::Runner};
 
 pub mod account;
 use account::{CrossAccountId};
@@ -438,18 +435,6 @@ pub type BalanceOf<T> =
 type NegativeImbalanceOf<C, T> =
 	<C as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-/// Trait that outputs the current transaction gas price.
-pub trait FeeCalculator {
-	/// Return the minimal required gas price.
-	fn min_gas_price() -> U256;
-}
-
-impl FeeCalculator for () {
-	fn min_gas_price() -> U256 {
-		U256::zero()
-	}
-}
-
 pub trait EnsureAddressOrigin<OuterOrigin> {
 	/// Success return type.
 	type Success;
@@ -592,20 +577,6 @@ impl GasWeightMapping for () {
 }
 
 static LONDON_CONFIG: EvmConfig = EvmConfig::london();
-
-#[cfg(feature = "std")]
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, Serialize, Deserialize)]
-/// Account definition used for genesis block construction.
-pub struct GenesisAccount {
-	/// Account nonce.
-	pub nonce: U256,
-	/// Account balance.
-	pub balance: U256,
-	/// Full account storage.
-	pub storage: std::collections::BTreeMap<H256, H256>,
-	/// Account code.
-	pub code: Vec<u8>,
-}
 
 impl<T: Config> Pallet<T> {
 	/// Check whether an account is empty.

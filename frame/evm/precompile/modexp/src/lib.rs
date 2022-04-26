@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,11 +20,14 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use core::{cmp::max, ops::BitAnd};
 
-use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
 use num::{BigUint, FromPrimitive, One, ToPrimitive, Zero};
 
-use core::{cmp::max, ops::BitAnd};
+use fp_evm::{
+	Context, ExitError, ExitSucceed, Precompile, PrecompileOutput,
+	PrecompileResult,
+};
 
 pub struct Modexp;
 
@@ -216,13 +219,13 @@ mod tests {
 use pallet_evm_test_vector_support::test_precompile_test_vectors;
 
 	#[test]
-	fn process_consensus_tests() -> std::result::Result<(), String> {
+	fn process_consensus_tests() -> Result<(), String> {
 		test_precompile_test_vectors::<Modexp>("../testdata/modexp_eip2565.json")?;
 		Ok(())
 	}
 
 	#[test]
-	fn test_empty_input() -> std::result::Result<(), PrecompileFailure> {
+	fn test_empty_input() -> Result<(), PrecompileFailure> {
 		let input: [u8; 0] = [];
 
 		let cost: u64 = 1;
@@ -252,7 +255,7 @@ use pallet_evm_test_vector_support::test_precompile_test_vectors;
 	}
 
 	#[test]
-	fn test_insufficient_input() -> std::result::Result<(), PrecompileFailure> {
+	fn test_insufficient_input() -> Result<(), PrecompileFailure> {
 		let input = hex::decode(
 			"0000000000000000000000000000000000000000000000000000000000000001\
 			0000000000000000000000000000000000000000000000000000000000000001\
@@ -285,7 +288,7 @@ use pallet_evm_test_vector_support::test_precompile_test_vectors;
 	}
 
 	#[test]
-	fn test_excessive_input() -> std::result::Result<(), PrecompileFailure> {
+	fn test_excessive_input() -> Result<(), PrecompileFailure> {
 		let input = hex::decode(
 			"1000000000000000000000000000000000000000000000000000000000000001\
 			0000000000000000000000000000000000000000000000000000000000000001\

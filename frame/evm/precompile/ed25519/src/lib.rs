@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,10 +30,7 @@ impl LinearCostPrecompile for Ed25519Verify {
 	const BASE: u64 = 15;
 	const WORD: u64 = 3;
 
-	fn execute(
-		input: &[u8],
-		_: u64,
-	) -> core::result::Result<(ExitSucceed, Vec<u8>), PrecompileFailure> {
+	fn execute(input: &[u8], _: u64) -> Result<(ExitSucceed, Vec<u8>), PrecompileFailure> {
 		if input.len() < 128 {
 			return Err(PrecompileFailure::Error {
 				exit_status: ExitError::Other("input must contain 128 bytes".into()),
@@ -70,7 +67,7 @@ mod tests {
 	use ed25519_dalek::{Keypair, SecretKey, Signer};
 
 	#[test]
-	fn test_empty_input() -> std::result::Result<(), PrecompileFailure> {
+	fn test_empty_input() -> Result<(), PrecompileFailure> {
 		let input: [u8; 0] = [];
 		let cost: u64 = 1;
 
@@ -91,7 +88,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_verify() -> std::result::Result<(), PrecompileFailure> {
+	fn test_verify() -> Result<(), PrecompileFailure> {
 		let secret_key_bytes: [u8; ed25519_dalek::SECRET_KEY_LENGTH] = [
 			157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068,
 			073, 197, 105, 123, 050, 105, 025, 112, 059, 172, 003, 028, 174, 127, 096,

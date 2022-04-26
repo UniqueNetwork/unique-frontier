@@ -34,7 +34,7 @@ describeWithFrontier("Frontier RPC (Fee History)", (context) => {
 		}
 	}
 
-	async function createBlocks(block_count, reward_percentiles, priority_fees) {
+	async function createBlocks(block_count, priority_fees) {
 		for(var b = 0; b < block_count; b++) {
 			for(var p = 0; p < priority_fees.length; p++) {
 				await sendTransaction(context, {
@@ -54,12 +54,23 @@ describeWithFrontier("Frontier RPC (Fee History)", (context) => {
 		}
 	}
 
+	step("should return error on non-existent blocks", async function () {
+		this.timeout(100000);
+		let result = customRequest(context.web3, "eth_feeHistory", ["0x0", "0x1", []])
+		.then(() => {
+			return Promise.reject({ message: "Execution succeeded but should have failed" });
+		})
+		.catch((err) =>
+			expect(err.message).to.equal("Error getting header at BlockId::Number(1)")
+		);
+	});
+
 	step("result lenght should match spec", async function () {
 		this.timeout(100000);
 		let block_count = 2;
 		let reward_percentiles = [20,50,70];
 		let priority_fees = [1, 2, 3];
-		await createBlocks(block_count, reward_percentiles, priority_fees);
+		await createBlocks(block_count, priority_fees);
 		let result = (await customRequest(context.web3, "eth_feeHistory", ["0x2", "latest", reward_percentiles])).result;
 
 		// baseFeePerGas is always the requested block range + 1 (the next derived base fee).
@@ -79,7 +90,7 @@ describeWithFrontier("Frontier RPC (Fee History)", (context) => {
 		let block_count = 11;
 		let reward_percentiles = [20,50,70,85,100];
 		let priority_fees = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-		await createBlocks(block_count, reward_percentiles, priority_fees);
+		await createBlocks(block_count, priority_fees);
 		let result = (await customRequest(context.web3, "eth_feeHistory", ["0xA", "latest", reward_percentiles])).result;
 		
 		// Calculate the percentiles in javascript.

@@ -1,0 +1,9 @@
+function(package)
+if package.source == "https://github.com/paritytech/substrate.git" || package.source == "https://github.com/paritytech/substrate"  then {
+    // https://github.com/rust-lang/cargo/issues/5478
+    git: "https://github.com//paritytech/substrate",
+    branch: "polkadot-v0.9.19",
+} else if package.name == "evm" && package.source == "crates-io" then {
+    git: "https://github.com//uniquenetwork/evm",
+    branch: "unique-polkadot-v0.9.19",
+}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2020 Parity Technologies (UK) Ltd.
+// Copyright (c) 2020-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,9 +28,10 @@ use sp_core::{H160, U256};
 use sp_std::vec::Vec;
 
 pub use evm::backend::{Basic as Account, Log};
-pub use precompile::{
-	Context, ExitError, ExitSucceed, LinearCostPrecompile, Precompile, PrecompileFailure,
-	PrecompileOutput, PrecompileResult, PrecompileSet,
+
+pub use self::precompile::{
+	Context, ExitError, ExitRevert, ExitSucceed, LinearCostPrecompile, Precompile,
+	PrecompileFailure, PrecompileOutput, PrecompileResult, PrecompileSet,
 };
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Default)]
@@ -62,7 +63,7 @@ pub enum CallOrCreateInfo {
 	Create(CreateInfo),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WithdrawReason {
 	Call { target: H160, input: Vec<u8> },
 	Create,
@@ -89,5 +90,31 @@ impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for Tuple {
 			}
 		)*);
 		None
+	}
+}
+
+/// Account definition used for genesis block construction.
+#[cfg(feature = "std")]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, Serialize, Deserialize)]
+pub struct GenesisAccount {
+	/// Account nonce.
+	pub nonce: U256,
+	/// Account balance.
+	pub balance: U256,
+	/// Full account storage.
+	pub storage: std::collections::BTreeMap<sp_core::H256, sp_core::H256>,
+	/// Account code.
+	pub code: Vec<u8>,
+}
+
+/// Trait that outputs the current transaction gas price.
+pub trait FeeCalculator {
+	/// Return the minimal required gas price.
+	fn min_gas_price() -> U256;
+}
+
+impl FeeCalculator for () {
+	fn min_gas_price() -> U256 {
+		U256::zero()
 	}
 }

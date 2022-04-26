@@ -10,31 +10,29 @@ description = "Primitive Ethereum abstractions for Substrate."
 documentation = "https://docs.rs/fp-ethereum"
 
 [dependencies]
-serde = { version = "1.0.101", optional = true, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
-ethereum = { version = "0.12.0", default-features = false, features = [
-	"with-codec",
-] }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18", default-features = false }
-scale-info = { version = "2.0.1", default-features = false, features = [
-	"derive",
-] }
-parity-util-mem = { version = "0.11.0", optional = true }
-sha3 = { version = "0.8", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18", default-features = false }
+ethereum = { version = "0.12.0", default-features = false, features = ["with-codec"] }
+serde = { version = "1.0.101", features = ["derive"], optional = true }
+
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+parity-util-mem = { version = "0.11", optional = true }
+scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
+sp-debug-derive = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+frame-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [features]
 default = ["std"]
 std = [
-	"serde",
-	"codec/std",
 	"ethereum/std",
-	"sp-core/std",
-	"sp-runtime/std",
-	"scale-info/std",
+	"serde",
+
+	"codec/std",
 	"parity-util-mem",
-	"sha3/std",
+	"scale-info/std",
+
+	"sp-debug-derive/std",
+	"sp-runtime/std",
 	"frame-support/std",
 ]

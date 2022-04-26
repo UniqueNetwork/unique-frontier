@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // This file is part of Frontier.
 //
-// Copyright (c) 2021 Parity Technologies (UK) Ltd.
+// Copyright (c) 2021-2022 Parity Technologies (UK) Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ use crate as pallet_dynamic_fee;
 
 use frame_support::{
 	assert_ok, parameter_types,
-	traits::{OnFinalize, OnInitialize},
+	traits::{ConstU32, OnFinalize, OnInitialize},
 };
 use sp_core::{H256, U256};
 use sp_io::TestExternalities;
@@ -28,7 +28,6 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use frame_system::ConsumerLimits;
 
 pub fn new_test_ext() -> TestExternalities {
 	let t = frame_system::GenesisConfig::default()
@@ -69,18 +68,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = ConsumerLimitsMock;
-}
-
-pub struct ConsumerLimitsMock{}
-impl ConsumerLimits for ConsumerLimitsMock {
-    fn max_consumers() -> frame_system::RefCount {
-        Default::default()
-    }
-
-    fn max_overflow() -> frame_system::RefCount {
-        Default::default()
-    }
+	type MaxConsumers = ConstU32<16>;
 }
 
 frame_support::parameter_types! {
