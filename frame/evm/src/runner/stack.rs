@@ -113,7 +113,7 @@ impl<T: Config> Runner<T> {
 					max_fee_per_gas >= max_priority_fee_per_gas,
 					Error::<T>::GasPriceTooLow
 				);
-				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+				(max_fee_per_gas, max_fee_per_gas == base_fee)
 			}
 			(Some(max_fee_per_gas), None) => {
 				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
