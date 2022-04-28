@@ -18,6 +18,7 @@
 //! Test utilities
 
 use ethereum::{TransactionAction, TransactionSignature};
+use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_support::{
 	parameter_types,
 	traits::{ConstU32, FindAuthor},
@@ -152,6 +153,16 @@ impl AddressMapping<AccountId32> for HashedAddressMapping {
 	}
 }
 
+pub struct MapBackwardsAddressTruncated;
+
+impl EvmBackwardsAddressMapping<AccountId32> for MapBackwardsAddressTruncated {
+	fn from_account_id(account_id: AccountId32) -> H160 {
+		let mut data = [0u8; 20];
+		data[0..20].copy_from_slice(&AsRef::<[u8]>::as_ref(&account_id)[0..20]);
+		H160(data)
+	}
+}
+
 impl pallet_evm::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = ();
@@ -181,8 +192,8 @@ impl crate::Config for Test {
 use pallet_evm::account;
 impl account::Config for Test {
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
-	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
-	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
+	type EvmAddressMapping = HashedAddressMapping;
+	type EvmBackwardsAddressMapping = MapBackwardsAddressTruncated;
 }
 
 impl fp_self_contained::SelfContainedCall for Call {
