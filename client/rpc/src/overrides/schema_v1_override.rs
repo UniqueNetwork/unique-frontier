@@ -29,7 +29,7 @@ use sp_runtime::{
 };
 use sp_storage::StorageKey;
 
-use fp_rpc::{TransactionStatus, EthereumRuntimeRPCApi};
+use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
@@ -78,10 +78,7 @@ where
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>> {
 		let api = self.client.runtime_api();
-		api.account_code_at(
-			block,
-			address
-		).ok()
+		api.account_code_at(block, address).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.
@@ -127,7 +124,10 @@ where
 	}
 
 	/// Return the current transaction status.
-	fn current_transaction_statuses(&self, block: &BlockId<Block>) -> Option<Vec<TransactionStatus>> {
+	fn current_transaction_statuses(
+		&self,
+		block: &BlockId<Block>,
+	) -> Option<Vec<TransactionStatus>> {
 		self.query_storage::<Vec<TransactionStatus>>(
 			block,
 			&StorageKey(storage_prefix_build(

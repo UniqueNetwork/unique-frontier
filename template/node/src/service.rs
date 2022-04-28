@@ -42,10 +42,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type ExtendHostFunctions = ();
 
-	fn dispatch(
-		method: &str,
-		data: &[u8],
-	) -> Option<Vec<u8>> {
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
 		frontier_template_runtime::api::dispatch(method, data)
 	}
 
@@ -372,9 +369,6 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 			warp_sync,
 		})?;
 
-	// Channel for the rpc handler to communicate with the authorship task.
-	let (command_sink, commands_stream) = futures::channel::mpsc::channel(1000);
-
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,
@@ -428,7 +422,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 				max_past_logs,
 				fee_history_limit,
 				fee_history_cache: fee_history_cache.clone(),
-				command_sink: Some(command_sink.clone()),
+				command_sink: None,
 				overrides: overrides.clone(),
 				block_data_cache: block_data_cache.clone(),
 			};

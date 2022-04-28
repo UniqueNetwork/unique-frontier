@@ -40,13 +40,16 @@ pub use frame_support::{
 	traits::{ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		IdentityFee, Weight, ConstantMultiplier,
+		ConstantMultiplier, IdentityFee, Weight,
 	},
 	ConsensusEngineId, StorageValue,
 };
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
-use pallet_evm::{Account as EVMAccount, account::CrossAccountId as _, EnsureAddressTruncated, HashedAddressMapping, Runner};
+use pallet_evm::{
+	account::CrossAccountId as _, Account as EVMAccount, EnsureAddressTruncated,
+	HashedAddressMapping, Runner,
+};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]

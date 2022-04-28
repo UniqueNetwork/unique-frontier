@@ -17,6 +17,7 @@
 
 //! Test mock for unit tests and benchmarking
 
+use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_support::{
 	parameter_types,
 	traits::{ConstU32, FindAuthor},
@@ -28,7 +29,6 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::{boxed::Box, prelude::*, str::FromStr};
-use fp_evm_mapping::EvmBackwardsAddressMapping;
 
 use crate::{EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping};
 
@@ -150,9 +150,9 @@ impl crate::Config for Test {
 
 pub struct EvmToEvmBackwardAddressMap {}
 impl EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
-    fn from_account_id(account_id: H160) -> H160 {
-        account_id
-    }
+	fn from_account_id(account_id: H160) -> H160 {
+		account_id
+	}
 }
 
 use crate::account;

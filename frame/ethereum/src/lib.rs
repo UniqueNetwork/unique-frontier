@@ -43,7 +43,8 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{
-	runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator, GasWeightMapping, Runner, account::CrossAccountId
+	account::CrossAccountId, runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator,
+	GasWeightMapping, Runner,
 };
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -58,8 +59,8 @@ use sp_runtime::{
 use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
-	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
-	TransactionAction, TransactionV2 as Transaction, EIP658ReceiptData,
+	AccessListItem, BlockV2 as Block, EIP658ReceiptData, LegacyTransactionMessage, Log,
+	ReceiptV3 as Receipt, TransactionAction, TransactionV2 as Transaction,
 };
 pub use fp_rpc::TransactionStatus;
 
@@ -757,11 +758,8 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn inject_emulated_transaction_result(
-		source: H160,
-		logs: Vec<MaybeMirroredLog>,
-	) {
-		use ethereum::{TransactionV0, TransactionSignature};
+	pub fn inject_emulated_transaction_result(source: H160, logs: Vec<MaybeMirroredLog>) {
+		use ethereum::{TransactionSignature, TransactionV0};
 
 		assert!(
 			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
@@ -1032,10 +1030,7 @@ pub trait EthereumTransactionSender {
 }
 
 impl<T: Config> EthereumTransactionSender for Pallet<T> {
-	fn submit_logs_transaction(
-		source: H160,
-		logs: Vec<MaybeMirroredLog>,
-	) {
+	fn submit_logs_transaction(source: H160, logs: Vec<MaybeMirroredLog>) {
 		<Pallet<T>>::inject_emulated_transaction_result(source, logs)
 	}
 }

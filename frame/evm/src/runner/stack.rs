@@ -318,7 +318,16 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			nonce,
 			config,
 			&PrecompileSetWithMethods(precompiles),
-			|executor| executor.transact_call(*source.as_eth(), target, value, input, gas_limit, access_list),
+			|executor| {
+				executor.transact_call(
+					*source.as_eth(),
+					target,
+					value,
+					input,
+					gas_limit,
+					access_list,
+				)
+			},
 		)
 	}
 
@@ -345,7 +354,9 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			config,
 			&PrecompileSetWithMethods(precompiles),
 			|executor| {
-				let address = executor.create_address(evm::CreateScheme::Legacy { caller: *source.as_eth() });
+				let address = executor.create_address(evm::CreateScheme::Legacy {
+					caller: *source.as_eth(),
+				});
 				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
 					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
@@ -385,8 +396,14 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 					salt,
 				});
 				T::OnCreate::on_create(*source.as_eth(), address);
-				let (reason, _) =
-					executor.transact_create2(*source.as_eth(), value, init, salt, gas_limit, access_list);
+				let (reason, _) = executor.transact_create2(
+					*source.as_eth(),
+					value,
+					init,
+					salt,
+					gas_limit,
+					access_list,
+				);
 				(reason, address)
 			},
 		)

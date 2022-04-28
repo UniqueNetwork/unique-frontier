@@ -24,10 +24,7 @@ use core::{cmp::max, ops::BitAnd};
 
 use num::{BigUint, FromPrimitive, One, ToPrimitive, Zero};
 
-use fp_evm::{
-	Context, ExitError, ExitSucceed, Precompile, PrecompileOutput,
-	PrecompileResult,
-};
+use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
 
 pub struct Modexp;
 
@@ -216,7 +213,7 @@ mod tests {
 	use super::*;
 	extern crate hex;
 	use fp_evm::PrecompileFailure;
-use pallet_evm_test_vector_support::test_precompile_test_vectors;
+	use pallet_evm_test_vector_support::test_precompile_test_vectors;
 
 	#[test]
 	fn process_consensus_tests() -> Result<(), String> {

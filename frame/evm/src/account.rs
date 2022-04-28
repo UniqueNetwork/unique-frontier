@@ -1,16 +1,14 @@
 use crate::AddressMapping;
-use codec::{Encode, EncodeLike, Decode, MaxEncodedLen};
-use sp_core::H160;
-use scale_info::{Type, TypeInfo};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use core::cmp::Ordering;
-use sp_std::vec::Vec;
-use sp_std::clone::Clone;
 use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_system::Config as FrameSystemConfig;
+use scale_info::{Type, TypeInfo};
+use sp_core::H160;
+use sp_std::{clone::Clone, vec::Vec};
 
 #[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 pub trait Config: FrameSystemConfig {
 	type CrossAccountId: CrossAccountId<Self::AccountId>;

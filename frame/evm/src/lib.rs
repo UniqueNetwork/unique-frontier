@@ -70,13 +70,13 @@ use frame_support::{
 	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::RawOrigin;
+use impl_trait_for_tuples::impl_for_tuples;
 use sp_core::{Hasher, H160, H256, U256};
 use sp_runtime::{
 	traits::{BadOrigin, Saturating, UniqueSaturatedInto, Zero},
 	AccountId32,
 };
 use sp_std::vec::Vec;
-use impl_trait_for_tuples::impl_for_tuples;
 
 pub use evm::{
 	Config as EvmConfig, Context, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
@@ -92,7 +92,7 @@ pub use fp_evm::{
 pub use self::{pallet::*, runner::Runner};
 
 pub mod account;
-use account::{CrossAccountId};
+use account::CrossAccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -107,7 +107,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_timestamp::Config + crate::account::Config {
+	pub trait Config:
+		frame_system::Config + pallet_timestamp::Config + crate::account::Config
+	{
 		/// Calculator for current gas price.
 		type FeeCalculator: FeeCalculator;
 

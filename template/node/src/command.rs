@@ -16,7 +16,6 @@
 // limitations under the License.
 
 use clap::Parser;
-use frontier_template_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 
