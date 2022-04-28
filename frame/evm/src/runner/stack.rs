@@ -18,8 +18,9 @@
 //! EVM stack-based runner.
 
 use crate::{
-	runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
-	Config, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet, account::CrossAccountId,
+	account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages,
+	AddressMapping, BlockHashMapping, Config, Error, Event, FeeCalculator, OnChargeEVMTransaction,
+	OnCreate, OnMethodCall, Pallet,
 };
 use evm::{
 	backend::Backend as BackendT,
@@ -104,56 +105,51 @@ impl<T: Config> Runner<T> {
 	{
 		let base_fee = T::FeeCalculator::min_gas_price();
 
-		let max_fee_per_gas = match (max_fee_per_gas, max_priority_fee_per_gas) {
+		// Sponsor only transactions, which have no priority fee
+		let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, max_priority_fee_per_gas) {
 			(Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
 				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
 				ensure!(
 					max_fee_per_gas >= max_priority_fee_per_gas,
 					Error::<T>::GasPriceTooLow
 				);
-				max_fee_per_gas
+				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
 			}
 			(Some(max_fee_per_gas), None) => {
 				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
-				max_fee_per_gas
+				(max_fee_per_gas, max_fee_per_gas == base_fee)
 			}
 			// Gas price check is skipped when performing a gas estimation.
 			_ => Default::default(),
 		};
 
-		let source_account = Pallet::<T>::account_basic_by_id(source);
+		let source_data = Pallet::<T>::account_basic_by_id(source);
 
 		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
-		let max_gas_fee = max_fee_per_gas
+		let max_fee = max_fee_per_gas
 			.checked_mul(U256::from(gas_limit))
 			.ok_or(Error::<T>::FeeOverflow)?;
 
-		let max_priority_fee = if let Some(max_priority_fee) = max_priority_fee_per_gas {
-			max_priority_fee
-				.checked_mul(U256::from(gas_limit))
-				.ok_or(Error::<T>::FeeOverflow)?
-		} else {
-			U256::zero()
-		};
-
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
-		let sponsor = T::TransactionValidityHack::who_pays_fee(*source.as_eth(), &reason).unwrap_or(source.clone());
+		let sponsor = may_sponsor
+			.then(|| T::TransactionValidityHack::who_pays_fee(*source.as_eth(), &reason))
+			.flatten()
+			.unwrap_or(source.clone());
 
 		if let Some(nonce) = nonce {
-			ensure!(source_account.nonce == nonce, Error::<T>::InvalidNonce);
+			ensure!(source_data.nonce == nonce, Error::<T>::InvalidNonce);
 		}
 
-		let (fee_source, fee_sponsor) = if sponsor == *source {
+		if sponsor == *source {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "sponsor found, user will pay for itself");
-			let total_fee = max_gas_fee.checked_add(max_priority_fee).ok_or(Error::<T>::PaymentOverflow)?;
 
 			let total_payment = value
-				.checked_add(total_fee)
+				.checked_add(max_fee)
 				.ok_or(Error::<T>::PaymentOverflow)?;
 
-			if source_account.balance < total_payment {
+			if source_data.balance < total_payment {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
@@ -163,18 +159,12 @@ impl<T: Config> Runner<T> {
 				);
 				return Err(Error::<T>::BalanceLow.into());
 			}
-
-			// Deduct fee from the `source` account.
-			let fee = T::OnChargeTransaction::withdraw_fee(&source, reason, total_fee)?;
-			(fee, None)
 		} else {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
-			let fee_payer_data = crate::Pallet::<T>::account_basic_by_id(&sponsor);
-			
-			let total_source_payment = value.checked_add(max_priority_fee).ok_or(Error::<T>::PaymentOverflow)?;
+			let sponsor_data = crate::Pallet::<T>::account_basic_by_id(&sponsor);
 
-			if source_account.balance < total_source_payment || fee_payer_data.balance < max_gas_fee {
+			if source_data.balance < value || sponsor_data.balance < max_fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
@@ -186,12 +176,10 @@ impl<T: Config> Runner<T> {
 				);
 				return Err(Error::<T>::BalanceLow.into());
 			}
-
-			// Deduct fee from the `source` account.
-			let fee_source = T::OnChargeTransaction::withdraw_fee(&source, reason.clone(), max_priority_fee)?;
-			let fee_sponsor = T::OnChargeTransaction::withdraw_fee(&source, reason, max_gas_fee)?;
-			(fee_source, Some(fee_sponsor))
 		};
+
+		// Deduct fee from the sponsor account.
+		let fee = T::OnChargeTransaction::withdraw_fee(&sponsor, reason, max_fee)?;
 
 		// Execute the EVM call.
 		let vicinity = Vicinity {
@@ -207,16 +195,18 @@ impl<T: Config> Runner<T> {
 
 		// Post execution.
 		let used_gas = U256::from(executor.used_gas());
-		let (actual_gas_fee, actual_priority_fee) =
+		let (actual_fee, actual_priority_fee) =
 			if let Some(max_priority_fee) = max_priority_fee_per_gas {
 				let actual_priority_fee = max_fee_per_gas
 					.saturating_sub(base_fee)
 					.min(max_priority_fee)
 					.checked_mul(U256::from(used_gas))
 					.ok_or(Error::<T>::FeeOverflow)?;
-				let actual_gas_fee = executor
-					.fee(base_fee);
-				(actual_gas_fee, Some(actual_priority_fee))
+				let actual_fee = executor
+					.fee(base_fee)
+					.checked_add(actual_priority_fee)
+					.unwrap_or(U256::max_value());
+				(actual_fee, Some(actual_priority_fee))
 			} else {
 				(executor.fee(base_fee), None)
 			};
@@ -227,7 +217,7 @@ impl<T: Config> Runner<T> {
 			source,
 			value,
 			gas_limit,
-			actual_gas_fee
+			actual_fee
 		);
 		// The difference between initially withdrawn and the actual cost is refunded.
 		//
@@ -250,24 +240,9 @@ impl<T: Config> Runner<T> {
 		// Refunded 200 - 40 = 160.
 		// Tip 5 * 6 = 30.
 		// Burned 200 - (160 + 30) = 10. Which is equivalent to gas_used * base_fee.
-		
-		if let Some(fee_sponsor) = fee_sponsor {
-			// sponsor != source
-			T::OnChargeTransaction::correct_and_deposit_fee(&sponsor, actual_gas_fee, fee_sponsor);
-			if let Some(actual_priority_fee) = actual_priority_fee {
-				T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_priority_fee, fee_source);
-				T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
-			}
-		} else {
-			// sponsor == source
-			let actual_fee = actual_gas_fee
-				.checked_add(actual_priority_fee.unwrap_or_default())
-				.ok_or(Error::<T>::FeeOverflow)?;
-
-			T::OnChargeTransaction::correct_and_deposit_fee(&source, actual_fee, fee_source);
-			if let Some(actual_priority_fee) = actual_priority_fee {
-				T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
-			}
+		T::OnChargeTransaction::correct_and_deposit_fee(&sponsor, actual_fee, fee);
+		if let Some(actual_priority_fee) = actual_priority_fee {
+			T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
 		}
 
 		let state = executor.into_state();

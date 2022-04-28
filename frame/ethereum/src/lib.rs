@@ -480,7 +480,7 @@ impl<T: Config> Pallet<T> {
 	// State Transition Function (STF).
 	// This is the case for all controls except those concerning the nonce.
 	fn validate_transaction_common(
-		origin: H160,
+		source: H160,
 		transaction_data: &TransactionData,
 	) -> Result<(U256, u64), TransactionValidityError> {
 		let gas_limit = transaction_data.gas_limit;
@@ -527,7 +527,8 @@ impl<T: Config> Pallet<T> {
 		let base_fee = T::FeeCalculator::min_gas_price();
 		let mut priority = 0;
 
-		let max_fee_per_gas = match (
+		// Sponsor only transactions, which have no priority fee
+		let (max_fee_per_gas, may_sponsor) = match (
 			transaction_data.gas_price,
 			transaction_data.max_fee_per_gas,
 			transaction_data.max_priority_fee_per_gas,
@@ -537,17 +538,17 @@ impl<T: Config> Pallet<T> {
 			// the current base_fee is considered a tip to the miner and thus the priority.
 			(Some(gas_price), None, None) => {
 				priority = gas_price.saturating_sub(base_fee).unique_saturated_into();
-				gas_price
+				(gas_price, gas_price == base_fee)
 			}
 			// EIP-1559 transaction without tip.
-			(None, Some(max_fee_per_gas), None) => max_fee_per_gas,
+			(None, Some(max_fee_per_gas), None) => (max_fee_per_gas, true),
 			// EIP-1559 transaction with tip.
 			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
 				priority = max_fee_per_gas
 					.saturating_sub(base_fee)
 					.min(max_priority_fee_per_gas)
 					.unique_saturated_into();
-				max_fee_per_gas
+				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
 			}
 			_ => return Err(InvalidTransaction::Payment.into()),
 		};
@@ -556,30 +557,41 @@ impl<T: Config> Pallet<T> {
 			return Err(InvalidTransaction::Payment.into());
 		}
 
-		let fee = max_fee_per_gas.saturating_mul(gas_limit);
-		let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
+		let max_fee = max_fee_per_gas.saturating_mul(gas_limit);
+		let source_data = pallet_evm::Pallet::<T>::account_basic(&source);
 
 		let value = transaction_data.value;
-		let origin_cross = T::CrossAccountId::from_eth(origin);
-		#[cfg(feature = "debug-logging")]
-		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", origin, reason);
-		let fee_payer = T::TransactionValidityHack::who_pays_fee(
-			origin,
-			&match transaction_data.action {
-				TransactionAction::Call(target) => WithdrawReason::Call {
-					target,
-					input: transaction_data.input.clone(),
-				},
-				TransactionAction::Create => WithdrawReason::Create,
-			},
-		)
-		.unwrap_or(origin_cross.clone());
+		let source_cross = T::CrossAccountId::from_eth(source);
 
-		if fee_payer == origin_cross {
+		#[cfg(feature = "debug-logging")]
+		if may_sponsor {
+			log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
+		} else {
+			log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
+		}
+
+		let sponsor = may_sponsor
+			.then(|| {
+				T::TransactionValidityHack::who_pays_fee(
+					source,
+					&match transaction_data.action {
+						TransactionAction::Call(target) => WithdrawReason::Call {
+							target,
+							input: transaction_data.input.clone(),
+						},
+						TransactionAction::Create => WithdrawReason::Create,
+					},
+				)
+			})
+			.flatten()
+			.unwrap_or(source_cross.clone());
+		let source = source_cross;
+
+		if sponsor == source {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
-			let total_payment = value.saturating_add(fee);
-			if account_data.balance < total_payment {
+			let total_payment = value.saturating_add(max_fee);
+			if source_data.balance < total_payment {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
@@ -592,8 +604,8 @@ impl<T: Config> Pallet<T> {
 		} else {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
-			let fee_payer_data = pallet_evm::Pallet::<T>::account_basic_by_id(&fee_payer);
-			if account_data.balance < value || fee_payer_data.balance < fee {
+			let sponsor_data = pallet_evm::Pallet::<T>::account_basic_by_id(&sponsor);
+			if source_data.balance < value || sponsor_data.balance < max_fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
@@ -607,7 +619,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		Ok((account_data.nonce, priority))
+		Ok((source_data.nonce, priority))
 	}
 
 	// Controls that must be performed by the pool.
