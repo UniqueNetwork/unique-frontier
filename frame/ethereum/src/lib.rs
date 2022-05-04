@@ -38,6 +38,7 @@ use frame_support::traits::OnRuntimeUpgradeHelpersExt;
 use frame_support::{
 	codec::{Decode, Encode},
 	dispatch::DispatchResultWithPostInfo,
+	storage::with_transaction,
 	traits::{EnsureOrigin, Get, PalletInfoAccess},
 	weights::{Pays, PostDispatchInfo, Weight},
 };
@@ -54,7 +55,7 @@ use sp_runtime::{
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
-	DispatchError, RuntimeDebug,
+	DispatchError, RuntimeDebug, TransactionOutcome,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 
@@ -566,26 +567,32 @@ impl<T: Config> Pallet<T> {
 
 		#[cfg(feature = "debug-logging")]
 		if may_sponsor {
-			log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
+			log::trace!(target: "sponsoring", "checking who will pay fee for {}", source);
 		} else {
 			log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
 		}
 
 		let sponsor = may_sponsor
 			.then(|| {
-				T::TransactionValidityHack::who_pays_fee(
-					source,
-					&match transaction_data.action {
-						TransactionAction::Call(target) => WithdrawReason::Call {
-							target,
-							input: transaction_data.input.clone(),
-						},
-						TransactionAction::Create => WithdrawReason::Create,
+				with_transaction(
+					|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
+						// Writes will be applied in pallet_evm::runner
+						TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
+							source,
+							&match transaction_data.action {
+								TransactionAction::Call(target) => WithdrawReason::Call {
+									target,
+									input: transaction_data.input.clone(),
+								},
+								TransactionAction::Create => WithdrawReason::Create,
+							},
+						)))
 					},
 				)
+				.ok()?
 			})
 			.flatten()
-			.unwrap_or(source_cross.clone());
+			.unwrap_or_else(|| source_cross.clone());
 		let source = source_cross;
 
 		if sponsor == source {
@@ -597,24 +604,24 @@ impl<T: Config> Pallet<T> {
 				log::trace!(
 					target: "sponsoring",
 					"user doesn't have enough balance ({} < {})",
-					account_data.balance,
+					source_data.balance,
 					total_payment
 				);
 				return Err(InvalidTransaction::Payment.into());
 			}
 		} else {
 			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
+			log::trace!(target: "sponsoring", "found sponsor: {:?}", sponsor);
 			let sponsor_data = pallet_evm::Pallet::<T>::account_basic_by_id(&sponsor);
 			if source_data.balance < value || sponsor_data.balance < max_fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
 					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
-					account_data.balance,
+					source_data.balance,
 					value,
-					fee_payer_data.balance,
-					fee
+					sponsor_data.balance,
+					max_fee
 				);
 				return Err(InvalidTransaction::Payment.into());
 			}

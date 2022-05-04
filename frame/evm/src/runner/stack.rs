@@ -131,7 +131,7 @@ impl<T: Config> Runner<T> {
 			.ok_or(Error::<T>::FeeOverflow)?;
 
 		#[cfg(feature = "debug-logging")]
-		log::trace!(target: "sponsoring", "checking who will pay fee for {} {:?}", source, reason);
+		log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
 		let sponsor = may_sponsor
 			.then(|| T::TransactionValidityHack::who_pays_fee(*source.as_eth(), &reason))
 			.flatten()
@@ -154,14 +154,14 @@ impl<T: Config> Runner<T> {
 				log::trace!(
 					target: "sponsoring",
 					"user doesn't have enough balance ({} < {})",
-					source_account.balance,
+					source_data.balance,
 					total_payment
 				);
 				return Err(Error::<T>::BalanceLow.into());
 			}
 		} else {
 			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "found sponsor: {}", fee_payer);
+			log::trace!(target: "sponsoring", "found sponsor: {:?}", sponsor);
 			let sponsor_data = crate::Pallet::<T>::account_basic_by_id(&sponsor);
 
 			if source_data.balance < value || sponsor_data.balance < max_fee {
@@ -169,10 +169,10 @@ impl<T: Config> Runner<T> {
 				log::trace!(
 					target: "sponsoring",
 					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
-					source_account.balance,
+					source_data.balance,
 					value,
-					fee_payer_data.balance,
-					total_fee
+					sponsor_data.balance,
+					max_fee
 				);
 				return Err(Error::<T>::BalanceLow.into());
 			}

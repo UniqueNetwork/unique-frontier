@@ -70,7 +70,6 @@ pub enum WithdrawReason {
 	Create2,
 }
 
-// TODO: Refactor into something less specific
 pub trait TransactionValidityHack<CrossAccountId> {
 	fn who_pays_fee(origin: H160, reason: &WithdrawReason) -> Option<CrossAccountId>;
 }
