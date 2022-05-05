@@ -202,6 +202,7 @@ pub mod pallet {
 			let sender_cross = T::CrossAccountId::from_sub(sender);
 			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
+			let is_transactional = true;
 			let info = T::Runner::call(
 				sender_cross,
 				target,
@@ -212,6 +213,7 @@ pub mod pallet {
 				max_priority_fee_per_gas,
 				nonce,
 				access_list,
+				is_transactional,
 				T::config(),
 			)?;
 
@@ -250,6 +252,7 @@ pub mod pallet {
 			let sender_cross = T::CrossAccountId::from_sub(sender);
 			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
+			let is_transactional = true;
 			let info = T::Runner::create(
 				sender_cross,
 				init,
@@ -259,6 +262,7 @@ pub mod pallet {
 				max_priority_fee_per_gas,
 				nonce,
 				access_list,
+				is_transactional,
 				T::config(),
 			)?;
 
@@ -305,6 +309,7 @@ pub mod pallet {
 			let sender_cross = T::CrossAccountId::from_sub(sender);
 			ensure!(*sender_cross.as_eth() == source, BadOrigin);
 
+			let is_transactional = true;
 			let info = T::Runner::create2(
 				sender_cross,
 				init,
@@ -315,6 +320,7 @@ pub mod pallet {
 				max_priority_fee_per_gas,
 				nonce,
 				access_list,
+				is_transactional,
 				T::config(),
 			)?;
 
@@ -820,6 +826,9 @@ where
 		_reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
+		if fee.is_zero() {
+			return Ok(None);
+		}
 		let imbalance = C::withdraw(
 			who.as_sub(),
 			fee.low_u128().unique_saturated_into(),

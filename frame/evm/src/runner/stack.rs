@@ -91,6 +91,7 @@ impl<T: Config> Runner<T> {
 		nonce: Option<U256>,
 		config: &'config evm::Config,
 		precompiles: &'precompiles PrecompileSetWithMethods<T>,
+		is_transactional: bool,
 		f: F,
 	) -> Result<ExecutionInfo<R>, Error<T>>
 	where
@@ -104,26 +105,24 @@ impl<T: Config> Runner<T> {
 		) -> (ExitReason, R),
 	{
 		let base_fee = T::FeeCalculator::min_gas_price();
-
-		// Sponsor only transactions, which have no priority fee
-		let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, max_priority_fee_per_gas) {
-			(Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
-				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
-				ensure!(
-					max_fee_per_gas >= max_priority_fee_per_gas,
-					Error::<T>::GasPriceTooLow
-				);
-				(max_fee_per_gas, max_fee_per_gas == base_fee)
-			}
-			(Some(max_fee_per_gas), None) => {
+		let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
+			(Some(max_fee_per_gas), _) => {
 				ensure!(max_fee_per_gas >= base_fee, Error::<T>::GasPriceTooLow);
 				(max_fee_per_gas, max_fee_per_gas == base_fee)
 			}
-			// Gas price check is skipped when performing a gas estimation.
-			_ => Default::default(),
+			// Gas price check is skipped for non-transactional calls that don't
+			// define a `max_fee_per_gas` input.
+			(None, false) => (Default::default(), true),
+			_ => return Err(Error::<T>::GasPriceTooLow),
 		};
 
 		let source_data = Pallet::<T>::account_basic_by_id(source);
+		if let Some(max_priority_fee) = max_priority_fee_per_gas {
+			ensure!(
+				max_fee_per_gas >= max_priority_fee,
+				Error::<T>::GasPriceTooLow
+			);
+		}
 
 		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
 		let max_fee = max_fee_per_gas
@@ -212,12 +211,13 @@ impl<T: Config> Runner<T> {
 			};
 		log::debug!(
 			target: "evm",
-			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}]",
+			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}, is_transactional: {}]",
 			reason,
 			source,
 			value,
 			gas_limit,
-			actual_fee
+			actual_fee,
+			is_transactional
 		);
 		// The difference between initially withdrawn and the actual cost is refunded.
 		//
@@ -302,6 +302,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
+		is_transactional: bool,
 		config: &evm::Config,
 	) -> Result<CallInfo, Self::Error> {
 		let precompiles = T::PrecompilesValue::get();
@@ -318,6 +319,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			nonce,
 			config,
 			&PrecompileSetWithMethods(precompiles),
+			is_transactional,
 			|executor| {
 				executor.transact_call(
 					*source.as_eth(),
@@ -340,6 +342,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
+		is_transactional: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, Self::Error> {
 		let precompiles = T::PrecompilesValue::get();
@@ -353,6 +356,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			nonce,
 			config,
 			&PrecompileSetWithMethods(precompiles),
+			is_transactional,
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Legacy {
 					caller: *source.as_eth(),
@@ -375,6 +379,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		max_priority_fee_per_gas: Option<U256>,
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
+		is_transactional: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, Self::Error> {
 		let precompiles = T::PrecompilesValue::get();
@@ -389,6 +394,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			nonce,
 			config,
 			&PrecompileSetWithMethods(precompiles),
+			is_transactional,
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Create2 {
 					caller: *source.as_eth(),
