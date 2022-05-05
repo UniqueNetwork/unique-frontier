@@ -12,20 +12,20 @@ serde = { version = "1.0.101", optional = true }
 
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "6.0.0" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "4.0.0-dev" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "6.0.0" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "4.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "6.0.0" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0-dev" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "6.0.0" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0" }
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "4.0.0-dev" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "4.0.0-dev" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0-dev" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0-dev" }
 
 fp-dynamic-fee = { version = "1.0.0", path = "../../primitives/dynamic-fee", default-features = false }
 fp-evm = { version = "3.0.0-dev", path = "../../primitives/evm", default-features = false }
 
 [dev-dependencies]
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "4.0.0-dev" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.19", default-features = false , version = "6.0.0" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0-dev" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "6.0.0" }
 
 [features]
 default = ["std"]
