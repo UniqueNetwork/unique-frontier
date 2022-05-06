@@ -309,6 +309,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type BlockHash<T: Config> = StorageMap<_, Twox64Concat, U256, H256, ValueQuery>;
 
+	/// Injected transactions should have unique nonce, here we store current
+	#[pallet::storage]
+	pub(super) type InjectedNonce<T: Config> = StorageValue<_, U256, ValueQuery>;
+
 	#[pallet::genesis_config]
 	#[derive(Default)]
 	pub struct GenesisConfig {}
@@ -773,9 +777,13 @@ impl<T: Config> Pallet<T> {
 			"this method is supposed to be called only from other pallets",
 		);
 
+		let nonce = <InjectedNonce<T>>::get()
+			.checked_add(1u32.into())
+			.expect("u256 should be enough");
+		<InjectedNonce<T>>::set(nonce);
+
 		let transaction = Transaction::Legacy(TransactionV0 {
-			// FIXME: we get same transaction hash, because here we have same nonce
-			nonce: 0.into(),
+			nonce,
 			gas_price: 0.into(),
 			gas_limit: 0.into(),
 			action: TransactionAction::Call(H160([0; 20])),
