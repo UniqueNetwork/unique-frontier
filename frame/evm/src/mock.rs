@@ -127,8 +127,8 @@ impl crate::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = ();
 
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
+	type WithdrawOrigin = EnsureAddressNever<Self::CrossAccountId>;
 
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;

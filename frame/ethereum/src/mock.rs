@@ -166,8 +166,8 @@ impl EvmBackwardsAddressMapping<AccountId32> for MapBackwardsAddressTruncated {
 impl pallet_evm::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = ();
-	type CallOrigin = EnsureAddressTruncated;
-	type WithdrawOrigin = EnsureAddressTruncated;
+	type CallOrigin = EnsureAddressTruncated<Self>;
+	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AddressMapping = HashedAddressMapping;
 	type Currency = Balances;
 	type Event = Event;

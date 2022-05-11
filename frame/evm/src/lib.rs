@@ -61,6 +61,8 @@ pub mod runner;
 #[cfg(test)]
 mod tests;
 
+use core::marker::PhantomData;
+
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	traits::{
@@ -120,9 +122,9 @@ pub mod pallet {
 		type BlockHashMapping: BlockHashMapping;
 
 		/// Allow the origin to call on behalf of given address.
-		type CallOrigin: EnsureAddressOrigin<Self::Origin>;
+		type CallOrigin: EnsureAddressOrigin<Self::Origin, Success = Self::CrossAccountId>;
 		/// Allow the origin to withdraw on behalf of given address.
-		type WithdrawOrigin: EnsureAddressOrigin<Self::Origin, Success = Self::AccountId>;
+		type WithdrawOrigin: EnsureAddressOrigin<Self::Origin, Success = Self::CrossAccountId>;
 
 		/// Mapping from address to account id.
 		type AddressMapping: AddressMapping<Self::AccountId>;
@@ -176,7 +178,7 @@ pub mod pallet {
 
 			T::Currency::transfer(
 				&address_account_id,
-				&destination,
+				destination.as_sub(),
 				value,
 				ExistenceRequirement::AllowDeath,
 			)?;
@@ -198,13 +200,11 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			let sender = ensure_signed(origin)?;
-			let sender_cross = T::CrossAccountId::from_sub(sender);
-			ensure!(*sender_cross.as_eth() == source, BadOrigin);
+			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let info = T::Runner::call(
-				sender_cross,
+				sender,
 				target,
 				input,
 				value,
@@ -248,13 +248,11 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			let sender = ensure_signed(origin)?;
-			let sender_cross = T::CrossAccountId::from_sub(sender);
-			ensure!(*sender_cross.as_eth() == source, BadOrigin);
+			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let info = T::Runner::create(
-				sender_cross,
+				sender,
 				init,
 				value,
 				gas_limit,
@@ -305,13 +303,11 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
-			let sender = ensure_signed(origin)?;
-			let sender_cross = T::CrossAccountId::from_sub(sender);
-			ensure!(*sender_cross.as_eth() == source, BadOrigin);
+			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let info = T::Runner::create2(
-				sender_cross,
+				sender,
 				init,
 				salt,
 				value,
@@ -481,17 +477,21 @@ where
 }
 
 /// Ensure that the origin is root.
-pub struct EnsureAddressRoot<AccountId>(sp_std::marker::PhantomData<AccountId>);
+pub struct EnsureAddressRoot<T>(sp_std::marker::PhantomData<T>);
 
-impl<OuterOrigin, AccountId> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<AccountId>
+impl<OuterOrigin, T> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<T>
 where
-	OuterOrigin: Into<Result<RawOrigin<AccountId>, OuterOrigin>> + From<RawOrigin<AccountId>>,
+	T: crate::account::Config,
+	OuterOrigin: Into<Result<RawOrigin<T::AccountId>, OuterOrigin>> + From<RawOrigin<T::AccountId>>,
 {
-	type Success = ();
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(_address: &H160, origin: OuterOrigin) -> Result<(), OuterOrigin> {
+	fn try_address_origin(
+		address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		origin.into().and_then(|o| match o {
-			RawOrigin::Root => Ok(()),
+			RawOrigin::Root => Ok(T::CrossAccountId::from_eth(*address)),
 			r => Err(OuterOrigin::from(r)),
 		})
 	}
@@ -510,18 +510,23 @@ impl<OuterOrigin, AccountId> EnsureAddressOrigin<OuterOrigin> for EnsureAddressN
 
 /// Ensure that the address is truncated hash of the origin. Only works if the account id is
 /// `AccountId32`.
-pub struct EnsureAddressTruncated;
+pub struct EnsureAddressTruncated<T>(PhantomData<T>);
 
-impl<OuterOrigin> EnsureAddressOrigin<OuterOrigin> for EnsureAddressTruncated
+impl<T, OuterOrigin> EnsureAddressOrigin<OuterOrigin> for EnsureAddressTruncated<T>
 where
+	T: crate::account::Config,
+	T::AccountId: From<AccountId32>,
 	OuterOrigin: Into<Result<RawOrigin<AccountId32>, OuterOrigin>> + From<RawOrigin<AccountId32>>,
 {
-	type Success = AccountId32;
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(address: &H160, origin: OuterOrigin) -> Result<AccountId32, OuterOrigin> {
+	fn try_address_origin(
+		address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		origin.into().and_then(|o| match o {
 			RawOrigin::Signed(who) if AsRef::<[u8; 32]>::as_ref(&who)[0..20] == address[0..20] => {
-				Ok(who)
+				Ok(T::CrossAccountId::from_sub(T::AccountId::from(who)))
 			}
 			r => Err(OuterOrigin::from(r)),
 		})

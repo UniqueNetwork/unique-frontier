@@ -379,6 +379,7 @@ fn call_should_succeed_with_priority_equal_to_max_fee() {
 			None,
 			Vec::new(),
 		);
+		dbg!(&result);
 		assert!(result.is_ok());
 	});
 }

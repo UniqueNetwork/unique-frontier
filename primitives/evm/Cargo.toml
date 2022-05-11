@@ -17,8 +17,8 @@ evm = { default-features = false, features = ["with-codec"] , git = "https://git
 serde = { version = "1.0.101", features = ["derive"], optional = true }
 
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "6.0.0" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20", default-features = false , version = "4.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "4.0.0" }
 impl-trait-for-tuples = "0.2.2"
 
 [features]
