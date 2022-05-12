@@ -19,8 +19,8 @@
 
 use crate::{
 	account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages,
-	AddressMapping, BlockHashMapping, Config, Error, Event, FeeCalculator, OnChargeEVMTransaction,
-	OnCreate, OnMethodCall, Pallet,
+	AddressMapping, BlockHashMapping, Config, CurrentLogs, Error, Event, FeeCalculator,
+	OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet,
 };
 use evm::{
 	backend::Backend as BackendT,
@@ -256,35 +256,10 @@ impl<T: Config> Runner<T> {
 			Pallet::<T>::remove_account(&address)
 		}
 
-		for log in state
-			.substate
-			.logs
-			.iter()
-			// Those logs already have substrate equivalent emitted, no need to emit them to substrate side again
-			.filter(|log| !log.mirrored_from_substrate)
-			.map(|log| &log.log)
-		{
-			log::trace!(
-				target: "evm",
-				"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
-				log.address,
-				log.topics.len(),
-				log.topics,
-				log.data.len(),
-				log.data
-			);
-			Pallet::<T>::deposit_event(Event::<T>::Log(Log {
-				address: log.address,
-				topics: log.topics.clone(),
-				data: log.data.clone(),
-			}));
-		}
-
 		Ok(ExecutionInfo {
 			value: retv,
 			exit_reason: reason,
 			used_gas,
-			logs: state.substate.logs.into_iter().map(|log| log.log).collect(),
 		})
 	}
 }
@@ -416,35 +391,14 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 	}
 }
 
-pub struct MaybeMirroredLog {
-	pub log: Log,
-	/// We don't need to logging injected logs to substrate side, as they are already
-	mirrored_from_substrate: bool,
-}
-
-impl MaybeMirroredLog {
-	pub fn mirrored(log: Log) -> Self {
-		Self {
-			log,
-			mirrored_from_substrate: true,
-		}
-	}
-	pub fn direct(log: Log) -> Self {
-		Self {
-			log,
-			mirrored_from_substrate: false,
-		}
-	}
-}
-
-struct SubstrateStackSubstate<'config> {
+struct SubstrateStackSubstate<'config, T> {
 	metadata: StackSubstateMetadata<'config>,
 	deletes: BTreeSet<H160>,
-	logs: Vec<MaybeMirroredLog>,
-	parent: Option<Box<SubstrateStackSubstate<'config>>>,
+	parent: Option<Box<SubstrateStackSubstate<'config, T>>>,
+	_marker: PhantomData<T>,
 }
 
-impl<'config> SubstrateStackSubstate<'config> {
+impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 	pub fn metadata(&self) -> &StackSubstateMetadata<'config> {
 		&self.metadata
 	}
@@ -458,7 +412,7 @@ impl<'config> SubstrateStackSubstate<'config> {
 			metadata: self.metadata.spit_child(gas_limit, is_static),
 			parent: None,
 			deletes: BTreeSet::new(),
-			logs: Vec::new(),
+			_marker: PhantomData,
 		};
 		mem::swap(&mut entering, self);
 
@@ -472,7 +426,6 @@ impl<'config> SubstrateStackSubstate<'config> {
 		mem::swap(&mut exited, self);
 
 		self.metadata.swallow_commit(exited.metadata)?;
-		self.logs.append(&mut exited.logs);
 		self.deletes.append(&mut exited.deletes);
 
 		sp_io::storage::commit_transaction();
@@ -514,14 +467,22 @@ impl<'config> SubstrateStackSubstate<'config> {
 	}
 
 	pub fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
-		self.logs.push(MaybeMirroredLog {
-			log: Log {
-				address,
-				topics,
-				data,
-			},
-			mirrored_from_substrate: false,
-		});
+		let log = Log {
+			address,
+			topics,
+			data,
+		};
+		log::trace!(
+			target: "evm",
+			"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
+			log.address,
+			log.topics.len(),
+			log.topics,
+			log.data.len(),
+			log.data
+		);
+		<CurrentLogs<T>>::append(&log);
+		<Pallet<T>>::deposit_event(<Event<T>>::Log(log));
 	}
 
 	fn recursive_is_cold<F: Fn(&Accessed) -> bool>(&self, f: &F) -> bool {
@@ -540,7 +501,7 @@ impl<'config> SubstrateStackSubstate<'config> {
 /// Substrate backend for EVM.
 pub struct SubstrateStackState<'vicinity, 'config, T> {
 	vicinity: &'vicinity Vicinity,
-	substate: SubstrateStackSubstate<'config>,
+	substate: SubstrateStackSubstate<'config, T>,
 	_marker: PhantomData<T>,
 }
 
@@ -552,8 +513,8 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 			substate: SubstrateStackSubstate {
 				metadata,
 				deletes: BTreeSet::new(),
-				logs: Vec::new(),
 				parent: None,
+				_marker: PhantomData,
 			},
 			_marker: PhantomData,
 		}

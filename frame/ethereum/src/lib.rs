@@ -28,6 +28,8 @@ mod mock;
 #[cfg(all(feature = "std", test))]
 mod tests;
 
+use core::fmt::Debug;
+
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
@@ -44,14 +46,16 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::OriginFor, WeightInfo};
 use pallet_evm::{
-	account::CrossAccountId, runner::stack::MaybeMirroredLog, BlockHashMapping, FeeCalculator,
-	GasWeightMapping, Runner,
+	account::CrossAccountId, BlockHashMapping, CurrentLogs, FeeCalculator, GasWeightMapping, Runner,
 };
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
 	generic::DigestItem,
-	traits::{One, Saturating, UniqueSaturatedInto, Zero},
+	traits::{
+		DispatchInfoOf, One, PostDispatchInfoOf, Saturating, SignedExtension, UniqueSaturatedInto,
+		Zero,
+	},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
@@ -209,6 +213,7 @@ pub mod pallet {
 				));
 			}
 			Pending::<T>::kill();
+			assert_eq!(<CurrentLogs<T>>::get().len(), 0, "fake transaction finalizer is not initialized, as some logs was left after block is finished");
 		}
 
 		fn on_initialize(_: T::BlockNumber) -> Weight {
@@ -676,42 +681,48 @@ impl<T: Config> Pallet<T> {
 			.expect("transaction is already validated; error indicates that the block is invalid");
 
 		let (reason, status, used_gas, dest) = match info {
-			CallOrCreateInfo::Call(info) => (
-				info.exit_reason,
-				TransactionStatus {
-					transaction_hash,
-					transaction_index,
-					from: source,
-					to,
-					contract_address: None,
-					logs: info.logs.clone(),
-					logs_bloom: {
-						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs.iter(), &mut bloom);
-						bloom
+			CallOrCreateInfo::Call(info) => {
+				let logs = <CurrentLogs<T>>::take();
+				(
+					info.exit_reason,
+					TransactionStatus {
+						transaction_hash,
+						transaction_index,
+						from: source,
+						to,
+						contract_address: None,
+						logs_bloom: {
+							let mut bloom: Bloom = Bloom::default();
+							Self::logs_bloom(logs.iter(), &mut bloom);
+							bloom
+						},
+						logs,
 					},
-				},
-				info.used_gas,
-				to,
-			),
-			CallOrCreateInfo::Create(info) => (
-				info.exit_reason,
-				TransactionStatus {
-					transaction_hash,
-					transaction_index,
-					from: source,
+					info.used_gas,
 					to,
-					contract_address: Some(info.value),
-					logs: info.logs.clone(),
-					logs_bloom: {
-						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs.iter(), &mut bloom);
-						bloom
+				)
+			}
+			CallOrCreateInfo::Create(info) => {
+				let logs = <CurrentLogs<T>>::take();
+				(
+					info.exit_reason,
+					TransactionStatus {
+						transaction_hash,
+						transaction_index,
+						from: source,
+						to,
+						contract_address: Some(info.value),
+						logs_bloom: {
+							let mut bloom: Bloom = Bloom::default();
+							Self::logs_bloom(logs.iter(), &mut bloom);
+							bloom
+						},
+						logs,
 					},
-				},
-				info.used_gas,
-				Some(info.value),
-			),
+					info.used_gas,
+					Some(info.value),
+				)
+			}
 		};
 
 		let receipt = {
@@ -719,7 +730,7 @@ impl<T: Config> Pallet<T> {
 				ExitReason::Succeed(_) => 1,
 				_ => 0,
 			};
-			let logs_bloom = status.clone().logs_bloom;
+			let logs_bloom = status.logs_bloom;
 			let logs = status.clone().logs;
 			let cumulative_gas_used = if let Some((_, _, receipt)) = pending.last() {
 				match receipt {
@@ -769,13 +780,18 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn inject_emulated_transaction_result(source: H160, logs: Vec<MaybeMirroredLog>) {
+	pub fn flush_injected_transaction() {
 		use ethereum::{TransactionSignature, TransactionV0};
 
 		assert!(
 			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
 			"this method is supposed to be called only from other pallets",
 		);
+
+		let logs = <CurrentLogs<T>>::take();
+		if logs.is_empty() {
+			return;
+		}
 
 		let nonce = <InjectedNonce<T>>::get()
 			.checked_add(1u32.into())
@@ -800,27 +816,25 @@ impl<T: Config> Pallet<T> {
 
 		let logs_bloom = {
 			let mut bloom: Bloom = Bloom::default();
-			Self::logs_bloom(logs.iter().map(|log| &log.log), &mut bloom);
+			Self::logs_bloom(&logs, &mut bloom);
 			bloom
 		};
-
-		let logs: Vec<_> = logs.into_iter().map(|log| log.log).collect();
 
 		let status = TransactionStatus {
 			transaction_hash,
 			transaction_index,
-			from: source,
+			from: H160::default(),
 			to: None,
 			contract_address: None,
-			logs_bloom: logs_bloom.clone(),
+			logs_bloom,
 			logs: logs.clone(),
 		};
 
 		let receipt = Receipt::Legacy(EIP658ReceiptData {
 			status_code: 1,
 			used_gas: 0u32.into(),
-			logs_bloom: logs_bloom.clone(),
-			logs: logs.clone(),
+			logs_bloom,
+			logs,
 		});
 
 		<Pending<T>>::append((transaction, status, receipt));
@@ -1043,16 +1057,6 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-pub trait EthereumTransactionSender {
-	fn submit_logs_transaction(source: H160, logs: Vec<MaybeMirroredLog>);
-}
-
-impl<T: Config> EthereumTransactionSender for Pallet<T> {
-	fn submit_logs_transaction(source: H160, logs: Vec<MaybeMirroredLog>) {
-		<Pallet<T>>::inject_emulated_transaction_result(source, logs)
-	}
-}
-
 #[derive(Eq, PartialEq, Clone, RuntimeDebug)]
 pub enum ReturnValue {
 	Bytes(Vec<u8>),
@@ -1083,4 +1087,44 @@ enum TransactionValidationError {
 	InvalidChainId,
 	InvalidSignature,
 	InvalidGasLimit,
+}
+
+#[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode)]
+pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
+
+impl<T: Config + TypeInfo + Debug + Send + Sync> SignedExtension for FakeTransactionFinalizer<T> {
+	const IDENTIFIER: &'static str = "FakeTransactionFinalizer";
+
+	type AccountId = T::AccountId;
+
+	type Call = T::Call;
+
+	type AdditionalSigned = ();
+
+	type Pre = ();
+
+	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+		Ok(())
+	}
+
+	fn pre_dispatch(
+		self,
+		_who: &Self::AccountId,
+		_call: &Self::Call,
+		_info: &DispatchInfoOf<Self::Call>,
+		_len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(())
+	}
+
+	fn post_dispatch(
+		_pre: Option<Self::Pre>,
+		_info: &DispatchInfoOf<Self::Call>,
+		_post_info: &PostDispatchInfoOf<Self::Call>,
+		_len: usize,
+		_result: &sp_runtime::DispatchResult,
+	) -> Result<(), TransactionValidityError> {
+		<Pallet<T>>::flush_injected_transaction();
+		Ok(())
+	}
 }

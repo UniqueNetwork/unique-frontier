@@ -100,7 +100,7 @@ use account::CrossAccountId;
 pub mod pallet {
 	use super::*;
 	use fp_evm::TransactionValidityHack;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{pallet_prelude::*, storage::types::StorageValue};
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
@@ -429,6 +429,11 @@ pub mod pallet {
 	#[pallet::getter(fn account_storages)]
 	pub type AccountStorages<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, H160, Blake2_128Concat, H256, H256, ValueQuery>;
+
+	/// Written on log, reset after transaction
+	/// Should be empty between transactions
+	#[pallet::storage]
+	pub type CurrentLogs<T: Config> = StorageValue<_, Vec<Log>, ValueQuery>;
 }
 
 /// Type alias for currency balance.
@@ -640,6 +645,21 @@ impl<T: Config> Pallet<T> {
 		}
 
 		<AccountCodes<T>>::insert(address, code);
+	}
+
+	/// Add log to be injected in either real or fake ethereum transaction
+	pub fn deposit_log(log: Log) {
+		log::trace!(
+			target: "evm",
+			"Inserting mirrored log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
+			log.address,
+			log.topics.len(),
+			log.topics,
+			log.data.len(),
+			log.data
+		);
+		<CurrentLogs<T>>::append(log);
+		// Log event is not emitted here, as these logs belong to pallets, which will emit pallet-specific logs on substrate side by themselves
 	}
 
 	/// Get the account basic in EVM format.
