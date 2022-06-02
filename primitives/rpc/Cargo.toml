@@ -6,17 +6,24 @@ edition = "2021"
 description = "Runtime primitives for Ethereum RPC (web3) compatibility layer for Substrate."
 license = "Apache-2.0"
 
+[package.metadata.deppatcher.originals.dependencies]
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [dependencies]
 ethereum = { version = "0.12.0", default-features = false, features = ["with-codec"] }
 ethereum-types = { version = "0.13.1", default-features = false }
 
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "4.0.0-dev" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "4.0.0" }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
 
 fp-evm = { version = "3.0.0-dev", path = "../../primitives/evm", default-features = false }
 

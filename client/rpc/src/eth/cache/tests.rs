@@ -46,7 +46,7 @@ mod tests {
 	) -> Result<Arc<fc_db::Backend<OpaqueBlock>>, String> {
 		Ok(Arc::new(fc_db::Backend::<OpaqueBlock>::new(
 			&fc_db::DatabaseSettings {
-				source: fc_db::DatabaseSettingsSrc::RocksDb {
+				source: sc_client_db::DatabaseSource::RocksDb {
 					path,
 					cache_size: 0,
 				},
@@ -89,11 +89,8 @@ mod tests {
 
 		// Expect: only genesis block is cached to schema V1.
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![(
-				EthereumStorageSchema::V1,
-				client.genesis_hash()
-			)]))
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![(EthereumStorageSchema::V1, client.genesis_hash())])
 		);
 
 		// Create another block and push a schema change (V2).
@@ -109,15 +106,15 @@ mod tests {
 		executor::block_on(client.import(BlockOrigin::Own, block)).unwrap();
 
 		// Give some time to consume and process the import notification stream.
-		thread::sleep(time::Duration::from_millis(1));
+		thread::sleep(time::Duration::from_millis(10));
 
 		// Expect: genesis still cached (V1), latest block cached (V2)
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![
 				(EthereumStorageSchema::V1, client.genesis_hash()),
 				(EthereumStorageSchema::V2, block_hash)
-			]))
+			])
 		);
 	}
 
@@ -168,15 +165,15 @@ mod tests {
 		executor::block_on(client.import(BlockOrigin::Own, a2)).unwrap();
 
 		// Give some time to consume and process the import notification stream.
-		thread::sleep(time::Duration::from_millis(1));
+		thread::sleep(time::Duration::from_millis(100));
 
 		// Expect: genesis with schema V1, A2 with schema V2.
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![
 				(EthereumStorageSchema::V1, client.genesis_hash()),
 				(EthereumStorageSchema::V2, a2_hash)
-			]))
+			])
 		);
 
 		// A1 -> B2. A new block on top of A1.
@@ -203,15 +200,15 @@ mod tests {
 		executor::block_on(client.import(BlockOrigin::Own, b3)).unwrap();
 
 		// Give some time to consume and process the import notification stream.
-		thread::sleep(time::Duration::from_millis(1));
+		thread::sleep(time::Duration::from_millis(100));
 
 		// Expect: A2 to be retracted, genesis with schema V1, B3 with schema V2.
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![
 				(EthereumStorageSchema::V1, client.genesis_hash()),
 				(EthereumStorageSchema::V2, b3_hash)
-			]))
+			])
 		);
 
 		// A1 -> C2, a wild new block on top of A1.
@@ -230,47 +227,47 @@ mod tests {
 		executor::block_on(client.import(BlockOrigin::Own, c2)).unwrap();
 
 		// Give some time to consume and process the import notification stream.
-		thread::sleep(time::Duration::from_millis(1));
+		thread::sleep(time::Duration::from_millis(100));
 
 		// Expect: genesis with schema V1, B3 still with schema V2.
 		// C2 still not best block and not cached.
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![
 				(EthereumStorageSchema::V1, client.genesis_hash()),
 				(EthereumStorageSchema::V2, b3_hash)
-			]))
+			])
 		);
 
 		// Make C2 branch the longest chain.
-		// C2 -> D2
+		// C2 -> C3
 		let mut builder = client
 			.new_block_at(&BlockId::Hash(c2_hash), Default::default(), false)
 			.unwrap();
 		builder.push_storage_change(vec![2], None).unwrap();
-		let d2 = builder.build().unwrap().block;
-		let d2_hash = d2.header.hash();
-		executor::block_on(client.import(BlockOrigin::Own, d2)).unwrap();
+		let c3 = builder.build().unwrap().block;
+		let c3_hash = c3.header.hash();
+		executor::block_on(client.import(BlockOrigin::Own, c3)).unwrap();
 
-		// D2 -> E2
+		// C3 -> C4
 		let mut builder = client
-			.new_block_at(&BlockId::Hash(d2_hash), Default::default(), false)
+			.new_block_at(&BlockId::Hash(c3_hash), Default::default(), false)
 			.unwrap();
 		builder.push_storage_change(vec![3], None).unwrap();
-		let e2 = builder.build().unwrap().block;
-		executor::block_on(client.import(BlockOrigin::Own, e2)).unwrap();
+		let c4 = builder.build().unwrap().block;
+		executor::block_on(client.import(BlockOrigin::Own, c4)).unwrap();
 
 		// Give some time to consume and process the import notification stream.
-		thread::sleep(time::Duration::from_millis(1));
+		thread::sleep(time::Duration::from_millis(100));
 
 		// Expect: B2 branch to be retracted, genesis with schema V1, C2 with schema V2.
-		// E2 became new best, chain reorged, we expect the C2 ancestor to be cached.
+		// C4 became new best, chain reorged, we expect the C2 ancestor to be cached.
 		assert_eq!(
-			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()),
-			Ok(Some(vec![
+			frontier_backend_client::load_cached_schema::<_>(frontier_backend.as_ref()).unwrap(),
+			Some(vec![
 				(EthereumStorageSchema::V1, client.genesis_hash()),
 				(EthereumStorageSchema::V2, c2_hash)
-			]))
+			])
 		);
 	}
 }

@@ -16,6 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(
+	clippy::too_many_arguments,
+	clippy::large_enum_variant,
+	clippy::manual_range_contains,
+	clippy::explicit_counter_loop,
+	clippy::len_zero,
+	clippy::new_without_default
+)]
+
 mod eth;
 mod eth_pubsub;
 mod net;
@@ -24,17 +33,16 @@ mod signer;
 mod web3;
 
 pub use self::{
-	eth::{EthApi, EthBlockDataCache, EthFilterApi, EthTask},
-	eth_pubsub::{EthPubSubApi, HexEncodedIdProvider},
-	net::NetApi,
+	eth::{Eth, EthBlockDataCacheTask, EthFilter, EthTask},
+	eth_pubsub::{EthPubSub, EthereumSubIdProvider},
+	net::Net,
 	overrides::{
 		OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override, SchemaV2Override,
 		SchemaV3Override, StorageOverride,
 	},
 	signer::{EthDevSigner, EthSigner},
-	web3::Web3Api,
+	web3::Web3,
 };
-
 pub use ethereum::TransactionV2 as EthereumTransaction;
 pub use fc_rpc_core::{
 	EthApiServer, EthFilterApiServer, EthPubSubApiServer, NetApiServer, Web3ApiServer,
@@ -45,7 +53,7 @@ pub mod frontier_backend_client {
 
 	use codec::Decode;
 	use ethereum_types::H256;
-	use jsonrpc_core::Result as RpcResult;
+	use jsonrpsee::core::RpcResult;
 
 	use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
 	use sp_blockchain::HeaderBackend;
@@ -186,12 +194,29 @@ pub mod frontier_backend_client {
 	}
 }
 
-pub fn internal_err<T: ToString>(message: T) -> jsonrpc_core::Error {
-	jsonrpc_core::Error {
-		code: jsonrpc_core::ErrorCode::InternalError,
-		message: message.to_string(),
-		data: None,
-	}
+pub fn err<T: ToString>(code: i32, message: T, data: Option<&[u8]>) -> jsonrpsee::core::Error {
+	jsonrpsee::core::Error::Call(jsonrpsee::types::error::CallError::Custom(
+		jsonrpsee::types::error::ErrorObject::owned(
+			code,
+			message.to_string(),
+			data.map(|bytes| {
+				jsonrpsee::core::to_json_raw_value(&format!("0x{}", hex::encode(bytes)))
+					.expect("fail to serialize data")
+			}),
+		),
+	))
+}
+
+pub fn internal_err<T: ToString>(message: T) -> jsonrpsee::core::Error {
+	err(jsonrpsee::types::error::INTERNAL_ERROR_CODE, message, None)
+}
+
+pub fn internal_err_with_data<T: ToString>(message: T, data: &[u8]) -> jsonrpsee::core::Error {
+	err(
+		jsonrpsee::types::error::INTERNAL_ERROR_CODE,
+		message,
+		Some(data),
+	)
 }
 
 pub fn public_key(transaction: &EthereumTransaction) -> Result<[u8; 64], sp_io::EcdsaVerifyError> {

@@ -8,10 +8,13 @@ homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/frontier/"
 description = "BN128 precompiles for EVM pallet."
 
+[package.metadata.deppatcher.originals.dependencies]
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21" }
+
 [dependencies]
 bn = { package = "substrate-bn", version = "0.6", default-features = false }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false , version = "6.0.0" }
 
 fp-evm = { version = "3.0.0-dev", path = "../../../../primitives/evm", default-features = false }
 

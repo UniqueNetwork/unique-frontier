@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethereum_types::{H256, H64, U256};
-use jsonrpc_core::Result;
+use jsonrpsee::core::RpcResult as Result;
 
 use sc_network::ExHashT;
 use sc_transaction_pool::ChainApi;
@@ -25,9 +25,9 @@ use sp_runtime::traits::Block as BlockT;
 
 use fc_rpc_core::types::*;
 
-use crate::eth::EthApi;
+use crate::eth::Eth;
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H, A> {
+impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A> {
 	pub fn is_mining(&self) -> Result<bool> {
 		Ok(self.is_authority)
 	}

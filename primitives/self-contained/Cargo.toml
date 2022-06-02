@@ -9,18 +9,24 @@ repository = "https://github.com/paritytech/frontier/"
 description = "Primitive Ethereum abstractions for Substrate."
 documentation = "https://docs.rs/fp-ethereum"
 
+[package.metadata.deppatcher.originals.dependencies]
+sp-debug-derive = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21" }
+
 [dependencies]
 ethereum = { version = "0.12.0", default-features = false, features = ["with-codec"] }
-serde = { version = "1.0.101", features = ["derive"], optional = true }
+serde = { version = "1.0.137", features = ["derive"], optional = true }
 
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 parity-util-mem = { version = "0.11", optional = true }
-scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-sp-debug-derive = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "4.0.0" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "6.0.0" }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+sp-debug-derive = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21", default-features = false , version = "4.0.0-dev" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false , version = "4.0.0-dev" }
 
 [features]
 default = ["std"]

@@ -21,8 +21,10 @@ extern crate alloc;
 
 mod eip_152;
 
-use core::mem::size_of;
-use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
+use fp_evm::{
+	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput,
+	PrecompileResult,
+};
 
 pub struct Blake2F;
 
@@ -33,13 +35,11 @@ impl Blake2F {
 impl Precompile for Blake2F {
 	/// Format of `input`:
 	/// [4 bytes for rounds][64 bytes for h][128 bytes for m][8 bytes for t_0][8 bytes for t_1][1 byte for f]
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		_context: &Context,
-		_is_static: bool,
-	) -> PrecompileResult {
+	fn execute(handle: &mut impl PrecompileHandle) -> PrecompileResult {
 		const BLAKE2_F_ARG_LEN: usize = 213;
+
+		let input = handle.input();
+		let target_gas = handle.gas_limit();
 
 		if input.len() != BLAKE2_F_ARG_LEN {
 			return Err(ExitError::Other(
@@ -59,6 +59,9 @@ impl Precompile for Blake2F {
 			}
 		}
 
+		handle.record_cost(gas_cost)?;
+		let input = handle.input();
+
 		// we use from_le_bytes below to effectively swap byte order to LE if architecture is BE
 
 		let mut h_buf: [u8; 64] = [0; 64];
@@ -68,7 +71,7 @@ impl Precompile for Blake2F {
 		for state_word in &mut h {
 			let mut temp: [u8; 8] = Default::default();
 			temp.copy_from_slice(&h_buf[(ctr * 8)..(ctr + 1) * 8]);
-			*state_word = u64::from_le_bytes(temp).into();
+			*state_word = u64::from_le_bytes(temp);
 			ctr += 1;
 		}
 
@@ -79,7 +82,7 @@ impl Precompile for Blake2F {
 		for msg_word in &mut m {
 			let mut temp: [u8; 8] = Default::default();
 			temp.copy_from_slice(&m_buf[(ctr * 8)..(ctr + 1) * 8]);
-			*msg_word = u64::from_le_bytes(temp).into();
+			*msg_word = u64::from_le_bytes(temp);
 			ctr += 1;
 		}
 
@@ -99,18 +102,16 @@ impl Precompile for Blake2F {
 			return Err(ExitError::Other("incorrect final block indicator flag".into()).into());
 		};
 
-		crate::eip_152::compress(&mut h, m, [t_0.into(), t_1.into()], f, rounds as usize);
+		crate::eip_152::compress(&mut h, m, [t_0, t_1], f, rounds as usize);
 
-		let mut output_buf = [0u8; 8 * size_of::<u64>()];
+		let mut output_buf = [0u8; u64::BITS as usize];
 		for (i, state_word) in h.iter().enumerate() {
 			output_buf[i * 8..(i + 1) * 8].copy_from_slice(&state_word.to_le_bytes());
 		}
 
 		Ok(PrecompileOutput {
 			exit_status: ExitSucceed::Returned,
-			cost: gas_cost,
 			output: output_buf.to_vec(),
-			logs: Default::default(),
 		})
 	}
 }

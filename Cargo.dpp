@@ -2,9 +2,9 @@ function(package)
 local git = std.get(package.source, "git", null);
 if git == "https://github.com/paritytech/substrate.git" || git == "https://github.com/paritytech/substrate" then {
     git: "https://github.com/paritytech/substrate",
-    branch: "polkadot-v0.9.20",
+    branch: "polkadot-v0.9.22",
     [if 'version' in package.source then 'version']: package.source.version
-} else if package.package == "evm" then {
+} else if package.package == "evm" || git == "https://github.com/rust-blockchain/evm" || git == "https://github.com/uniquenetwork/evm" then {
     git: "https://github.com/uniquenetwork/evm",
-    branch: "unique-polkadot-v0.9.19",
+    branch: "unique-polkadot-v0.9.22",
 }

@@ -16,6 +16,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::comparison_chain)]
 
 extern crate alloc;
 
@@ -24,7 +25,10 @@ use core::{cmp::max, ops::BitAnd};
 
 use num::{BigUint, FromPrimitive, One, ToPrimitive, Zero};
 
-use fp_evm::{Context, ExitError, ExitSucceed, Precompile, PrecompileOutput, PrecompileResult};
+use fp_evm::{
+	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput,
+	PrecompileResult,
+};
 
 pub struct Modexp;
 
@@ -82,12 +86,10 @@ fn calculate_gas_cost(
 
 	let multiplication_complexity = calculate_multiplication_complexity(base_length, mod_length);
 	let iteration_count = calculate_iteration_count(exp_length, exponent);
-	let gas = max(
+	max(
 		MIN_GAS_COST,
 		multiplication_complexity * iteration_count / 3,
-	);
-
-	gas
+	)
 }
 
 // ModExp expects the following as inputs:
@@ -107,12 +109,10 @@ fn calculate_gas_cost(
 //       see: https://eips.ethereum.org/EIPS/eip-198
 
 impl Precompile for Modexp {
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		_context: &Context,
-		_is_static: bool,
-	) -> PrecompileResult {
+	fn execute(handle: &mut impl PrecompileHandle) -> PrecompileResult {
+		let input = handle.input();
+		let target_gas = handle.gas_limit();
+
 		if input.len() < 96 {
 			return Err(ExitError::Other("input must contain at least 96 bytes".into()).into());
 		};
@@ -180,6 +180,8 @@ impl Precompile for Modexp {
 			}
 		};
 
+		handle.record_cost(gas_cost)?;
+
 		// write output to given memory, left padded and same length as the modulus.
 		let bytes = r.to_bytes_be();
 
@@ -188,9 +190,7 @@ impl Precompile for Modexp {
 		if bytes.len() == mod_len {
 			Ok(PrecompileOutput {
 				exit_status: ExitSucceed::Returned,
-				cost: gas_cost,
 				output: bytes.to_vec(),
-				logs: Default::default(),
 			})
 		} else if bytes.len() < mod_len {
 			let mut ret = Vec::with_capacity(mod_len);
@@ -198,9 +198,7 @@ impl Precompile for Modexp {
 			ret.extend_from_slice(&bytes[..]);
 			Ok(PrecompileOutput {
 				exit_status: ExitSucceed::Returned,
-				cost: gas_cost,
 				output: ret.to_vec(),
-				logs: Default::default(),
 			})
 		} else {
 			Err(ExitError::Other("failed".into()).into())
@@ -212,8 +210,8 @@ impl Precompile for Modexp {
 mod tests {
 	use super::*;
 	extern crate hex;
-	use fp_evm::PrecompileFailure;
-	use pallet_evm_test_vector_support::test_precompile_test_vectors;
+	use fp_evm::{Context, PrecompileFailure};
+	use pallet_evm_test_vector_support::{test_precompile_test_vectors, MockHandle};
 
 	#[test]
 	fn process_consensus_tests() -> Result<(), String> {
@@ -223,7 +221,7 @@ mod tests {
 
 	#[test]
 	fn test_empty_input() -> Result<(), PrecompileFailure> {
-		let input: [u8; 0] = [];
+		let input = Vec::new();
 
 		let cost: u64 = 1;
 
@@ -233,7 +231,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(_) => {
 				panic!("Test not expected to pass");
 			}
@@ -268,7 +268,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(_) => {
 				panic!("Test not expected to pass");
 			}
@@ -301,7 +303,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(_) => {
 				panic!("Test not expected to pass");
 			}
@@ -339,7 +343,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(precompile_result) => {
 				assert_eq!(precompile_result.output.len(), 1); // should be same length as mod
 				let result = BigUint::from_bytes_be(&precompile_result.output[..]);
@@ -374,7 +380,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(precompile_result) => {
 				assert_eq!(precompile_result.output.len(), 32); // should be same length as mod
 				let result = BigUint::from_bytes_be(&precompile_result.output[..]);
@@ -407,7 +415,9 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		match Modexp::execute(&input, Some(cost), &context, false) {
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		match Modexp::execute(&mut handle) {
 			Ok(precompile_result) => {
 				assert_eq!(precompile_result.output.len(), 32); // should be same length as mod
 				let result = BigUint::from_bytes_be(&precompile_result.output[..]);
@@ -446,8 +456,10 @@ mod tests {
 			apparent_value: From::from(0),
 		};
 
-		let precompile_result = Modexp::execute(&input, Some(cost), &context, false)
-			.expect("Modexp::execute() returned error");
+		let mut handle = MockHandle::new(input, Some(cost), context);
+
+		let precompile_result =
+			Modexp::execute(&mut handle).expect("Modexp::execute() returned error");
 
 		assert_eq!(precompile_result.output.len(), 1); // should be same length as mod
 		let result = BigUint::from_bytes_be(&precompile_result.output[..]);

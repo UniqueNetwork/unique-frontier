@@ -16,21 +16,17 @@
 // limitations under the License.
 
 pub use evm::{
-	executor::stack::{PrecompileFailure, PrecompileOutput, PrecompileSet},
-	Context, ExitError, ExitRevert, ExitSucceed,
+	executor::stack::{PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileSet},
+	Context, ExitError, ExitRevert, ExitSucceed, Transfer,
 };
 use sp_std::vec::Vec;
 
 pub type PrecompileResult = Result<PrecompileOutput, PrecompileFailure>;
 
 pub trait Precompile {
-	// Implements PrecompileFn
-	fn execute(
-		input: &[u8],
-		target_gas: Option<u64>,
-		context: &Context,
-		is_static: bool,
-	) -> PrecompileResult;
+	/// Try to execute the precompile with given `handle` which provides all call data
+	/// and allow to register costs and logs.
+	fn execute(handle: &mut impl PrecompileHandle) -> PrecompileResult;
 }
 
 pub trait LinearCostPrecompile {
@@ -44,14 +40,15 @@ pub trait LinearCostPrecompile {
 }
 
 impl<T: LinearCostPrecompile> Precompile for T {
-	fn execute(input: &[u8], target_gas: Option<u64>, _: &Context, _: bool) -> PrecompileResult {
-		let cost = ensure_linear_cost(target_gas, input.len() as u64, T::BASE, T::WORD)?;
+	fn execute(handle: &mut impl PrecompileHandle) -> PrecompileResult {
+		let target_gas = handle.gas_limit();
+		let cost = ensure_linear_cost(target_gas, handle.input().len() as u64, T::BASE, T::WORD)?;
 
-		Self::execute(input, cost).map(|(exit_status, output)| PrecompileOutput {
+		handle.record_cost(cost)?;
+		let (exit_status, output) = T::execute(handle.input(), cost)?;
+		Ok(PrecompileOutput {
 			exit_status,
-			cost,
 			output,
-			logs: Vec::new(),
 		})
 	}
 }

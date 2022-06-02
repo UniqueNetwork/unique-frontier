@@ -8,21 +8,15 @@ homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/frontier/"
 description = "Test vector support for EVM pallet."
 
+[package.metadata.deppatcher.originals.dependencies]
+evm = { git = "https://github.com/rust-blockchain/evm", branch = "master" }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [dependencies]
-evm = { default-features = false, features = ["with-codec"] , git = "https://github.com/uniquenetwork/evm", branch = "unique-polkadot-v0.9.19" }
-hex = { version = "0.4.0", optional = true }
-serde = { version = "1.0.101", features = ["derive"], optional = true }
-serde_json = { version = "1.0", optional = true }
+evm = { git = "https://github.com/uniquenetwork/evm", branch = "unique-polkadot-v0.9.22", features = ["with-codec"] }
+hex = "0.4.0"
+serde = { version = "1.0.101", features = ["derive"] }
+serde_json = "1.0"
 
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.22", default-features = false }
 fp-evm = { version = "3.0.0-dev", path = "../../../primitives/evm", default-features = false }
-
-[features]
-default = ["std"]
-std = [
-	"evm/std",
-	"hex",
-	"serde",
-	"serde_json",
-
-	"fp-evm/std",
-]
