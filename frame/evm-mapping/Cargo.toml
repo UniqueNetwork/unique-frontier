@@ -9,8 +9,8 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21" }
 
 [dependencies]
-sp-core = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 
 [features]
 default = ["std"]

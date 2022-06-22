@@ -13,8 +13,8 @@ sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/sub
 [dependencies]
 async-trait = "0.1"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false , version = "6.0.0" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false , version = "4.0.0-dev" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false , version = "6.0.0" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false , version = "4.0.0-dev" }
 
 [features]
 default = ["std"]
