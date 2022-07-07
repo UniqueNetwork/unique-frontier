@@ -8,13 +8,10 @@ homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/frontier/"
 description = "Simple precompiles for EVM pallet."
 
-[package.metadata.deppatcher.originals.dependencies]
-sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.21" }
-
 [dependencies]
 ripemd = { version = "0.1", default-features = false }
 
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false , version = "6.0.0" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25", default-features = false , version = "6.0.0" }
 
 fp-evm = { version = "3.0.0-dev", path = "../../../../primitives/evm", default-features = false }
 
