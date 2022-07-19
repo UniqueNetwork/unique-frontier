@@ -11,7 +11,7 @@ description = "BN128 precompiles for EVM pallet."
 [dependencies]
 bn = { package = "substrate-bn", version = "0.6", default-features = false }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25", default-features = false , version = "6.0.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false, version = "6.0.0" }
 
 fp-evm = { version = "3.0.0-dev", path = "../../../../primitives/evm", default-features = false }
 
@@ -20,7 +20,4 @@ pallet-evm-test-vector-support = { version = "1.0.0-dev", path = "../../test-vec
 
 [features]
 default = ["std"]
-std = [
-	"sp-core/std",
-	"fp-evm/std",
-]
+std = ["sp-core/std", "fp-evm/std"]

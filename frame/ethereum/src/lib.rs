@@ -46,12 +46,18 @@ use frame_support::{
 	weights::{DispatchInfo, Pays, PostDispatchInfo, Weight},
 };
 use frame_system::{pallet_prelude::OriginFor, CheckWeight, WeightInfo};
-use pallet_evm::{account::CrossAccountId, BlockHashMapping, CurrentLogs, FeeCalculator, GasWeightMapping, Runner};
+use pallet_evm::{
+	account::CrossAccountId, BlockHashMapping, CurrentLogs, FeeCalculator, GasWeightMapping, Runner,
+};
 use scale_info::TypeInfo;
+use codec::MaxEncodedLen;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
 	generic::DigestItem,
-	traits::{DispatchInfoOf, Dispatchable, One, PostDispatchInfoOf, Saturating, SignedExtension, UniqueSaturatedInto, Zero},
+	traits::{
+		DispatchInfoOf, Dispatchable, One, PostDispatchInfoOf, Saturating, SignedExtension,
+		UniqueSaturatedInto, Zero,
+	},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
@@ -65,7 +71,7 @@ pub use ethereum::{
 };
 pub use fp_rpc::TransactionStatus;
 
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub enum RawOrigin {
 	EthereumTransaction(H160),
 }

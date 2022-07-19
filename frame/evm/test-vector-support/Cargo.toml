@@ -9,10 +9,12 @@ repository = "https://github.com/paritytech/frontier/"
 description = "Test vector support for EVM pallet."
 
 [dependencies]
-evm = { git = "https://github.com/uniquenetwork/evm", branch = "unique-polkadot-v0.9.25", features = ["with-codec"] }
+evm = { git = "https://github.com/uniquenetwork/evm", branch = "unique-polkadot-v0.9.26", features = [
+    "with-codec",
+] }
 hex = "0.4.0"
 serde = { version = "1.0.101", features = ["derive"] }
 serde_json = "1.0"
 
-sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25", default-features = false }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
 fp-evm = { version = "3.0.0-dev", path = "../../../primitives/evm", default-features = false }
