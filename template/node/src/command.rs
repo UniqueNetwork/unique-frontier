@@ -15,10 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Arc;
-
 use clap::Parser;
-use frame_benchmarking_cli::BenchmarkCmd;
+use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory};
 use frontier_template_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::{DatabaseSource, PartialComponents};
@@ -26,7 +24,7 @@ use sc_service::{DatabaseSource, PartialComponents};
 use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
-	command_helper::{inherent_benchmark_data, BenchmarkExtrinsicBuilder},
+	command_helper::{inherent_benchmark_data, RemarkBuilder},
 	service::{self, frontier_database_dir},
 };
 
@@ -191,19 +189,28 @@ pub fn run() -> sc_cli::Result<()> {
 						cmd.run(config, client, db, storage)
 					}
 					BenchmarkCmd::Overhead(cmd) => {
-						let ext_builder = BenchmarkExtrinsicBuilder::new(client.clone());
+						let ext_builder = RemarkBuilder::new(client.clone());
 
 						cmd.run(
 							config,
 							client,
 							inherent_benchmark_data()?,
-							Arc::new(ext_builder),
+							&ext_builder,
 						)
 					}
 					BenchmarkCmd::Machine(cmd) => cmd.run(
 						&config,
 						frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE.clone(),
 					),
+					BenchmarkCmd::Extrinsic(cmd) => {
+						let PartialComponents { client, .. } = service::new_partial(&config, &cli)?;
+						// Register the *Remark* builder.
+						let ext_factory = ExtrinsicFactory(vec![
+							Box::new(RemarkBuilder::new(client.clone())),
+						]);
+
+						cmd.run(client, inherent_benchmark_data()?, &ext_factory)
+					},
 				}
 			})
 		}
