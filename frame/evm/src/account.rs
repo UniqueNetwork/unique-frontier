@@ -28,6 +28,7 @@ pub trait CrossAccountId<AccountId>:
 	fn from_eth(account: H160) -> Self;
 
 	fn conv_eq(&self, other: &Self) -> bool;
+	fn is_canonical_substrate(&self) -> bool;
 }
 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -170,6 +171,9 @@ impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
 		} else {
 			self.ethereum == other.ethereum
 		}
+	}
+	fn is_canonical_substrate(&self) -> bool {
+		!self.from_ethereum
 	}
 }
 impl<T: Config> From<BasicCrossAccountIdRepr<T::AccountId>> for BasicCrossAccountId<T> {
