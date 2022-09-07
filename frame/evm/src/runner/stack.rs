@@ -18,12 +18,15 @@
 //! EVM stack-based runner.
 
 use crate::{
-account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
-	Config, CurrentLogs, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet, RunnerError,
+	account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages,
+	AddressMapping, BlockHashMapping, Config, CurrentLogs, Error, Event, FeeCalculator,
+	OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet, RunnerError,
 };
 use evm::{
 	backend::Backend as BackendT,
-	executor::stack::{Accessed, StackExecutor, StackState as StackStateT, StackSubstateMetadata, PrecompileHandle},
+	executor::stack::{
+		Accessed, PrecompileHandle, StackExecutor, StackState as StackStateT, StackSubstateMetadata,
+	},
 	ExitError, ExitReason, Transfer,
 };
 use fp_evm::{
@@ -47,18 +50,10 @@ pub struct Runner<T: Config> {
 pub struct PrecompileSetWithMethods<T: Config>(T::PrecompilesType);
 
 impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
-	fn execute(
-		&self,
-		handle: &mut impl PrecompileHandle,
-	) -> Option<PrecompileResult> {
-		if let Some(result) = self
-			.0
-			.execute(handle)
-		{
+	fn execute(&self, handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
+		if let Some(result) = self.0.execute(handle) {
 			Some(result)
-		} else if let Some(result) = T::OnMethodCall::call(
-			handle
-		) {
+		} else if let Some(result) = T::OnMethodCall::call(handle) {
 			Some(result)
 		} else {
 			None
@@ -98,20 +93,24 @@ impl<T: Config> Runner<T> {
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
 		let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
 			(Some(max_fee_per_gas), _) => {
-				ensure!(max_fee_per_gas >= base_fee, 
+				ensure!(
+					max_fee_per_gas >= base_fee,
 					RunnerError {
 						error: Error::<T>::GasPriceTooLow,
 						weight,
-					});
+					}
+				);
 				(max_fee_per_gas, max_fee_per_gas == base_fee)
 			}
 			// Gas price check is skipped for non-transactional calls that don't
 			// define a `max_fee_per_gas` input.
 			(None, false) => (Default::default(), true),
-			_ => return Err(RunnerError {
-				error: Error::<T>::GasPriceTooLow,
-				weight,
-			}),
+			_ => {
+				return Err(RunnerError {
+					error: Error::<T>::GasPriceTooLow,
+					weight,
+				})
+			}
 		};
 
 		let (source_data, inner_weight) = Pallet::<T>::account_basic_by_id(source);
@@ -143,22 +142,23 @@ impl<T: Config> Runner<T> {
 			.unwrap_or(source.clone());
 
 		if let Some(nonce) = nonce {
-			ensure!(source_data.nonce == nonce, 				RunnerError {
-				error: Error::<T>::InvalidNonce,
-				weight,
-			});
+			ensure!(
+				source_data.nonce == nonce,
+				RunnerError {
+					error: Error::<T>::InvalidNonce,
+					weight,
+				}
+			);
 		}
 
 		if sponsor == *source {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "sponsor found, user will pay for itself");
 
-			let total_payment = value
-				.checked_add(max_fee)
-				.ok_or(RunnerError {
-					error: Error::<T>::PaymentOverflow,
-					weight,
-				})?;
+			let total_payment = value.checked_add(max_fee).ok_or(RunnerError {
+				error: Error::<T>::PaymentOverflow,
+				weight,
+			})?;
 
 			// max_fee is zero in non-transactional calls
 			if source_data.balance < total_payment && max_fee != U256::zero() {
@@ -169,7 +169,10 @@ impl<T: Config> Runner<T> {
 					source_data.balance,
 					total_payment
 				);
-				return Err(RunnerError {error: Error::<T>::BalanceLow.into(), weight});
+				return Err(RunnerError {
+					error: Error::<T>::BalanceLow.into(),
+					weight,
+				});
 			}
 		} else {
 			#[cfg(feature = "debug-logging")]
@@ -178,7 +181,9 @@ impl<T: Config> Runner<T> {
 			weight = weight.saturating_add(inner_weight);
 
 			// max_fee is zero in non-transactional calls
-			if (source_data.balance < value || sponsor_data.balance < max_fee) && max_fee != U256::zero() {
+			if (source_data.balance < value || sponsor_data.balance < max_fee)
+				&& max_fee != U256::zero()
+			{
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
@@ -188,13 +193,16 @@ impl<T: Config> Runner<T> {
 					sponsor_data.balance,
 					max_fee
 				);
-				return Err(RunnerError{error: Error::<T>::BalanceLow.into(), weight});
+				return Err(RunnerError {
+					error: Error::<T>::BalanceLow.into(),
+					weight,
+				});
 			}
 		};
 
 		// Deduct fee from the sponsor account. Returns `None` if `max_fee` is Zero.
 		let fee = T::OnChargeTransaction::withdraw_fee(&sponsor, reason, max_fee)
-		.map_err(|e| RunnerError { error: e, weight })?;
+			.map_err(|e| RunnerError { error: e, weight })?;
 
 		// Execute the EVM call.
 		let vicinity = Vicinity {

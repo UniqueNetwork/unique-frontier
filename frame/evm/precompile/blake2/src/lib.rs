@@ -22,8 +22,7 @@ extern crate alloc;
 mod eip_152;
 
 use fp_evm::{
-	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput,
-	PrecompileResult,
+	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput, PrecompileResult,
 };
 
 pub struct Blake2F;

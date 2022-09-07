@@ -21,8 +21,8 @@ mod precompile;
 
 use codec::{Decode, Encode};
 pub use evm::ExitReason;
-use impl_trait_for_tuples::impl_for_tuples;
 use frame_support::weights::Weight;
+use impl_trait_for_tuples::impl_for_tuples;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_core::{H160, U256};
@@ -72,18 +72,27 @@ pub enum WithdrawReason {
 }
 
 pub trait TransactionValidityHack<CrossAccountId> {
-	fn who_pays_fee(origin: H160, max_fee: U256, reason: &WithdrawReason) -> Option<CrossAccountId>;
+	fn who_pays_fee(origin: H160, max_fee: U256, reason: &WithdrawReason)
+		-> Option<CrossAccountId>;
 }
 
 impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for () {
-	fn who_pays_fee(_origin: H160, _max_fee: U256, _reason: &WithdrawReason) -> Option<CrossAccountId> {
+	fn who_pays_fee(
+		_origin: H160,
+		_max_fee: U256,
+		_reason: &WithdrawReason,
+	) -> Option<CrossAccountId> {
 		None
 	}
 }
 
 #[impl_for_tuples(1, 12)]
 impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for Tuple {
-	fn who_pays_fee(origin: H160, max_fee: U256, reason: &WithdrawReason) -> Option<CrossAccountId> {
+	fn who_pays_fee(
+		origin: H160,
+		max_fee: U256,
+		reason: &WithdrawReason,
+	) -> Option<CrossAccountId> {
 		for_tuples!(#(
 			if let Some(who) = Tuple::who_pays_fee(origin, max_fee, reason) {
 				return Some(who);

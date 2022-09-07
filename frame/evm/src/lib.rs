@@ -698,7 +698,9 @@ impl<T: Config> Pallet<T> {
 		Self::account_basic_by_id(&account_id)
 	}
 
-	pub fn account_basic_by_id(account_id: &T::CrossAccountId) -> (Account, frame_support::weights::Weight) {
+	pub fn account_basic_by_id(
+		account_id: &T::CrossAccountId,
+	) -> (Account, frame_support::weights::Weight) {
 		let nonce = frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
 		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
 		let balance = T::Currency::reducible_balance(account_id.as_sub(), true);
@@ -729,9 +731,7 @@ pub trait OnMethodCall<T> {
 	fn is_used(contract: &H160) -> bool;
 
 	/// On contract call
-	fn call(
-		handle: &mut impl PrecompileHandle,
-	) -> Option<PrecompileResult>;
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult>;
 
 	/// Get hardcoded contract code
 	fn get_code(contract: &H160) -> Option<Vec<u8>>;
@@ -746,9 +746,7 @@ impl<T> OnMethodCall<T> for () {
 		false
 	}
 
-	fn call(
-		_handle: &mut impl PrecompileHandle,
-	) -> Option<PrecompileResult> {
+	fn call(_handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
 		None
 	}
 
@@ -780,9 +778,7 @@ impl<T> OnMethodCall<T> for Tuple {
 		false
 	}
 
-	fn call(
-		handle: &mut impl PrecompileHandle
-	) -> Option<PrecompileResult> {
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
 		for_tuples!(#(
 			if let Some(r) = Tuple::call(handle) {
 				return Some(r);

@@ -191,12 +191,7 @@ pub fn run() -> sc_cli::Result<()> {
 					BenchmarkCmd::Overhead(cmd) => {
 						let ext_builder = RemarkBuilder::new(client.clone());
 
-						cmd.run(
-							config,
-							client,
-							inherent_benchmark_data()?,
-							&ext_builder,
-						)
+						cmd.run(config, client, inherent_benchmark_data()?, &ext_builder)
 					}
 					BenchmarkCmd::Machine(cmd) => cmd.run(
 						&config,
@@ -205,12 +200,11 @@ pub fn run() -> sc_cli::Result<()> {
 					BenchmarkCmd::Extrinsic(cmd) => {
 						let PartialComponents { client, .. } = service::new_partial(&config, &cli)?;
 						// Register the *Remark* builder.
-						let ext_factory = ExtrinsicFactory(vec![
-							Box::new(RemarkBuilder::new(client.clone())),
-						]);
+						let ext_factory =
+							ExtrinsicFactory(vec![Box::new(RemarkBuilder::new(client.clone()))]);
 
 						cmd.run(client, inherent_benchmark_data()?, &ext_factory)
-					},
+					}
 				}
 			})
 		}

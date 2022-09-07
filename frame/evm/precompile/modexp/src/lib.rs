@@ -26,8 +26,7 @@ use core::{cmp::max, ops::BitAnd};
 use num::{BigUint, FromPrimitive, One, ToPrimitive, Zero};
 
 use fp_evm::{
-	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput,
-	PrecompileResult,
+	ExitError, ExitSucceed, Precompile, PrecompileHandle, PrecompileOutput, PrecompileResult,
 };
 
 pub struct Modexp;
