@@ -138,7 +138,7 @@ impl<T: Config> Runner<T> {
 		#[cfg(feature = "debug-logging")]
 		log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
 		let sponsor = may_sponsor
-			.then(|| T::TransactionValidityHack::who_pays_fee(*source.as_eth(), &reason))
+			.then(|| T::TransactionValidityHack::who_pays_fee(*source.as_eth(), max_fee, &reason))
 			.flatten()
 			.unwrap_or(source.clone());
 

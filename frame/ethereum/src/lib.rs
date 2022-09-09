@@ -605,6 +605,7 @@ impl<T: Config> Pallet<T> {
 						// Writes will be applied in pallet_evm::runner
 						TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
 							source,
+							max_fee,
 							&match transaction_data.action {
 								TransactionAction::Call(target) => WithdrawReason::Call {
 									target,
