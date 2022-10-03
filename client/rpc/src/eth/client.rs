@@ -32,8 +32,6 @@ use sp_runtime::{
 use fc_rpc_core::types::*;
 use fp_rpc::EthereumRuntimeRPCApi;
 
-use sp_consensus::SyncOracle;
-
 use crate::{eth::Eth, frontier_backend_client, internal_err};
 
 impl<B, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A>

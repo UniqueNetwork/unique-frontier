@@ -195,7 +195,6 @@ pub fn run() -> sc_cli::Result<()> {
 							config,
 							client,
 							inherent_benchmark_data()?,
-							Vec::new(),
 							&ext_builder,
 						)
 					}
@@ -210,7 +209,7 @@ pub fn run() -> sc_cli::Result<()> {
 							Box::new(RemarkBuilder::new(client.clone())),
 						]);
 
-						cmd.run(client, inherent_benchmark_data()?, Vec::new(), &ext_factory)
+						cmd.run(client, inherent_benchmark_data()?, &ext_factory)
 					},
 				}
 			})

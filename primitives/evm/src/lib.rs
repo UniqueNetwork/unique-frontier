@@ -115,6 +115,6 @@ pub trait FeeCalculator {
 
 impl FeeCalculator for () {
 	fn min_gas_price() -> (U256, Weight) {
-		(U256::zero(), Weight::zero())
+		(U256::zero(), 0u64)
 	}
 }
