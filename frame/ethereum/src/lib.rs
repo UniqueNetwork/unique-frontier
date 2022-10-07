@@ -34,42 +34,46 @@ use core::fmt::Debug;
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
-use fp_evm::{CallOrCreateInfo, TransactionValidityHack, WithdrawReason};
+use fp_evm::CallOrCreateInfo;
 use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
 #[cfg(feature = "try-runtime")]
 use frame_support::traits::OnRuntimeUpgradeHelpersExt;
 use frame_support::{
 	codec::{Decode, Encode},
 	dispatch::DispatchResultWithPostInfo,
-	storage::with_transaction,
 	traits::{EnsureOrigin, Get, PalletInfoAccess},
 	weights::{DispatchInfo, Pays, PostDispatchInfo, Weight},
 };
 use frame_system::{pallet_prelude::OriginFor, CheckWeight, WeightInfo};
-use pallet_evm::{
-	account::CrossAccountId, BlockHashMapping, CurrentLogs, FeeCalculator, GasWeightMapping, Runner,
-};
+use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
 use scale_info::TypeInfo;
-use codec::MaxEncodedLen;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
 	generic::DigestItem,
-	traits::{
-		DispatchInfoOf, Dispatchable, One, PostDispatchInfoOf, Saturating, SignedExtension,
-		UniqueSaturatedInto, Zero,
-	},
+	traits::{DispatchInfoOf, Dispatchable, One, Saturating, UniqueSaturatedInto, Zero},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
-	DispatchError, DispatchErrorWithPostInfo, RuntimeDebug, TransactionOutcome,
+	DispatchErrorWithPostInfo, RuntimeDebug,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
-	AccessListItem, BlockV2 as Block, EIP658ReceiptData, LegacyTransactionMessage, Log,
-	ReceiptV3 as Receipt, TransactionAction, TransactionV2 as Transaction,
+	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
+	TransactionAction, TransactionV2 as Transaction,
 };
 pub use fp_rpc::TransactionStatus;
+
+// Unique
+use codec::MaxEncodedLen;
+pub use ethereum::EIP658ReceiptData;
+use fp_evm::{TransactionValidityHack, WithdrawReason};
+use frame_support::storage::with_transaction;
+use pallet_evm::{account::CrossAccountId, CurrentLogs};
+use sp_runtime::{
+	traits::{PostDispatchInfoOf, SignedExtension},
+	DispatchError, TransactionOutcome,
+};
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub enum RawOrigin {
@@ -502,7 +506,7 @@ impl<T: Config> Pallet<T> {
 	// State Transition Function (STF).
 	// This is the case for all controls except those concerning the nonce.
 	fn validate_transaction_common(
-		source: H160,
+		origin: H160,
 		transaction_data: &TransactionData,
 	) -> Result<(U256, u64), TransactionValidityError> {
 		let gas_limit = transaction_data.gas_limit;
@@ -549,8 +553,7 @@ impl<T: Config> Pallet<T> {
 		let (base_fee, _) = T::FeeCalculator::min_gas_price();
 		let mut priority = 0;
 
-		// Sponsor only transactions, which have no priority fee
-		let (max_fee_per_gas, may_sponsor) = match (
+		let max_fee_per_gas = match (
 			transaction_data.gas_price,
 			transaction_data.max_fee_per_gas,
 			transaction_data.max_priority_fee_per_gas,
@@ -560,10 +563,10 @@ impl<T: Config> Pallet<T> {
 			// the current base_fee is considered a tip to the miner and thus the priority.
 			(Some(gas_price), None, None) => {
 				priority = gas_price.saturating_sub(base_fee).unique_saturated_into();
-				(gas_price, gas_price == base_fee)
+				gas_price
 			}
 			// EIP-1559 transaction without tip.
-			(None, Some(max_fee_per_gas), None) => (max_fee_per_gas, true),
+			(None, Some(max_fee_per_gas), None) => max_fee_per_gas,
 			// EIP-1559 transaction with tip.
 			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
 				if max_priority_fee_per_gas > max_fee_per_gas {
@@ -576,7 +579,7 @@ impl<T: Config> Pallet<T> {
 					.saturating_sub(base_fee)
 					.min(max_priority_fee_per_gas)
 					.unique_saturated_into();
-				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+				max_fee_per_gas
 			}
 			_ => return Err(InvalidTransaction::Payment.into()),
 		};
@@ -585,15 +588,30 @@ impl<T: Config> Pallet<T> {
 			return Err(InvalidTransaction::Payment.into());
 		}
 
-		let max_fee = max_fee_per_gas.saturating_mul(gas_limit);
-		let (source_data, _) = pallet_evm::Pallet::<T>::account_basic(&source);
+		let fee = max_fee_per_gas.saturating_mul(gas_limit);
+		let (account_data, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 		let value = transaction_data.value;
-		let source_cross = T::CrossAccountId::from_eth(source);
+		let account_cross = T::CrossAccountId::from_eth(origin);
+
+		// Sponsor only transactions, which have no priority fee
+		let may_sponsor = match (
+			transaction_data.gas_price,
+			transaction_data.max_fee_per_gas,
+			transaction_data.max_priority_fee_per_gas,
+		) {
+			// Legacy or EIP-2930 transaction.
+			(Some(gas_price), None, None) => gas_price == base_fee,
+			// EIP-1559 transaction without tip.
+			(None, Some(_), None) => true,
+			// EIP-1559 transaction with tip.
+			(None, Some(_), Some(max_priority_fee_per_gas)) => max_priority_fee_per_gas.is_zero(),
+			_ => return Err(InvalidTransaction::Payment.into()),
+		};
 
 		#[cfg(feature = "debug-logging")]
 		if may_sponsor {
-			log::trace!(target: "sponsoring", "checking who will pay fee for {}", source);
+			log::trace!(target: "sponsoring", "checking who will pay fee for {}", origin);
 		} else {
 			log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
 		}
@@ -604,8 +622,8 @@ impl<T: Config> Pallet<T> {
 					|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
 						// Writes will be applied in pallet_evm::runner
 						TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
-							source,
-							max_fee,
+							origin,
+							fee,
 							&match transaction_data.action {
 								TransactionAction::Call(target) => WithdrawReason::Call {
 									target,
@@ -619,19 +637,19 @@ impl<T: Config> Pallet<T> {
 				.ok()?
 			})
 			.flatten()
-			.unwrap_or_else(|| source_cross.clone());
-		let source = source_cross;
+			.unwrap_or_else(|| account_cross.clone());
+		let origin = account_cross;
 
-		if sponsor == source {
+		if sponsor == origin {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
-			let total_payment = value.saturating_add(max_fee);
-			if source_data.balance < total_payment {
+			let total_payment = value.saturating_add(fee);
+			if account_data.balance < total_payment {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
 					"user doesn't have enough balance ({} < {})",
-					source_data.balance,
+					account_data.balance,
 					total_payment
 				);
 				return Err(InvalidTransaction::Payment.into());
@@ -640,21 +658,21 @@ impl<T: Config> Pallet<T> {
 			#[cfg(feature = "debug-logging")]
 			log::trace!(target: "sponsoring", "found sponsor: {:?}", sponsor);
 			let (sponsor_data, _) = pallet_evm::Pallet::<T>::account_basic_by_id(&sponsor);
-			if source_data.balance < value || sponsor_data.balance < max_fee {
+			if account_data.balance < value || sponsor_data.balance < fee {
 				#[cfg(feature = "debug-logging")]
 				log::trace!(
 					target: "sponsoring",
 					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
-					source_data.balance,
+					account_data.balance,
 					value,
 					sponsor_data.balance,
-					max_fee
+					fee
 				);
 				return Err(InvalidTransaction::Payment.into());
 			}
 		}
 
-		Ok((source_data.nonce, priority))
+		Ok((account_data.nonce, priority))
 	}
 
 	// Controls that must be performed by the pool.
@@ -700,49 +718,44 @@ impl<T: Config> Pallet<T> {
 		let transaction_hash = transaction.hash();
 		let transaction_index = pending.len() as u32;
 
+		let logs = <CurrentLogs<T>>::take();
 		let (reason, status, used_gas, dest) = match info {
-			CallOrCreateInfo::Call(info) => {
-				let logs = <CurrentLogs<T>>::take();
-				(
-					info.exit_reason,
-					TransactionStatus {
-						transaction_hash,
-						transaction_index,
-						from: source,
-						to,
-						contract_address: None,
-						logs_bloom: {
-							let mut bloom: Bloom = Bloom::default();
-							Self::logs_bloom(logs.iter(), &mut bloom);
-							bloom
-						},
-						logs,
-					},
-					info.used_gas,
+			CallOrCreateInfo::Call(info) => (
+				info.exit_reason,
+				TransactionStatus {
+					transaction_hash,
+					transaction_index,
+					from: source,
 					to,
-				)
-			}
-			CallOrCreateInfo::Create(info) => {
-				let logs = <CurrentLogs<T>>::take();
-				(
-					info.exit_reason,
-					TransactionStatus {
-						transaction_hash,
-						transaction_index,
-						from: source,
-						to,
-						contract_address: Some(info.value),
-						logs_bloom: {
-							let mut bloom: Bloom = Bloom::default();
-							Self::logs_bloom(logs.iter(), &mut bloom);
-							bloom
-						},
-						logs,
+					contract_address: None,
+					logs_bloom: {
+						let mut bloom: Bloom = Bloom::default();
+						Self::logs_bloom(logs.iter(), &mut bloom);
+						bloom
 					},
-					info.used_gas,
-					Some(info.value),
-				)
-			}
+					logs,
+				},
+				info.used_gas,
+				to,
+			),
+			CallOrCreateInfo::Create(info) => (
+				info.exit_reason,
+				TransactionStatus {
+					transaction_hash,
+					transaction_index,
+					from: source,
+					to,
+					contract_address: Some(info.value),
+					logs_bloom: {
+						let mut bloom: Bloom = Bloom::default();
+						Self::logs_bloom(logs.iter(), &mut bloom);
+						bloom
+					},
+					logs,
+				},
+				info.used_gas,
+				Some(info.value),
+			),
 		};
 
 		let receipt = {
