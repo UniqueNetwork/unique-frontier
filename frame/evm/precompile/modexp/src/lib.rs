@@ -210,8 +210,11 @@ impl Precompile for Modexp {
 mod tests {
 	use super::*;
 	extern crate hex;
-	use fp_evm::{Context, PrecompileFailure};
+	use fp_evm::Context;
 	use pallet_evm_test_vector_support::{test_precompile_test_vectors, MockHandle};
+
+	// Unique
+	use fp_evm::PrecompileFailure;
 
 	#[test]
 	fn process_consensus_tests() -> Result<(), String> {

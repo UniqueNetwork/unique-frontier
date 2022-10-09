@@ -63,7 +63,6 @@ pub mod runner;
 #[cfg(test)]
 mod tests;
 
-use core::marker::PhantomData;
 
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
@@ -74,7 +73,6 @@ use frame_support::{
 	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::RawOrigin;
-use impl_trait_for_tuples::impl_for_tuples;
 use sp_core::{Hasher, H160, H256, U256};
 use sp_runtime::{
 	traits::{BadOrigin, Saturating, UniqueSaturatedInto, Zero},
@@ -88,9 +86,9 @@ pub use evm::{
 #[cfg(feature = "std")]
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, LinearCostPrecompile, Log,
-	Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult,
-	PrecompileSet, Vicinity, WithdrawReason,
+	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator,
+	LinearCostPrecompile, Log, Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput,
+	PrecompileResult, PrecompileSet, Vicinity,
 };
 
 pub use self::{
@@ -99,14 +97,22 @@ pub use self::{
 };
 
 pub mod account;
+
+// Unique
 use account::CrossAccountId;
+use core::marker::PhantomData;
+use impl_trait_for_tuples::impl_for_tuples;
+pub use fp_evm::WithdrawReason;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use fp_evm::TransactionValidityHack;
-	use frame_support::{pallet_prelude::*, storage::types::StorageValue};
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+
+	// Unique
+	use fp_evm::TransactionValidityHack;
+	use frame_support::storage::types::StorageValue;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

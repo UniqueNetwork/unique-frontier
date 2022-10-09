@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use clap::Parser;
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory};
+use frame_benchmarking_cli::BenchmarkCmd;
 use frontier_template_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::{DatabaseSource, PartialComponents};
@@ -24,9 +24,17 @@ use sc_service::{DatabaseSource, PartialComponents};
 use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
-	command_helper::{inherent_benchmark_data, RemarkBuilder},
-	service::{self, frontier_database_dir},
+	command_helper::inherent_benchmark_data,
+	service::self,
 };
+
+// Unique
+use frame_benchmarking_cli::ExtrinsicFactory;
+use crate::{
+	command_helper::RemarkBuilder,
+	service::frontier_database_dir,
+};
+
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {

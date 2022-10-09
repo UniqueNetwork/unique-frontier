@@ -18,7 +18,6 @@
 //! Test utilities
 
 use ethereum::{TransactionAction, TransactionSignature};
-use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_support::{
 	parameter_types,
 	traits::{ConstU32, FindAuthor},
@@ -37,6 +36,10 @@ use sp_runtime::{
 
 use super::*;
 use crate::IntermediateStateRoot;
+
+//Unique
+use fp_evm_mapping::EvmBackwardsAddressMapping;
+
 
 pub type SignedExtra = (frame_system::CheckSpecVersion<Test>,);
 

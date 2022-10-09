@@ -29,8 +29,6 @@ mod mock;
 #[cfg(all(feature = "std", test))]
 mod tests;
 
-use core::fmt::Debug;
-
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
@@ -65,6 +63,7 @@ pub use ethereum::{
 pub use fp_rpc::TransactionStatus;
 
 // Unique
+use core::fmt::Debug;
 use codec::MaxEncodedLen;
 pub use ethereum::EIP658ReceiptData;
 use fp_evm::{TransactionValidityHack, WithdrawReason};

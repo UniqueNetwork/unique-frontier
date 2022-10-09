@@ -18,7 +18,7 @@
 #![cfg(test)]
 
 use super::*;
-use crate::{account::BasicCrossAccountId, mock::*};
+use crate::mock::*;
 
 use frame_support::{
 	assert_ok,
@@ -26,6 +26,8 @@ use frame_support::{
 };
 use std::{collections::BTreeMap, str::FromStr};
 
+// Unique
+use crate::account::BasicCrossAccountId;
 use fp_evm::WithdrawReason;
 
 type Balances = pallet_balances::Pallet<Test>;

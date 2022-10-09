@@ -22,16 +22,20 @@ use codec::Decode;
 use ethereum_types::{H160, H256, U256};
 
 use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
-use sp_api::{BlockId, ProvideRuntimeApi};
+use sp_api::BlockId;
 use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT},
 	Permill,
 };
 use sp_storage::StorageKey;
 
-use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
+use fp_rpc::TransactionStatus;
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
+
+// Unique
+use fp_rpc::EthereumRuntimeRPCApi;
+use sp_api::ProvideRuntimeApi;
 
 /// An override for runtimes that use Schema V1
 pub struct SchemaV1Override<B: BlockT, C, BE> {

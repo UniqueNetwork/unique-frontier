@@ -54,8 +54,7 @@ use frame_support::weights::constants::RocksDbWeight as RuntimeDbWeight;
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
 use pallet_evm::{
-	account::CrossAccountId as _, Account as EVMAccount, EnsureAddressTruncated, GasWeightMapping,
-	HashedAddressMapping, Runner,
+	EnsureAddressTruncated, GasWeightMapping, HashedAddressMapping, Runner,
 };
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -65,6 +64,9 @@ pub use sp_runtime::{Perbill, Permill};
 
 mod precompiles;
 use precompiles::FrontierPrecompiles;
+
+// Unique
+use pallet_evm::account::CrossAccountId as _
 
 /// Type of block number.
 pub type BlockNumber = u32;
