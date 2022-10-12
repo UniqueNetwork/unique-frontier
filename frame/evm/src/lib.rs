@@ -86,7 +86,7 @@ pub use evm::{
 #[cfg(feature = "std")]
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator,
+	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, InvalidEvmTransactionError,
 	LinearCostPrecompile, Log, Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput,
 	PrecompileResult, PrecompileSet, Vicinity,
 };
@@ -214,6 +214,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::call(
 				sender,
 				target,
@@ -225,6 +226,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -273,6 +275,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::create(
 				sender,
 				init,
@@ -283,6 +286,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -339,6 +343,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::create2(
 				sender,
 				init,
@@ -350,6 +355,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -423,6 +429,28 @@ pub mod pallet {
 		GasPriceTooLow,
 		/// Nonce is invalid
 		InvalidNonce,
+		/// Gas limit is too low.
+		GasLimitTooLow,
+		/// Gas limit is too high.
+		GasLimitTooHigh,
+		/// Undefined error.
+		Undefined,
+	}
+
+	impl<T> From<InvalidEvmTransactionError> for Error<T> {
+		fn from(validation_error: InvalidEvmTransactionError) -> Self {
+			match validation_error {
+				InvalidEvmTransactionError::GasLimitTooLow => Error::<T>::GasLimitTooLow,
+				InvalidEvmTransactionError::GasLimitTooHigh => Error::<T>::GasLimitTooHigh,
+				InvalidEvmTransactionError::GasPriceTooLow => Error::<T>::GasLimitTooLow,
+				InvalidEvmTransactionError::PriorityFeeTooHigh => Error::<T>::GasPriceTooLow,
+				InvalidEvmTransactionError::BalanceTooLow => Error::<T>::BalanceLow,
+				InvalidEvmTransactionError::TxNonceTooLow => Error::<T>::InvalidNonce,
+				InvalidEvmTransactionError::TxNonceTooHigh => Error::<T>::InvalidNonce,
+				InvalidEvmTransactionError::InvalidPaymentInput => Error::<T>::GasPriceTooLow,
+				_ => Error::<T>::Undefined,
+			}
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -704,10 +732,11 @@ impl<T: Config> Pallet<T> {
 		Self::account_basic_by_id(&account_id)
 	}
 
-	pub fn account_basic_by_id(account_id: &T::CrossAccountId) -> (Account, frame_support::weights::Weight) {
-		let nonce = frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
+	/// Get the account basic in EVM format.
+	pub fn account_basic_from_sub(account_id: &T::AccountId) -> (Account, frame_support::weights::Weight) {
+		let nonce = frame_system::Pallet::<T>::account_nonce(account_id);
 		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
-		let balance = T::Currency::reducible_balance(account_id.as_sub(), true);
+		let balance = T::Currency::reducible_balance(account_id, true);
 
 		(
 			Account {
@@ -716,6 +745,10 @@ impl<T: Config> Pallet<T> {
 			},
 			T::DbWeight::get().reads(2),
 		)
+	}
+
+	pub fn account_basic_by_id(account_id: &T::CrossAccountId) -> (Account, frame_support::weights::Weight) {
+		Self::account_basic_from_sub(account_id.as_sub())
 	}
 
 	/// Get the author using the FindAuthor trait.

@@ -54,7 +54,7 @@ use frame_support::weights::constants::RocksDbWeight as RuntimeDbWeight;
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
 use pallet_evm::{
-	EnsureAddressTruncated, GasWeightMapping, HashedAddressMapping, Runner,
+	Account as EVMAccount, EnsureAddressTruncated, GasWeightMapping, HashedAddressMapping, Runner,
 };
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -66,7 +66,7 @@ mod precompiles;
 use precompiles::FrontierPrecompiles;
 
 // Unique
-use pallet_evm::account::CrossAccountId as _
+use pallet_evm::account::CrossAccountId as _;
 
 /// Type of block number.
 pub type BlockNumber = u32;
@@ -673,6 +673,8 @@ impl_runtime_apis! {
 			};
 
 			let is_transactional = false;
+			let validate = true;
+			let evm_config = config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config());
 			<Runtime as pallet_evm::Config>::Runner::call(
 				<CrossAccountId<Runtime>>::from_eth(from),
 				to,
@@ -684,7 +686,8 @@ impl_runtime_apis! {
 				nonce,
 				access_list.unwrap_or_default(),
 				is_transactional,
-				config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config()),
+				validate,
+				evm_config,
 			).map_err(|err| err.error.into())
 		}
 
@@ -708,6 +711,8 @@ impl_runtime_apis! {
 			};
 
 			let is_transactional = false;
+			let validate = true;
+			let evm_config = config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config());
 			<Runtime as pallet_evm::Config>::Runner::create(
 				<CrossAccountId<Runtime>>::from_eth(from),
 				data,
@@ -718,7 +723,8 @@ impl_runtime_apis! {
 				nonce,
 				access_list.unwrap_or_default(),
 				is_transactional,
-				config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config()),
+				validate,
+				evm_config,
 			).map_err(|err| err.error.into())
 		}
 

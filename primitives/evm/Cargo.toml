@@ -23,6 +23,11 @@ sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", 
 sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
 
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
+ethereum = { version = "0.12.0", default-features = false, features = [
+	"with-codec",
+] }
+
 impl-trait-for-tuples = "0.2.2"
 
 [features]

@@ -32,7 +32,10 @@ mod tests;
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
-use fp_evm::CallOrCreateInfo;
+use fp_evm::{
+	CallOrCreateInfo, CheckEvmTransaction, CheckEvmTransactionConfig, CheckEvmTransactionInput,
+	InvalidEvmTransactionError,
+};
 use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
 #[cfg(feature = "try-runtime")]
 use frame_support::traits::OnRuntimeUpgradeHelpersExt;
@@ -66,12 +69,10 @@ pub use fp_rpc::TransactionStatus;
 use core::fmt::Debug;
 use codec::MaxEncodedLen;
 pub use ethereum::EIP658ReceiptData;
-use fp_evm::{TransactionValidityHack, WithdrawReason};
-use frame_support::storage::with_transaction;
+use fp_evm::WithdrawReason;
 use pallet_evm::{account::CrossAccountId, CurrentLogs};
 use sp_runtime::{
 	traits::{PostDispatchInfoOf, SignedExtension},
-	DispatchError, TransactionOutcome,
 };
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -101,6 +102,27 @@ struct TransactionData {
 	value: U256,
 	chain_id: Option<u64>,
 	access_list: Vec<(H160, Vec<H256>)>,
+}
+
+impl From<TransactionData> for CheckEvmTransactionInput {
+	fn from(t: TransactionData) -> Self {
+		CheckEvmTransactionInput {
+			to: if let TransactionAction::Call(to) = t.action {
+				Some(to)
+			} else {
+				None
+			},
+			chain_id: t.chain_id,
+			input: t.input,
+			nonce: t.nonce,
+			gas_limit: t.gas_limit,
+			gas_price: t.gas_price,
+			max_fee_per_gas: t.max_fee_per_gas,
+			max_priority_fee_per_gas: t.max_priority_fee_per_gas,
+			value: t.value,
+			access_list: t.access_list,
+		}
+	}
 }
 
 pub struct EnsureEthereumTransaction;
@@ -501,179 +523,6 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// Common controls to be performed in the same way by the pool and the
-	// State Transition Function (STF).
-	// This is the case for all controls except those concerning the nonce.
-	fn validate_transaction_common(
-		origin: H160,
-		transaction_data: &TransactionData,
-	) -> Result<(U256, u64), TransactionValidityError> {
-		let gas_limit = transaction_data.gas_limit;
-
-		// We must ensure a transaction can pay the cost of its data bytes.
-		// If it can't it should not be included in a block.
-		let mut gasometer = evm::gasometer::Gasometer::new(
-			gas_limit.low_u64(),
-			<T as pallet_evm::Config>::config(),
-		);
-		let transaction_cost = match transaction_data.action {
-			TransactionAction::Call(_) => evm::gasometer::call_transaction_cost(
-				&transaction_data.input,
-				&transaction_data.access_list,
-			),
-			TransactionAction::Create => evm::gasometer::create_transaction_cost(
-				&transaction_data.input,
-				&transaction_data.access_list,
-			),
-		};
-		if gasometer.record_transaction(transaction_cost).is_err() {
-			return Err(InvalidTransaction::Custom(
-				TransactionValidationError::InvalidGasLimit as u8,
-			)
-			.into());
-		}
-
-		if let Some(chain_id) = transaction_data.chain_id {
-			if chain_id != T::ChainId::get() {
-				return Err(InvalidTransaction::Custom(
-					TransactionValidationError::InvalidChainId as u8,
-				)
-				.into());
-			}
-		}
-
-		if gas_limit >= T::BlockGasLimit::get() {
-			return Err(InvalidTransaction::Custom(
-				TransactionValidationError::InvalidGasLimit as u8,
-			)
-			.into());
-		}
-
-		let (base_fee, _) = T::FeeCalculator::min_gas_price();
-		let mut priority = 0;
-
-		let max_fee_per_gas = match (
-			transaction_data.gas_price,
-			transaction_data.max_fee_per_gas,
-			transaction_data.max_priority_fee_per_gas,
-		) {
-			// Legacy or EIP-2930 transaction.
-			// Handle priority here. On legacy transaction everything in gas_price except
-			// the current base_fee is considered a tip to the miner and thus the priority.
-			(Some(gas_price), None, None) => {
-				priority = gas_price.saturating_sub(base_fee).unique_saturated_into();
-				gas_price
-			}
-			// EIP-1559 transaction without tip.
-			(None, Some(max_fee_per_gas), None) => max_fee_per_gas,
-			// EIP-1559 transaction with tip.
-			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
-				if max_priority_fee_per_gas > max_fee_per_gas {
-					return Err(InvalidTransaction::Custom(
-						TransactionValidationError::MaxFeePerGasTooLow as u8,
-					)
-					.into());
-				}
-				priority = max_fee_per_gas
-					.saturating_sub(base_fee)
-					.min(max_priority_fee_per_gas)
-					.unique_saturated_into();
-				max_fee_per_gas
-			}
-			_ => return Err(InvalidTransaction::Payment.into()),
-		};
-
-		if max_fee_per_gas < base_fee {
-			return Err(InvalidTransaction::Payment.into());
-		}
-
-		let fee = max_fee_per_gas.saturating_mul(gas_limit);
-		let (account_data, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
-
-		let value = transaction_data.value;
-		let account_cross = T::CrossAccountId::from_eth(origin);
-
-		// Sponsor only transactions, which have no priority fee
-		let may_sponsor = match (
-			transaction_data.gas_price,
-			transaction_data.max_fee_per_gas,
-			transaction_data.max_priority_fee_per_gas,
-		) {
-			// Legacy or EIP-2930 transaction.
-			(Some(gas_price), None, None) => gas_price == base_fee,
-			// EIP-1559 transaction without tip.
-			(None, Some(_), None) => true,
-			// EIP-1559 transaction with tip.
-			(None, Some(_), Some(max_priority_fee_per_gas)) => max_priority_fee_per_gas.is_zero(),
-			_ => return Err(InvalidTransaction::Payment.into()),
-		};
-
-		#[cfg(feature = "debug-logging")]
-		if may_sponsor {
-			log::trace!(target: "sponsoring", "checking who will pay fee for {}", origin);
-		} else {
-			log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
-		}
-
-		let sponsor = may_sponsor
-			.then(|| {
-				with_transaction(
-					|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
-						// Writes will be applied in pallet_evm::runner
-						TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
-							origin,
-							fee,
-							&match transaction_data.action {
-								TransactionAction::Call(target) => WithdrawReason::Call {
-									target,
-									input: transaction_data.input.clone(),
-								},
-								TransactionAction::Create => WithdrawReason::Create,
-							},
-						)))
-					},
-				)
-				.ok()?
-			})
-			.flatten()
-			.unwrap_or_else(|| account_cross.clone());
-		let origin = account_cross;
-
-		if sponsor == origin {
-			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "no sponsor found, user will pay for itself");
-			let total_payment = value.saturating_add(fee);
-			if account_data.balance < total_payment {
-				#[cfg(feature = "debug-logging")]
-				log::trace!(
-					target: "sponsoring",
-					"user doesn't have enough balance ({} < {})",
-					account_data.balance,
-					total_payment
-				);
-				return Err(InvalidTransaction::Payment.into());
-			}
-		} else {
-			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "found sponsor: {:?}", sponsor);
-			let (sponsor_data, _) = pallet_evm::Pallet::<T>::account_basic_by_id(&sponsor);
-			if account_data.balance < value || sponsor_data.balance < fee {
-				#[cfg(feature = "debug-logging")]
-				log::trace!(
-					target: "sponsoring",
-					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
-					account_data.balance,
-					value,
-					sponsor_data.balance,
-					fee
-				);
-				return Err(InvalidTransaction::Payment.into());
-			}
-		}
-
-		Ok((account_data.nonce, priority))
-	}
-
 	// Controls that must be performed by the pool.
 	// The controls common with the State Transition Function (STF) are in
 	// the function `validate_transaction_common`.
@@ -684,12 +533,90 @@ impl<T: Config> Pallet<T> {
 		let transaction_data = Pallet::<T>::transaction_data(transaction);
 		let transaction_nonce = transaction_data.nonce;
 
-		let (account_nonce, priority) =
-			Self::validate_transaction_common(origin, &transaction_data)?;
+		let (base_fee, _) = T::FeeCalculator::min_gas_price();
+		let (who, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
+		let account_cross = T::CrossAccountId::from_eth(origin);
 
-		if transaction_nonce < account_nonce {
-			return Err(InvalidTransaction::Stale.into());
-		}
+		let reason = &match transaction_data.action {
+			TransactionAction::Call(target) => WithdrawReason::Call {
+				target,
+				input: transaction_data.input.clone(),
+			},
+			TransactionAction::Create => WithdrawReason::Create,
+		};
+
+		// Sponsor only transactions, which have no priority fee
+		let (max_fee_per_gas, may_sponsor) = match (
+			transaction_data.gas_price,
+			transaction_data.max_fee_per_gas,
+			transaction_data.max_priority_fee_per_gas,
+		) {
+			// Legacy or EIP-2930 transaction.
+			(Some(gas_price), None, None) => {
+				(gas_price, gas_price == base_fee)
+			}
+			// EIP-1559 transaction without tip.
+			(None, Some(max_fee_per_gas), None) => (max_fee_per_gas, true),
+			// EIP-1559 transaction with tip.
+			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
+				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+			}
+			_ => return Err(InvalidTransaction::Payment.into()),
+		};
+
+		let max_fee = max_fee_per_gas.saturating_mul(transaction_data.gas_limit);
+
+		let sponsor = pallet_evm::runner::stack::get_sponsor::<T>(
+			&account_cross,
+			max_fee,
+			reason,
+			may_sponsor,
+		);
+
+		let sponsor = sponsor
+			.as_ref()
+			.map(|cross_id| {
+				let (sponsor_data, _) = pallet_evm::Pallet::<T>::account_basic_by_id(&cross_id);
+				sponsor_data
+			});
+
+		let _ = CheckEvmTransaction::<InvalidTransactionWrapper>::new(
+			CheckEvmTransactionConfig {
+				evm_config: T::config(),
+				block_gas_limit: T::BlockGasLimit::get(),
+				base_fee,
+				chain_id: T::ChainId::get(),
+				is_transactional: true,
+			},
+			transaction_data.clone().into(),
+		)
+		.validate_in_pool_for(&who)
+		.and_then(|v| v.with_chain_id())
+		.and_then(|v| v.with_base_fee())
+		.and_then(|v| v.with_account_or_sponsor_balance_for(&who, sponsor.as_ref()))
+		.map_err(|e| e.0)?;
+
+		let priority = match (
+			transaction_data.gas_price,
+			transaction_data.max_fee_per_gas,
+			transaction_data.max_priority_fee_per_gas,
+		) {
+			// Legacy or EIP-2930 transaction.
+			// Handle priority here. On legacy transaction everything in gas_price except
+			// the current base_fee is considered a tip to the miner and thus the priority.
+			(Some(gas_price), None, None) => {
+				gas_price.saturating_sub(base_fee).unique_saturated_into()
+			}
+			// EIP-1559 transaction without tip.
+			(None, Some(_), None) => 0,
+			// EIP-1559 transaction with tip.
+			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => max_fee_per_gas
+				.saturating_sub(base_fee)
+				.min(max_priority_fee_per_gas)
+				.unique_saturated_into(),
+			// Unreachable because already validated. Gracefully handle.
+			_ => return Err(InvalidTransaction::Payment.into()),
+		};
 
 		// The tag provides and requires must be filled correctly according to the nonce.
 		let mut builder = ValidTransactionBuilder::default()
@@ -698,7 +625,7 @@ impl<T: Config> Pallet<T> {
 
 		// In the context of the pool, a transaction with
 		// too high a nonce is still considered valid
-		if transaction_nonce > account_nonce {
+		if transaction_nonce > who.nonce {
 			if let Some(prev_nonce) = transaction_nonce.checked_sub(1.into()) {
 				builder = builder.and_requires((origin, prev_nonce))
 			}
@@ -964,6 +891,7 @@ impl<T: Config> Pallet<T> {
 		let from = T::CrossAccountId::from_eth(from);
 
 		let is_transactional = true;
+		let validate = false;
 		match action {
 			ethereum::TransactionAction::Call(target) => {
 				let res = match T::Runner::call(
@@ -977,6 +905,7 @@ impl<T: Config> Pallet<T> {
 					nonce,
 					access_list,
 					is_transactional,
+					validate,
 					config.as_ref().unwrap_or_else(|| T::config()),
 				) {
 					Ok(res) => res,
@@ -1004,6 +933,7 @@ impl<T: Config> Pallet<T> {
 					nonce,
 					access_list,
 					is_transactional,
+					validate,
 					config.as_ref().unwrap_or_else(|| T::config()),
 				) {
 					Ok(res) => res,
@@ -1032,20 +962,71 @@ impl<T: Config> Pallet<T> {
 		transaction: &Transaction,
 	) -> Result<(), TransactionValidityError> {
 		let transaction_data = Pallet::<T>::transaction_data(transaction);
-		let transaction_nonce = transaction_data.nonce;
-		let (account_nonce, _) = Self::validate_transaction_common(origin, &transaction_data)?;
 
-		// In the context of the block, a transaction with a nonce that is
-		// too high should be considered invalid and make the whole block invalid.
-		if transaction_nonce > account_nonce {
-			Err(TransactionValidityError::Invalid(
-				InvalidTransaction::Future,
-			))
-		} else if transaction_nonce < account_nonce {
-			Err(TransactionValidityError::Invalid(InvalidTransaction::Stale))
-		} else {
-			Ok(())
-		}
+		let (base_fee, _) = T::FeeCalculator::min_gas_price();
+		let (who, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
+		let account_cross = T::CrossAccountId::from_eth(origin);
+
+		let reason = &match transaction_data.action {
+			TransactionAction::Call(target) => WithdrawReason::Call {
+				target,
+				input: transaction_data.input.clone(),
+			},
+			TransactionAction::Create => WithdrawReason::Create,
+		};
+
+		// Sponsor only transactions, which have no priority fee
+		let (max_fee_per_gas, may_sponsor) = match (
+			transaction_data.gas_price,
+			transaction_data.max_fee_per_gas,
+			transaction_data.max_priority_fee_per_gas,
+		) {
+			// Legacy or EIP-2930 transaction.
+			(Some(gas_price), None, None) => {
+				(gas_price, gas_price == base_fee)
+			}
+			// EIP-1559 transaction without tip.
+			(None, Some(max_fee_per_gas), None) => (max_fee_per_gas, true),
+			// EIP-1559 transaction with tip.
+			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
+				(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+			}
+			_ => return Err(InvalidTransaction::Payment.into()),
+		};
+
+		let max_fee = max_fee_per_gas.saturating_mul(transaction_data.gas_limit);
+
+		let sponsor = pallet_evm::runner::stack::get_sponsor::<T>(
+			&account_cross,
+			max_fee,
+			reason,
+			may_sponsor,
+		);
+
+		let sponsor = sponsor
+			.as_ref()
+			.map(|cross_id| {
+				let (sponsor_data, _) = pallet_evm::Pallet::<T>::account_basic_by_id(&cross_id);
+				sponsor_data
+			});
+
+		let _ = CheckEvmTransaction::<InvalidTransactionWrapper>::new(
+			CheckEvmTransactionConfig {
+				evm_config: T::config(),
+				block_gas_limit: T::BlockGasLimit::get(),
+				base_fee,
+				chain_id: T::ChainId::get(),
+				is_transactional: true,
+			},
+			transaction_data.into(),
+		)
+		.validate_in_block_for(&who)
+		.and_then(|v| v.with_chain_id())
+		.and_then(|v| v.with_base_fee())
+		.and_then(|v| v.with_account_or_sponsor_balance_for(&who, sponsor.as_ref()))
+		.map_err(|e| TransactionValidityError::Invalid(e.0))?;
+
+		Ok(())
 	}
 
 	pub fn migrate_block_v0_to_v2() -> Weight {
@@ -1182,5 +1163,41 @@ impl<T: Config + TypeInfo + Debug + Send + Sync> SignedExtension for FakeTransac
 	) -> Result<(), TransactionValidityError> {
 		<Pallet<T>>::flush_injected_transaction();
 		Ok(())
+	}
+}
+
+struct InvalidTransactionWrapper(InvalidTransaction);
+
+impl From<InvalidEvmTransactionError> for InvalidTransactionWrapper {
+	fn from(validation_error: InvalidEvmTransactionError) -> Self {
+		match validation_error {
+			InvalidEvmTransactionError::GasLimitTooLow => InvalidTransactionWrapper(
+				InvalidTransaction::Custom(TransactionValidationError::InvalidGasLimit as u8),
+			),
+			InvalidEvmTransactionError::GasLimitTooHigh => InvalidTransactionWrapper(
+				InvalidTransaction::Custom(TransactionValidationError::InvalidGasLimit as u8),
+			),
+			InvalidEvmTransactionError::GasPriceTooLow => {
+				InvalidTransactionWrapper(InvalidTransaction::Payment)
+			}
+			InvalidEvmTransactionError::PriorityFeeTooHigh => InvalidTransactionWrapper(
+				InvalidTransaction::Custom(TransactionValidationError::MaxFeePerGasTooLow as u8),
+			),
+			InvalidEvmTransactionError::BalanceTooLow => {
+				InvalidTransactionWrapper(InvalidTransaction::Payment)
+			}
+			InvalidEvmTransactionError::TxNonceTooLow => {
+				InvalidTransactionWrapper(InvalidTransaction::Stale)
+			}
+			InvalidEvmTransactionError::TxNonceTooHigh => {
+				InvalidTransactionWrapper(InvalidTransaction::Future)
+			}
+			InvalidEvmTransactionError::InvalidPaymentInput => {
+				InvalidTransactionWrapper(InvalidTransaction::Payment)
+			}
+			InvalidEvmTransactionError::InvalidChainId => InvalidTransactionWrapper(
+				InvalidTransaction::Custom(TransactionValidationError::InvalidChainId as u8),
+			),
+		}
 	}
 }

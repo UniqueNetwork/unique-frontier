@@ -37,7 +37,8 @@ use sp_std::{boxed::Box, collections::btree_set::BTreeSet, marker::PhantomData, 
 use crate::{account::CrossAccountId, CurrentLogs, OnCreate, OnMethodCall};
 use evm::executor::stack::PrecompileHandle;
 use fp_evm::{PrecompileResult, PrecompileSet, TransactionValidityHack, WithdrawReason};
-use frame_support::ensure;
+use frame_support::storage::with_transaction;
+use sp_runtime::{DispatchError, TransactionOutcome};
 
 #[derive(Default)]
 pub struct Runner<T: Config> {
@@ -70,15 +71,14 @@ impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 }
 
 impl<T: Config> Runner<T> {
-	/// Execute an EVM operation.
-	pub fn execute<'config, 'precompiles, F, R>(
+	/// Execute an already validated EVM operation.
+	fn execute<'config, 'precompiles, F, R>(
 		source: &T::CrossAccountId,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
-		nonce: Option<U256>,
 		config: &'config evm::Config,
 		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
@@ -96,35 +96,19 @@ impl<T: Config> Runner<T> {
 	{
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
 		let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
-			(Some(max_fee_per_gas), _) => {
-				ensure!(max_fee_per_gas >= base_fee, 
-					RunnerError {
-						error: Error::<T>::GasPriceTooLow,
-						weight,
-					});
-				(max_fee_per_gas, max_fee_per_gas == base_fee)
-			}
+			(Some(max_fee_per_gas), _) => (max_fee_per_gas, max_fee_per_gas == base_fee),
 			// Gas price check is skipped for non-transactional calls that don't
 			// define a `max_fee_per_gas` input.
 			(None, false) => (Default::default(), true),
+			// Unreachable, previously validated. Handle gracefully.
 			_ => return Err(RunnerError {
 				error: Error::<T>::GasPriceTooLow,
 				weight,
 			}),
 		};
 
-		let (source_data, inner_weight) = Pallet::<T>::account_basic_by_id(source);
+		let (_, inner_weight) = Pallet::<T>::account_basic_by_id(source);
 		weight = weight.saturating_add(inner_weight);
-
-		if let Some(max_priority_fee) = max_priority_fee_per_gas {
-			ensure!(
-				max_fee_per_gas >= max_priority_fee,
-				RunnerError {
-					error: Error::<T>::GasPriceTooLow,
-					weight,
-				}
-			);
-		}
 
 		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
 		let max_fee = max_fee_per_gas
@@ -134,66 +118,19 @@ impl<T: Config> Runner<T> {
 				weight,
 			})?;
 
-		#[cfg(feature = "debug-logging")]
-		log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
-		let sponsor = may_sponsor
-			.then(|| T::TransactionValidityHack::who_pays_fee(*source.as_eth(), max_fee, &reason))
-			.flatten()
-			.unwrap_or(source.clone());
+		let sponsor =
+			get_sponsor::<T>(
+				source,
+				max_fee,
+				&reason,
+				may_sponsor);
+		let sponsor = sponsor
+			.as_ref()
+			.unwrap_or(source);
 
-		if let Some(nonce) = nonce {
-			ensure!(source_data.nonce == nonce, 				RunnerError {
-				error: Error::<T>::InvalidNonce,
-				weight,
-			});
-		}
-
-		if sponsor == *source {
-			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "sponsor found, user will pay for itself");
-
-			let total_payment = value
-				.checked_add(max_fee)
-				.ok_or(RunnerError {
-					error: Error::<T>::PaymentOverflow,
-					weight,
-				})?;
-
-			// max_fee is zero in non-transactional calls
-			if source_data.balance < total_payment && max_fee != U256::zero() {
-				#[cfg(feature = "debug-logging")]
-				log::trace!(
-					target: "sponsoring",
-					"user doesn't have enough balance ({} < {})",
-					source_data.balance,
-					total_payment
-				);
-				return Err(RunnerError {error: Error::<T>::BalanceLow.into(), weight});
-			}
-		} else {
-			#[cfg(feature = "debug-logging")]
-			log::trace!(target: "sponsoring", "found sponsor: {:?}", sponsor);
-			let (sponsor_data, inner_weight) = crate::Pallet::<T>::account_basic_by_id(&sponsor);
-			weight = weight.saturating_add(inner_weight);
-
-			// max_fee is zero in non-transactional calls
-			if (source_data.balance < value || sponsor_data.balance < max_fee) && max_fee != U256::zero() {
-				#[cfg(feature = "debug-logging")]
-				log::trace!(
-					target: "sponsoring",
-					"either user ({} < {}), or sponsor ({} < {}) does not have enough balance",
-					source_data.balance,
-					value,
-					sponsor_data.balance,
-					max_fee
-				);
-				return Err(RunnerError{error: Error::<T>::BalanceLow.into(), weight});
-			}
-		};
-
-		// Deduct fee from the sponsor account. Returns `None` if `max_fee` is Zero.
+		// Deduct fee from the `source` account. Returns `None` if `total_fee` is Zero.
 		let fee = T::OnChargeTransaction::withdraw_fee(&sponsor, reason, max_fee)
-		.map_err(|e| RunnerError { error: e, weight })?;
+			.map_err(|e| RunnerError { error: e, weight })?;
 
 		// Execute the EVM call.
 		let vicinity = Vicinity {
@@ -253,7 +190,7 @@ impl<T: Config> Runner<T> {
 		// Tip 5 * 6 = 30.
 		// Burned 200 - (160 + 30) = 10. Which is equivalent to gas_used * base_fee.
 		let actual_priority_fee = T::OnChargeTransaction::correct_and_deposit_fee(
-			&sponsor,
+			sponsor,
 			// Actual fee after evm execution, including tip.
 			actual_fee,
 			// Base fee.
@@ -285,6 +222,80 @@ impl<T: Config> Runner<T> {
 impl<T: Config> RunnerT<T> for Runner<T> {
 	type Error = Error<T>;
 
+	fn validate(
+		source: &T::CrossAccountId,
+		target: Option<H160>,
+		input: Vec<u8>,
+		value: U256,
+		gas_limit: u64,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
+		nonce: Option<U256>,
+		access_list: Vec<(H160, Vec<H256>)>,
+		is_transactional: bool,
+		evm_config: &evm::Config,
+		reason: &WithdrawReason,
+	) -> Result<(), RunnerError<Self::Error>> {
+		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
+		let (source_account, inner_weight) = Pallet::<T>::account_basic_by_id(source);
+		weight = weight.saturating_add(inner_weight);
+
+		let (max_fee, may_sponsor) = match (max_fee_per_gas, is_transactional) {
+			(Some(max_fee_per_gas), _) => (max_fee_per_gas.saturating_mul(U256::from(gas_limit)), max_fee_per_gas == base_fee),
+			// Gas price check is skipped for non-transactional calls that don't
+			// define a `max_fee_per_gas` input.
+			(None, false) => (Default::default(), true),
+			// Unreachable, previously validated. Handle gracefully.
+			_ => return Err(RunnerError {
+				error: Error::<T>::GasPriceTooLow,
+				weight,
+			}),
+		};
+
+		let sponsor = get_sponsor::<T>(
+			source,
+			max_fee,
+			reason,
+			may_sponsor
+		);
+
+		let sponsor = sponsor
+			.as_ref()
+			.map(|cross_id| {
+				let (sponsor_data, _) = Pallet::<T>::account_basic_by_id(cross_id);
+				sponsor_data
+			});
+
+		let sponsor = sponsor.as_ref();
+
+		let _ = fp_evm::CheckEvmTransaction::<Self::Error>::new(
+			fp_evm::CheckEvmTransactionConfig {
+				evm_config,
+				block_gas_limit: T::BlockGasLimit::get(),
+				base_fee,
+				chain_id: T::ChainId::get(),
+				is_transactional,
+			},
+			fp_evm::CheckEvmTransactionInput {
+				chain_id: Some(T::ChainId::get()),
+				to: target,
+				input,
+				nonce: nonce.unwrap_or(source_account.nonce),
+				gas_limit: gas_limit.into(),
+				gas_price: None,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
+				value,
+				access_list,
+			},
+		)
+		.validate_in_block_for(&source_account)
+		.and_then(|v| v.with_base_fee())
+		.and_then(|v| v.with_account_or_sponsor_balance_for(&source_account, sponsor))
+		.map_err(|error| RunnerError { error, weight })?;
+		Ok(())
+	}
+
 	fn call(
 		source: T::CrossAccountId,
 		target: H160,
@@ -296,8 +307,29 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Call {
+			target,
+			input: input.clone(),
+		};
+		if validate {
+			let _ = Self::validate(
+				&source,
+				Some(target),
+				input.clone(),
+				value,
+				gas_limit,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
+				nonce,
+				access_list.clone(),
+				is_transactional,
+				config,
+				&reason,
+			)?;
+		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
 			&source,
@@ -305,11 +337,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
-			WithdrawReason::Call {
-				target,
-				input: input.clone(),
-			},
-			nonce,
+			reason,
 			config,
 			&PrecompileSetWithMethods(precompiles),
 			is_transactional,
@@ -336,8 +364,26 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create;
+		if validate {
+			let _ = Self::validate(
+				&source,
+				None,
+				init.clone(),
+				value,
+				gas_limit,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
+				nonce,
+				access_list.clone(),
+				is_transactional,
+				config,
+				&reason,
+			)?;
+		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
 			&source,
@@ -345,8 +391,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
-			WithdrawReason::Create,
-			nonce,
+			reason,
 			config,
 			&PrecompileSetWithMethods(precompiles),
 			is_transactional,
@@ -373,8 +418,26 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create2;
+		if validate {
+			let _ = Self::validate(
+				&source,
+				None,
+				init.clone(),
+				value,
+				gas_limit,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
+				nonce,
+				access_list.clone(),
+				is_transactional,
+				config,
+				&reason,
+			)?;
+		}
 		let precompiles = T::PrecompilesValue::get();
 		let code_hash = H256::from_slice(Keccak256::digest(&init).as_slice());
 		Self::execute(
@@ -383,8 +446,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
-			WithdrawReason::Create2,
-			nonce,
+			reason,
 			config,
 			&PrecompileSetWithMethods(precompiles),
 			is_transactional,
@@ -734,4 +796,35 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config>
 		self.substate
 			.recursive_is_cold(&|a: &Accessed| a.accessed_storage.contains(&(address, key)))
 	}
+}
+
+pub fn get_sponsor<T:Config>(
+	source: &T::CrossAccountId,
+	fee: U256,
+	reason: &WithdrawReason,
+	may_sponsor: bool,
+) -> Option<T::CrossAccountId> {
+
+	#[cfg(feature = "debug-logging")]
+	if may_sponsor {
+		log::trace!(target: "sponsoring", "checking who will pay fee for {}", origin);
+	} else {
+		log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
+	}
+
+	may_sponsor
+		.then(|| {
+			with_transaction(
+				|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
+					// Writes will be applied in pallet_evm::runner
+					TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
+						*source.as_eth(),
+						fee,
+						reason,
+					)))
+				},
+			)
+			.ok()?
+		})
+		.flatten()
 }

@@ -22,6 +22,9 @@ use fp_evm::{CallInfo, CreateInfo};
 use sp_core::{H160, H256, U256};
 use sp_std::vec::Vec;
 
+// Unique
+use fp_evm::WithdrawReason;
+
 #[derive(Debug)]
 pub struct RunnerError<E: Into<sp_runtime::DispatchError>> {
 	pub error: E,
@@ -30,6 +33,21 @@ pub struct RunnerError<E: Into<sp_runtime::DispatchError>> {
 
 pub trait Runner<T: Config> {
 	type Error: Into<sp_runtime::DispatchError>;
+
+	fn validate(
+		source: &T::CrossAccountId,
+		target: Option<H160>,
+		input: Vec<u8>,
+		value: U256,
+		gas_limit: u64,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
+		nonce: Option<U256>,
+		access_list: Vec<(H160, Vec<H256>)>,
+		is_transactional: bool,
+		evm_config: &evm::Config,
+		reason: &WithdrawReason,
+	) -> Result<(), RunnerError<Self::Error>>;
 
 	fn call(
 		source: T::CrossAccountId,
@@ -42,6 +60,7 @@ pub trait Runner<T: Config> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CallInfo, RunnerError<Self::Error>>;
 
@@ -55,6 +74,7 @@ pub trait Runner<T: Config> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>>;
 
@@ -69,6 +89,7 @@ pub trait Runner<T: Config> {
 		nonce: Option<U256>,
 		access_list: Vec<(H160, Vec<H256>)>,
 		is_transactional: bool,
+		validate: bool,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>>;
 }

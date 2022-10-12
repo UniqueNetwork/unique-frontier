@@ -21,10 +21,11 @@ prometheus = { version = "0.13.1", default-features = false }
 rand = "0.8"
 rlp = "0.5"
 rustc-hex = "2.1.0"
-tokio = { version = "1.18", features = ["sync"] }
+tokio = { version = "1.19", features = ["sync"] }
 
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-network-common = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-rpc = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
@@ -43,14 +44,10 @@ fc-db = { version = "2.0.0-dev", path = "../db" }
 fc-rpc-core = { version = "1.1.0-dev", path = "../rpc-core" }
 fp-rpc = { version = "3.0.0-dev", path = "../../primitives/rpc" }
 fp-storage = { version = "2.0.0-dev", path = "../../primitives/storage" }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 
 [dev-dependencies]
 beefy-primitives = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
-frontier-template-runtime = { path = "../../template/runtime", default-features = false, features = [
-    "std",
-    "aura",
-] }
+frontier-template-runtime = { path = "../../template/runtime"}
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-client-db = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
