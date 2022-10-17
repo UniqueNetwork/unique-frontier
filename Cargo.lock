@@ -4640,6 +4640,7 @@ dependencies = [
  "rlp",
  "scale-info",
  "serde",
+ "sha3",
  "sp-core",
  "sp-io",
  "sp-runtime",

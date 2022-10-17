@@ -15,6 +15,7 @@ ethereum = { version = "0.12.0", default-features = false, features = ["with-cod
 evm = { git = "https://github.com/uniquenetwork/evm", branch = "unique-polkadot-v0.9.29", features = ["with-codec"], default-features = false }
 log = "0.4.17"
 serde = { version = "1.0.144", optional = true }
+sha3 = { version = "0.10", default-features = false }
 
 # Parity
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
