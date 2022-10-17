@@ -32,7 +32,7 @@ mod tests;
 use core::fmt::Debug;
 
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
-use evm::ExitReason;
+use evm::{ExitReason, backend::Basic};
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
 use fp_evm::{
 	CallOrCreateInfo, CheckEvmTransaction, CheckEvmTransactionConfig, CheckEvmTransactionInput,
@@ -535,7 +535,7 @@ impl<T: Config> Pallet<T> {
 		let (base_fee, _) = T::FeeCalculator::min_gas_price();
 		let (who, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
 		
-		let (priority, max_fee_per_gas, may_sponsor) = match (
+		let priority = match (
 			transaction_data.gas_price,
 			transaction_data.max_fee_per_gas,
 			transaction_data.max_priority_fee_per_gas,
@@ -544,59 +544,21 @@ impl<T: Config> Pallet<T> {
 			// Handle priority here. On legacy transaction everything in gas_price except
 			// the current base_fee is considered a tip to the miner and thus the priority.
 			(Some(gas_price), None, None) => {
-				let priority = gas_price.saturating_sub(base_fee).unique_saturated_into();
-				(priority, gas_price, gas_price == base_fee)
+				gas_price.saturating_sub(base_fee).unique_saturated_into()
 			}
 			// EIP-1559 transaction without tip.
-			(None, Some(max_fee_per_gas), None) => (0, max_fee_per_gas, true),
+			(None, Some(_), None) => 0,
 			// EIP-1559 transaction with tip.
 			(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
-				let priority = max_fee_per_gas
+				max_fee_per_gas
 					.saturating_sub(base_fee)
 					.min(max_priority_fee_per_gas)
-					.unique_saturated_into();
-				(priority, max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+					.unique_saturated_into()
 			}
 			_ => return Err(InvalidTransaction::Payment.into()),
 		};
 
-		let max_fee = max_fee_per_gas.saturating_mul(transaction_data.gas_limit);
-
-		#[cfg(feature = "debug-logging")]
-		if may_sponsor {
-			log::trace!(target: "sponsoring", "checking who will pay fee for {}", origin);
-		} else {
-			log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
-		}
-
-		let sponsor = may_sponsor
-			.then(|| {
-				with_transaction(
-					|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
-						// Writes will be applied in pallet_evm::runner
-						TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
-							origin,
-							max_fee,
-							&match transaction_data.action {
-								TransactionAction::Call(target) => WithdrawReason::Call {
-									target,
-									input: transaction_data.input.clone(),
-								},
-								TransactionAction::Create => WithdrawReason::Create,
-							},
-						)))
-					},
-				)
-				.ok()?
-			})
-			.flatten();
-
-		let sponsor = sponsor
-			.as_ref()
-			.map(|cross_id| {
-				let (sponsor, _) = pallet_evm::Pallet::<T>::account_basic_by_id(cross_id);
-				sponsor
-			});
+		let sponsor = get_sponsor::<T>(&transaction_data, origin, base_fee);
 
 		let _ = CheckEvmTransaction::<InvalidTransactionWrapper>::new(
 			CheckEvmTransactionConfig {
@@ -967,6 +929,8 @@ impl<T: Config> Pallet<T> {
 		let (base_fee, _) = T::FeeCalculator::min_gas_price();
 		let (who, _) = pallet_evm::Pallet::<T>::account_basic(&origin);
 
+		let sponsor = get_sponsor::<T>(&transaction_data, origin, base_fee);
+
 		let _ = CheckEvmTransaction::<InvalidTransactionWrapper>::new(
 			CheckEvmTransactionConfig {
 				evm_config: T::config(),
@@ -980,7 +944,7 @@ impl<T: Config> Pallet<T> {
 		.validate_in_block_for(&who)
 		.and_then(|v| v.with_chain_id())
 		.and_then(|v| v.with_base_fee())
-		.and_then(|v| v.with_balance_for(&who))
+		.and_then(|v| v.with_account_or_sponsor_balance_for(&who, sponsor.as_ref()))
 		.map_err(|e| TransactionValidityError::Invalid(e.0))?;
 
 		Ok(())
@@ -1048,6 +1012,66 @@ impl<T: Config> Pallet<T> {
 		assert_eq!(block_v2.transactions.len() as u64, v0_transaction_len);
 		Ok(())
 	}
+}
+
+fn get_sponsor<T:Config>(transaction_data: &TransactionData, origin: H160, base_fee: U256, ) -> Option<Basic> {
+	let (max_fee_per_gas, may_sponsor) = match (
+		transaction_data.gas_price,
+		transaction_data.max_fee_per_gas,
+		transaction_data.max_priority_fee_per_gas,
+	) {
+		// Legacy or EIP-2930 transaction.
+		// Handle priority here. On legacy transaction everything in gas_price except
+		// the current base_fee is considered a tip to the miner and thus the priority.
+		(Some(gas_price), None, None) => {
+			(gas_price, gas_price == base_fee)
+		}
+		// EIP-1559 transaction without tip.
+		(None, Some(max_fee_per_gas), None) => (max_fee_per_gas, true),
+		// EIP-1559 transaction with tip.
+		(None, Some(max_fee_per_gas), Some(max_priority_fee_per_gas)) => {
+			(max_fee_per_gas, max_priority_fee_per_gas.is_zero())
+		}
+		_ => return None,
+	};
+
+	let max_fee = max_fee_per_gas.saturating_mul(transaction_data.gas_limit);
+
+	#[cfg(feature = "debug-logging")]
+	if may_sponsor {
+		log::trace!(target: "sponsoring", "checking who will pay fee for {}", origin);
+	} else {
+		log::trace!(target: "sponsoring", "transactions is not egilible for sponsoring, as it has non-zero priority fee");
+	}
+
+	let sponsor = may_sponsor
+		.then(|| {
+			with_transaction(
+				|| -> TransactionOutcome<Result<Option<T::CrossAccountId>, DispatchError>> {
+					// Writes will be applied in pallet_evm::runner
+					TransactionOutcome::Rollback(Ok(T::TransactionValidityHack::who_pays_fee(
+						origin,
+						max_fee,
+						&match transaction_data.action {
+							TransactionAction::Call(target) => WithdrawReason::Call {
+								target,
+								input: transaction_data.input.clone(),
+							},
+							TransactionAction::Create => WithdrawReason::Create,
+						},
+					)))
+				},
+			)
+			.ok()?
+		})
+		.flatten();
+
+	sponsor
+		.as_ref()
+		.map(|cross_id| {
+			let (sponsor, _) = pallet_evm::Pallet::<T>::account_basic_by_id(cross_id);
+			sponsor
+		})
 }
 
 #[derive(Eq, PartialEq, Clone, RuntimeDebug)]
