@@ -20,15 +20,15 @@ use std::sync::Arc;
 
 use ethereum_types::H256;
 use jsonrpsee::core::RpcResult as Result;
+// Substrate
 use sc_network::{ExHashT, NetworkService};
+use sc_network_common::service::NetworkPeers;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-
+// Frontier
 use fc_rpc_core::{types::PeerCount, NetApiServer};
 use fp_rpc::EthereumRuntimeRPCApi;
-
-use sc_network_common::service::NetworkPeers;
 
 use crate::internal_err;
 

@@ -22,6 +22,7 @@ mod client;
 mod execute;
 mod fee;
 mod filter;
+pub mod format;
 mod mining;
 mod state;
 mod submit;
@@ -32,12 +33,12 @@ use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
 use ethereum::{BlockV2 as EthereumBlock, TransactionV2 as EthereumTransaction};
 use ethereum_types::{H160, H256, H512, H64, U256, U64};
 use jsonrpsee::core::{async_trait, RpcResult as Result};
-
+// Substrate
 use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
 use sc_network::{ExHashT, NetworkService};
 use sc_transaction_pool::{ChainApi, Pool};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_api::{Core, ProvideRuntimeApi};
+use sp_api::{Core, HeaderT, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::hashing::keccak_256;
@@ -45,7 +46,7 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, UniqueSaturatedInto},
 };
-
+// Frontier
 use fc_rpc_core::{types::*, EthApiServer};
 use fp_rpc::{ConvertTransactionRuntimeApi, EthereumRuntimeRPCApi, TransactionStatus};
 
@@ -53,11 +54,12 @@ use crate::{internal_err, overrides::OverrideHandle, public_key, signer::EthSign
 
 pub use self::{
 	cache::{EthBlockDataCacheTask, EthTask},
+	execute::EstimateGasAdapter,
 	filter::EthFilter,
 };
 
 /// Eth API implementation.
-pub struct Eth<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
+pub struct Eth<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, EGA = ()> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
@@ -70,7 +72,10 @@ pub struct Eth<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
 	block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 	fee_history_cache: FeeHistoryCache,
 	fee_history_cache_limit: FeeHistoryCacheLimit,
-	_marker: PhantomData<(B, BE)>,
+	/// When using eth_call/eth_estimateGas, the maximum allowed gas limit will be
+	/// block.gas_limit * execute_gas_limit_multiplier
+	execute_gas_limit_multiplier: u64,
+	_marker: PhantomData<(B, BE, EGA)>,
 }
 
 impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A> {
@@ -87,6 +92,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A
 		block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 		fee_history_cache: FeeHistoryCache,
 		fee_history_cache_limit: FeeHistoryCacheLimit,
+		execute_gas_limit_multiplier: u64,
 	) -> Self {
 		Self {
 			client,
@@ -101,6 +107,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A
 			block_data_cache,
 			fee_history_cache,
 			fee_history_cache_limit,
+			execute_gas_limit_multiplier,
 			_marker: PhantomData,
 		}
 	}
@@ -475,12 +482,19 @@ where
 		.map(|in_pool_tx| in_pool_tx.data().clone())
 		.collect::<Vec<<B as BlockT>::Extrinsic>>();
 	// Manually initialize the overlay.
-	let header = client.header(best).unwrap().unwrap();
-	api.initialize_block(&best, &header)
-		.map_err(|e| internal_err(format!("Runtime api access error: {:?}", e)))?;
-	// Apply the ready queue to the best block's state.
-	for xt in xts {
-		let _ = api.apply_extrinsic(&best, xt);
+	if let Ok(Some(header)) = client.header(best) {
+		let parent_hash = BlockId::Hash(*header.parent_hash());
+		api.initialize_block(&parent_hash, &header)
+			.map_err(|e| internal_err(format!("Runtime api access error: {:?}", e)))?;
+		// Apply the ready queue to the best block's state.
+		for xt in xts {
+			let _ = api.apply_extrinsic(&best, xt);
+		}
+		Ok(api)
+	} else {
+		Err(internal_err(format!(
+			"Cannot get header for block {:?}",
+			best
+		)))
 	}
-	Ok(api)
 }

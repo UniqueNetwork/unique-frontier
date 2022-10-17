@@ -26,7 +26,7 @@ fn legacy_erc20_creation_unsigned_transaction() -> LegacyUnsignedTransaction {
 		gas_limit: U256::from(0x100000),
 		action: ethereum::TransactionAction::Create,
 		value: U256::zero(),
-		input: FromHex::from_hex(ERC20_CONTRACT_BYTECODE).unwrap(),
+		input: hex::decode(ERC20_CONTRACT_BYTECODE.trim_end()).unwrap(),
 	}
 }
 
@@ -178,7 +178,7 @@ fn transaction_with_invalid_chain_id_should_fail_in_block() {
 		assert_err!(
 			extrinsic.apply::<Test>(&dispatch_info, 0),
 			TransactionValidityError::Invalid(InvalidTransaction::Custom(
-				crate::TransactionValidationError::InvalidChainId as u8,
+				fp_ethereum::TransactionValidationError::InvalidChainId as u8,
 			))
 		);
 	});
@@ -284,15 +284,14 @@ fn call_should_handle_errors() {
 			gas_limit: U256::from(0x100000),
 			action: ethereum::TransactionAction::Create,
 			value: U256::zero(),
-			input: FromHex::from_hex(contract).unwrap(),
+			input: hex::decode(contract).unwrap(),
 		}
 		.sign(&alice.private_key);
 		assert_ok!(Ethereum::execute(alice.address, &t, None,));
 
-		let contract_address: Vec<u8> =
-			FromHex::from_hex("32dcab0ef3fb2de2fce1d2e0799d36239671f04a").unwrap();
-		let foo: Vec<u8> = FromHex::from_hex("c2985578").unwrap();
-		let bar: Vec<u8> = FromHex::from_hex("febb0f7e").unwrap();
+		let contract_address = hex::decode("32dcab0ef3fb2de2fce1d2e0799d36239671f04a").unwrap();
+		let foo = hex::decode("c2985578").unwrap();
+		let bar = hex::decode("febb0f7e").unwrap();
 
 		let t2 = LegacyUnsignedTransaction {
 			nonce: U256::from(1),
@@ -310,8 +309,8 @@ fn call_should_handle_errors() {
 		match info {
 			CallOrCreateInfo::Call(info) => {
 				assert_eq!(
-					info.value.to_hex::<String>(),
-					"0000000000000000000000000000000000000000000000000000000000000001".to_owned()
+					hex::encode(info.value),
+					"0000000000000000000000000000000000000000000000000000000000000001"
 				);
 			}
 			CallOrCreateInfo::Create(_) => panic!("expected call info"),
@@ -329,5 +328,49 @@ fn call_should_handle_errors() {
 
 		// calling should always succeed even if the inner EVM execution fails.
 		Ethereum::execute(alice.address, &t3, None).ok().unwrap();
+	});
+}
+
+#[test]
+fn self_contained_transaction_with_extra_gas_should_adjust_weight_with_post_dispatch() {
+	let (pairs, mut ext) = new_test_ext(1);
+	let alice = &pairs[0];
+	let base_extrinsic_weight = frame_system::limits::BlockWeights::with_sensible_defaults(
+		2000000000000,
+		sp_runtime::Perbill::from_percent(75),
+	)
+	.per_class
+	.get(frame_support::weights::DispatchClass::Normal)
+	.base_extrinsic;
+
+	ext.execute_with(|| {
+		let mut transaction = legacy_erc20_creation_unsigned_transaction();
+		transaction.gas_limit = 9_000_000.into();
+		let signed = transaction.sign(&alice.private_key);
+		let call = crate::Call::<Test>::transact {
+			transaction: signed,
+		};
+		let source = call.check_self_contained().unwrap().unwrap();
+		let extrinsic = CheckedExtrinsic::<_, _, frame_system::CheckWeight<Test>, _> {
+			signed: fp_self_contained::CheckedSignature::SelfContained(source),
+			function: Call::Ethereum(call),
+		};
+		let dispatch_info = extrinsic.get_dispatch_info();
+		let post_dispatch_weight = extrinsic
+			.apply::<Test>(&dispatch_info, 0)
+			.unwrap()
+			.unwrap()
+			.actual_weight
+			.unwrap();
+
+		let expected_weight = base_extrinsic_weight.saturating_add(post_dispatch_weight);
+		let actual_weight = *frame_system::Pallet::<Test>::block_weight()
+			.get(frame_support::weights::DispatchClass::Normal);
+		assert_eq!(
+			expected_weight,
+			actual_weight,
+			"the block weight was unexpected, excess '{}'",
+			actual_weight as i128 - expected_weight as i128
+		);
 	});
 }

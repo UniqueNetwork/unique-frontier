@@ -18,8 +18,9 @@
 //! EVM stack-based runner.
 
 use crate::{
-account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BlockHashMapping,
-	Config, CurrentLogs, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet, RunnerError,
+	account::CrossAccountId, runner::Runner as RunnerT, AccountCodes, AccountStorages, AddressMapping, BalanceOf,
+	BlockHashMapping, Config, CurrentLogs, Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, OnMethodCall, Pallet,
+	RunnerError,
 };
 use evm::{
 	backend::{Basic, Backend as BackendT},
@@ -31,10 +32,12 @@ use fp_evm::{
 	TransactionValidityHack, Vicinity, WithdrawReason,
 };
 use frame_support::traits::{Currency, ExistenceRequirement, Get};
-use sha3::{Digest, Keccak256};
 use sp_core::{H160, H256, U256};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{boxed::Box, collections::btree_set::BTreeSet, marker::PhantomData, mem, vec::Vec};
+
+#[cfg(feature = "forbid-evm-reentrancy")]
+environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
 
 #[derive(Default)]
 pub struct Runner<T: Config> {
@@ -67,7 +70,11 @@ impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 	}
 }
 
-impl<T: Config> Runner<T> {
+impl<T: Config> Runner<T>
+where
+	BalanceOf<T>: TryFrom<U256> + Into<U256>,
+{
+	#[allow(clippy::let_and_return)]
 	/// Execute an already validated EVM operation.
 	fn execute<'config, 'precompiles, F, R>(
 		source: &T::CrossAccountId,
@@ -92,7 +99,66 @@ impl<T: Config> Runner<T> {
 			>,
 		) -> (ExitReason, R),
 	{
-		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
+		let (base_fee, weight) = T::FeeCalculator::min_gas_price();
+
+		#[cfg(feature = "forbid-evm-reentrancy")]
+		if IN_EVM.with(|in_evm| in_evm.replace(true)) {
+			return Err(RunnerError {
+				error: Error::<T>::Reentrancy,
+				weight,
+			});
+		}
+
+		let res = Self::execute_inner(
+			source,
+			sponsor,
+			value,
+			gas_limit,
+			max_fee_per_gas,
+			max_priority_fee_per_gas,
+			reason,
+			config,
+			precompiles,
+			is_transactional,
+			f,
+			base_fee,
+			weight,
+		);
+
+		// Set IN_EVM to false
+		// We should make sure that this line is executed whatever the execution path.
+		#[cfg(feature = "forbid-evm-reentrancy")]
+		let _ = IN_EVM.with(|in_evm| in_evm.take());
+
+		res
+	}
+
+	// Execute an already validated EVM operation.
+	fn execute_inner<'config, 'precompiles, F, R>(
+		source: &T::CrossAccountId,
+		sponsor: Option<&T::CrossAccountId>,
+		value: U256,
+		gas_limit: u64,
+		max_fee_per_gas: Option<U256>,
+		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
+		config: &'config evm::Config,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
+		is_transactional: bool,
+		f: F,
+		base_fee: U256,
+		mut weight: crate::Weight,
+	) -> Result<ExecutionInfo<R>, RunnerError<Error<T>>>
+	where
+		F: FnOnce(
+			&mut StackExecutor<
+				'config,
+				'precompiles,
+				SubstrateStackState<'_, 'config, T>,
+				PrecompileSetWithMethods<T>,
+			>,
+		) -> (ExitReason, R),
+	{
 		let max_fee_per_gas = match (max_fee_per_gas, is_transactional) {
 			(Some(max_fee_per_gas), _) => {
 				max_fee_per_gas
@@ -210,7 +276,10 @@ impl<T: Config> Runner<T> {
 	}
 }
 
-impl<T: Config> RunnerT<T> for Runner<T> {
+impl<T: Config> RunnerT<T> for Runner<T>
+where
+	BalanceOf<T>: TryFrom<U256> + Into<U256>,
+{
 	type Error = Error<T>;
 
 	fn validate(
@@ -425,7 +494,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 			)?;
 		}
 		let precompiles = T::PrecompilesValue::get();
-		let code_hash = H256::from_slice(Keccak256::digest(&init).as_slice());
+		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
 			sponsor.as_ref(),
@@ -549,7 +618,7 @@ impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 			log.data
 		);
 		<CurrentLogs<T>>::append(&log);
-		<Pallet<T>>::deposit_event(<Event<T>>::Log(log));
+		<Pallet<T>>::deposit_event(Event::<T>::Log { log });
 	}
 
 	fn recursive_is_cold<F: Fn(&Accessed) -> bool>(&self, f: &F) -> bool {
@@ -597,7 +666,7 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 	}
 
 	fn block_hash(&self, number: U256) -> H256 {
-		if number > U256::from(u32::max_value()) {
+		if number > U256::from(u32::MAX) {
 			H256::default()
 		} else {
 			T::BlockHashMapping::block_hash(number.as_u32())
@@ -664,6 +733,8 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 
 impl<'vicinity, 'config, T: Config> StackStateT<'config>
 	for SubstrateStackState<'vicinity, 'config, T>
+where
+	BalanceOf<T>: TryFrom<U256> + Into<U256>,
 {
 	fn metadata(&self) -> &StackSubstateMetadata<'config> {
 		self.substate.metadata()
@@ -724,6 +795,7 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config>
 	}
 
 	fn reset_storage(&mut self, address: H160) {
+		#[allow(deprecated)]
 		let _ = <AccountStorages<T>>::clear_prefix(address, u32::MAX, None);
 	}
 
@@ -752,7 +824,10 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config>
 		T::Currency::transfer(
 			&source,
 			&target,
-			transfer.value.low_u128().unique_saturated_into(),
+			transfer
+				.value
+				.try_into()
+				.map_err(|_| ExitError::OutOfFund)?,
 			ExistenceRequirement::AllowDeath,
 		)
 		.map_err(|_| ExitError::OutOfFund)
@@ -804,4 +879,72 @@ fn get_sponsor<T:Config>(source: H160, max_fee_per_gas: Option<U256>, gas_limit:
 	may_sponsor
 		.then(|| T::TransactionValidityHack::who_pays_fee(source, max_fee, reason))
 		.flatten()
+}
+
+#[cfg(feature = "forbid-evm-reentrancy")]
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::Test;
+	use evm::ExitSucceed;
+	use std::assert_matches::assert_matches;
+
+	#[test]
+	fn test_evm_reentrancy() {
+		let config = evm::Config::istanbul();
+
+		// Should fail with the appropriate error if there is reentrancy
+		let res = Runner::<Test>::execute(
+			H160::default(),
+			U256::default(),
+			100_000,
+			None,
+			None,
+			&config,
+			&(),
+			false,
+			|_| {
+				let res = Runner::<Test>::execute(
+					H160::default(),
+					U256::default(),
+					100_000,
+					None,
+					None,
+					&config,
+					&(),
+					false,
+					|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
+				);
+				assert_matches!(
+					res,
+					Err(RunnerError {
+						error: Error::<Test>::Reentrancy,
+						..
+					})
+				);
+				(ExitReason::Error(ExitError::CallTooDeep), ())
+			},
+		);
+		assert_matches!(
+			res,
+			Ok(ExecutionInfo {
+				exit_reason: ExitReason::Error(ExitError::CallTooDeep),
+				..
+			})
+		);
+
+		// Should succeed if there is no reentrancy
+		let res = Runner::<Test>::execute(
+			H160::default(),
+			U256::default(),
+			100_000,
+			None,
+			None,
+			&config,
+			&(),
+			false,
+			|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
+		);
+		assert!(res.is_ok());
+	}
 }

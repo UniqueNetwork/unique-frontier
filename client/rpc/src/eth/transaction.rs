@@ -21,7 +21,7 @@ use std::sync::Arc;
 use ethereum::TransactionV2 as EthereumTransaction;
 use ethereum_types::{H256, U256, U64};
 use jsonrpsee::core::RpcResult as Result;
-
+// Substrate
 use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
 use sc_network::ExHashT;
 use sc_transaction_pool::ChainApi;
@@ -33,7 +33,7 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT},
 };
-
+// Frontier
 use fc_rpc_core::types::*;
 use fp_rpc::EthereumRuntimeRPCApi;
 
@@ -324,7 +324,7 @@ where
 				{
 					// Pre-london frontier update stored receipts require cumulative gas calculation.
 					match receipt {
-						ethereum::ReceiptV3::Legacy(d) => {
+						ethereum::ReceiptV3::Legacy(ref d) => {
 							let index = core::cmp::min(receipts.len(), index + 1);
 							let cumulative_gas: u32 = receipts[..index]
 								.iter()
@@ -337,7 +337,7 @@ where
 								})
 								.sum::<Result<u32>>()?;
 							(
-								d.logs,
+								d.logs.clone(),
 								d.logs_bloom,
 								d.status_code,
 								U256::from(cumulative_gas),
@@ -353,9 +353,9 @@ where
 					}
 				} else {
 					match receipt {
-						ethereum::ReceiptV3::Legacy(d)
-						| ethereum::ReceiptV3::EIP2930(d)
-						| ethereum::ReceiptV3::EIP1559(d) => {
+						ethereum::ReceiptV3::Legacy(ref d)
+						| ethereum::ReceiptV3::EIP2930(ref d)
+						| ethereum::ReceiptV3::EIP1559(ref d) => {
 							let cumulative_gas = d.used_gas;
 							let gas_used = if index > 0 {
 								let previous_receipt = receipts[index - 1].clone();
@@ -369,7 +369,7 @@ where
 								cumulative_gas
 							};
 							(
-								d.logs,
+								d.logs.clone(),
 								d.logs_bloom,
 								d.status_code,
 								cumulative_gas,
@@ -442,6 +442,11 @@ where
 					logs_bloom,
 					state_root: None,
 					effective_gas_price,
+					transaction_type: match receipt {
+						ethereum::ReceiptV3::Legacy(_) => U256::from(0),
+						ethereum::ReceiptV3::EIP2930(_) => U256::from(1),
+						ethereum::ReceiptV3::EIP1559(_) => U256::from(2),
+					},
 				}));
 			}
 			_ => Ok(None),

@@ -27,8 +27,7 @@ use frame_support::{
 };
 use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
 use rlp::RlpStream;
-use sha3::Digest;
-use sp_core::{H160, H256, U256};
+use sp_core::{hashing::keccak_256, H160, H256, U256};
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
@@ -59,8 +58,6 @@ frame_support::construct_runtime! {
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
 }
 
 impl frame_system::Config for Test {
@@ -142,6 +139,7 @@ parameter_types! {
 	pub const ChainId: u64 = 42;
 	pub const EVMModuleId: PalletId = PalletId(*b"py/evmpa");
 	pub const BlockGasLimit: U256 = U256::MAX;
+	pub const WeightPerGas: u64 = 20_000;
 }
 
 pub struct HashedAddressMapping;
@@ -166,7 +164,8 @@ impl EvmBackwardsAddressMapping<AccountId32> for MapBackwardsAddressTruncated {
 
 impl pallet_evm::Config for Test {
 	type FeeCalculator = FixedGasPrice;
-	type GasWeightMapping = ();
+	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
+	type WeightPerGas = WeightPerGas;
 	type CallOrigin = EnsureAddressTruncated<Self>;
 	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AddressMapping = HashedAddressMapping;
@@ -229,9 +228,11 @@ impl fp_self_contained::SelfContainedCall for Call {
 	fn pre_dispatch_self_contained(
 		&self,
 		info: &Self::SignedInfo,
+		dispatch_info: &DispatchInfoOf<Call>,
+		len: usize,
 	) -> Option<Result<(), TransactionValidityError>> {
 		match self {
-			Call::Ethereum(call) => call.pre_dispatch_self_contained(info),
+			Call::Ethereum(call) => call.pre_dispatch_self_contained(info, dispatch_info, len),
 			_ => None,
 		}
 	}
@@ -260,7 +261,7 @@ fn address_build(seed: u8) -> AccountInfo {
 	let private_key = H256::from_slice(&[(seed + 1) as u8; 32]); //H256::from_low_u64_be((i + 1) as u64);
 	let secret_key = libsecp256k1::SecretKey::parse_slice(&private_key[..]).unwrap();
 	let public_key = &libsecp256k1::PublicKey::from_secret_key(&secret_key).serialize()[1..65];
-	let address = H160::from(H256::from_slice(&Keccak256::digest(public_key)[..]));
+	let address = H160::from(H256::from(keccak_256(public_key)));
 
 	let mut data = [0u8; 32];
 	data[0..20].copy_from_slice(&address[..]);
@@ -295,16 +296,42 @@ pub fn new_test_ext(accounts_len: usize) -> (Vec<AccountInfo>, sp_io::TestExtern
 	(pairs, ext.into())
 }
 
+// This function basically just builds a genesis storage key/value store according to
+// our desired mockup.
+pub fn new_test_ext_with_initial_balance(
+	accounts_len: usize,
+	initial_balance: u64,
+) -> (Vec<AccountInfo>, sp_io::TestExternalities) {
+	// sc_cli::init_logger("");
+	let mut ext = frame_system::GenesisConfig::default()
+		.build_storage::<Test>()
+		.unwrap();
+
+	let pairs = (0..accounts_len)
+		.map(|i| address_build(i as u8))
+		.collect::<Vec<_>>();
+
+	let balances: Vec<_> = (0..accounts_len)
+		.map(|i| (pairs[i].account_id.clone(), initial_balance))
+		.collect();
+
+	pallet_balances::GenesisConfig::<Test> { balances }
+		.assimilate_storage(&mut ext)
+		.unwrap();
+
+	(pairs, ext.into())
+}
+
 pub fn contract_address(sender: H160, nonce: u64) -> H160 {
 	let mut rlp = RlpStream::new_list(2);
 	rlp.append(&sender);
 	rlp.append(&nonce);
 
-	H160::from_slice(&Keccak256::digest(&rlp.out())[12..])
+	H160::from_slice(&keccak_256(&rlp.out())[12..])
 }
 
 pub fn storage_address(sender: H160, slot: H256) -> H256 {
-	H256::from_slice(&Keccak256::digest(
+	H256::from(keccak_256(
 		[&H256::from(sender)[..], &slot[..]].concat().as_slice(),
 	))
 }
@@ -335,7 +362,7 @@ impl LegacyUnsignedTransaction {
 	fn signing_hash(&self) -> H256 {
 		let mut stream = RlpStream::new();
 		self.signing_rlp_append(&mut stream);
-		H256::from_slice(&Keccak256::digest(&stream.out()).as_slice())
+		H256::from(keccak_256(&stream.out()))
 	}
 
 	pub fn sign(&self, key: &H256) -> Transaction {

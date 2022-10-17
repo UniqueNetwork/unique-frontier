@@ -2,12 +2,10 @@
 name = "frontier-template-node"
 version = "0.0.0"
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
-description = "A fresh FRAME-based Substrate node, ready for hacking."
 edition = "2021"
 license = "Unlicense"
 build = "build.rs"
-homepage = "https://substrate.io"
-repository = "https://github.com/substrate-developer-hub/frontier-node-template/"
+description = "A fresh FRAME-based Substrate node, ready for hacking."
 publish = false
 
 [package.metadata.docs.rs]
@@ -15,14 +13,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 async-trait = "0.1"
-clap = { version = "3.1", features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.1", features = [
-	"derive",
-] }
-futures = "0.3"
-jsonrpsee = { version = "0.15.1", features = ["server", "macros"] }
-log = "0.4.8"
+clap = { version = "3.2", features = ["derive"] }
+futures = "0.3.24"
+log = "0.4.17"
 
+# Parity
+codec = { package = "parity-scale-codec", version = "3.1", features = ["derive"] }
+jsonrpsee = { version = "0.15.1", features = ["server", "macros"] }
+
+# Substrate
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", features = [
 	"wasmtime",
@@ -66,9 +65,10 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/pari
 frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 
+# Frontier
+fc-cli = { path = "../../client/cli" }
 fc-consensus = { path = "../../client/consensus" }
 fc-db = { path = "../../client/db" }
-fc-cli = { path = "../../client/cli" }
 fc-mapping-sync = { path = "../../client/mapping-sync" }
 fc-rpc = { path = "../../client/rpc" }
 fc-rpc-core = { path = "../../client/rpc-core" }
@@ -86,11 +86,16 @@ frontier-template-runtime = { path = "../runtime", default-features = false, fea
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", version = "3.0.0" }
 
 [features]
-default = ["aura"]
-aura = ["sc-consensus-aura", "frontier-template-runtime/aura"]
+default = ["aura", "with-rocksdb-weights"]
+aura = [
+	"sc-consensus-aura",
+	"frontier-template-runtime/aura",
+]
 manual-seal = [
 	"sc-consensus-manual-seal",
 	"frontier-template-runtime/manual-seal",
 ]
+with-rocksdb-weights = ["frontier-template-runtime/with-rocksdb-weights"]
+with-paritydb-weights = ["frontier-template-runtime/with-paritydb-weights"]
 rpc_binary_search_estimate = ["fc-rpc/rpc_binary_search_estimate"]
 runtime-benchmarks = ["frontier-template-runtime/runtime-benchmarks"]
