@@ -34,7 +34,13 @@ use fp_evm::{
 use frame_support::traits::{Currency, ExistenceRequirement, Get};
 use sp_core::{H160, H256, U256};
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{boxed::Box, collections::btree_set::BTreeSet, marker::PhantomData, mem, vec::Vec};
+use sp_std::{
+	boxed::Box,
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	marker::PhantomData,
+	mem,
+	vec::Vec,
+};
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
@@ -159,34 +165,52 @@ where
 			>,
 		) -> (ExitReason, R),
 	{
-		let max_fee_per_gas = match (max_fee_per_gas, is_transactional) {
-			(Some(max_fee_per_gas), _) => {
-				max_fee_per_gas
-			}
-			// Gas price check is skipped for non-transactional calls that don't
-			// define a `max_fee_per_gas` input.
-			(None, false) => Default::default(),
-			_ => return Err(RunnerError {
-				error: Error::<T>::GasPriceTooLow,
-				weight,
-			}),
-		};
+		let (total_fee_per_gas, _actual_priority_fee_per_gas) =
+			match (max_fee_per_gas, max_priority_fee_per_gas, is_transactional) {
+				// Zero max_fee_per_gas for validated transactional calls exist in XCM -> EVM
+				// because fees are already withdrawn in the xcm-executor.
+				(Some(max_fee), _, true) if max_fee.is_zero() => (U256::zero(), U256::zero()),
+				// With no tip, we pay exactly the base_fee
+				(Some(_), None, _) => (base_fee, U256::zero()),
+				// With tip, we include as much of the tip on top of base_fee that we can, never
+				// exceeding max_fee_per_gas
+				(Some(max_fee_per_gas), Some(max_priority_fee_per_gas), _) => {
+					let actual_priority_fee_per_gas = max_fee_per_gas
+						.saturating_sub(base_fee)
+						.min(max_priority_fee_per_gas);
+					(
+						base_fee.saturating_add(actual_priority_fee_per_gas),
+						actual_priority_fee_per_gas,
+					)
+				}
+				// Gas price check is skipped for non-transactional calls that don't
+				// define a `max_fee_per_gas` input.
+				(None, _, false) => (Default::default(), U256::zero()),
+				// Unreachable, previously validated. Handle gracefully.
+				_ => {
+					return Err(RunnerError {
+						error: Error::<T>::GasPriceTooLow,
+						weight,
+					})
+				}
+			};
 
 		let (_, inner_weight) = Pallet::<T>::account_basic_by_id(source);
 		weight = weight.saturating_add(inner_weight);
 		
 		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
-		let max_fee = max_fee_per_gas
-			.checked_mul(U256::from(gas_limit))
-			.ok_or(RunnerError {
-				error: Error::<T>::FeeOverflow,
-				weight,
-			})?;
+		let total_fee =
+			total_fee_per_gas
+				.checked_mul(U256::from(gas_limit))
+				.ok_or(RunnerError {
+					error: Error::<T>::FeeOverflow,
+					weight,
+				})?;
 
 		let sponsor = sponsor.unwrap_or(source);
 
 		// Deduct fee from the sponsor account. Returns `None` if `max_fee` is Zero.
-		let fee = T::OnChargeTransaction::withdraw_fee(sponsor, reason, max_fee)
+		let fee = T::OnChargeTransaction::withdraw_fee(sponsor, reason, total_fee)
 		.map_err(|e| RunnerError { error: e, weight })?;
 
 		// Execute the EVM call.
@@ -203,18 +227,7 @@ where
 
 		// Post execution.
 		let used_gas = U256::from(executor.used_gas());
-		let actual_fee = if let Some(max_priority_fee) = max_priority_fee_per_gas {
-			let actual_priority_fee = max_fee_per_gas
-				.saturating_sub(base_fee)
-				.min(max_priority_fee)
-				.saturating_mul(used_gas);
-			executor
-				.fee(base_fee)
-				.checked_add(actual_priority_fee)
-				.unwrap_or_else(U256::max_value)
-		} else {
-			executor.fee(base_fee)
-		};
+		let actual_fee = executor.fee(total_fee_per_gas);
 		log::debug!(
 			target: "evm",
 			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}, is_transactional: {}]",
@@ -638,6 +651,7 @@ impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 pub struct SubstrateStackState<'vicinity, 'config, T> {
 	vicinity: &'vicinity Vicinity,
 	substate: SubstrateStackSubstate<'config, T>,
+	original_storage: BTreeMap<(H160, H256), H256>,
 	_marker: PhantomData<T>,
 }
 
@@ -653,6 +667,7 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 				_marker: PhantomData,
 			},
 			_marker: PhantomData,
+			original_storage: BTreeMap::new(),
 		}
 	}
 }
@@ -721,8 +736,15 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 		<AccountStorages<T>>::get(address, index)
 	}
 
-	fn original_storage(&self, _address: H160, _index: H256) -> Option<H256> {
-		None
+	fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
+		// Not being cached means that it was never changed, which means we
+		// can fetch it from storage.
+		Some(
+			self.original_storage
+				.get(&(address, index))
+				.cloned()
+				.unwrap_or_else(|| self.storage(address, index)),
+		)
 	}
 
 	fn block_base_fee_per_gas(&self) -> sp_core::U256 {
@@ -774,6 +796,18 @@ where
 	}
 
 	fn set_storage(&mut self, address: H160, index: H256, value: H256) {
+		// We cache the current value if this is the first time we modify it
+		// in the transaction.
+		use sp_std::collections::btree_map::Entry::Vacant;
+		if let Vacant(e) = self.original_storage.entry((address, index)) {
+			let original = <AccountStorages<T>>::get(address, index);
+			// No need to cache if same value.
+			if original != value {
+				e.insert(original);
+			}
+		}
+
+		// Then we insert or remove the entry based on the value.
 		if value == H256::default() {
 			log::debug!(
 				target: "evm",
@@ -838,7 +872,7 @@ where
 		//
 		// This function exists in EVM because a design issue
 		// (arguably a bug) in SELFDESTRUCT that can cause total
-		// issurance to be reduced. We do not need to replicate this.
+		// issuance to be reduced. We do not need to replicate this.
 	}
 
 	fn touch(&mut self, _address: H160) {
