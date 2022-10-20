@@ -31,6 +31,7 @@ mod tests;
 
 use core::fmt::Debug;
 
+use codec::MaxEncodedLen;
 use ethereum_types::{Bloom, BloomInput, H160, H256, H64, U256};
 use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
@@ -40,17 +41,16 @@ use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
 use frame_support::traits::OnRuntimeUpgradeHelpersExt;
 use frame_support::{
 	codec::{Decode, Encode},
-	dispatch::DispatchResultWithPostInfo,
+	dispatch::{DispatchInfo, DispatchResultWithPostInfo, Pays, PostDispatchInfo},
 	storage::with_transaction,
 	traits::{EnsureOrigin, Get, PalletInfoAccess},
-	weights::{DispatchInfo, Pays, PostDispatchInfo, Weight},
+	weights::Weight,
 };
 use frame_system::{pallet_prelude::OriginFor, CheckWeight, WeightInfo};
 use pallet_evm::{
 	account::CrossAccountId, BlockHashMapping, CurrentLogs, FeeCalculator, GasWeightMapping, Runner,
 };
 use scale_info::TypeInfo;
-use codec::MaxEncodedLen;
 use sha3::{Digest, Keccak256};
 use sp_runtime::{
 	generic::DigestItem,
@@ -121,7 +121,7 @@ impl<T> Call<T>
 where
 	OriginFor<T>: Into<Result<RawOrigin, OriginFor<T>>>,
 	T: Send + Sync + Config,
-	T::Call: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
+	T::RuntimeCall: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
 	pub fn is_self_contained(&self) -> bool {
 		matches!(self, Call::transact { .. })
@@ -160,7 +160,7 @@ where
 	pub fn validate_self_contained(
 		&self,
 		origin: &H160,
-		dispatch_info: &DispatchInfoOf<T::Call>,
+		dispatch_info: &DispatchInfoOf<T::RuntimeCall>,
 		len: usize,
 	) -> Option<TransactionValidity> {
 		if let Call::transact { transaction } = self {
@@ -189,7 +189,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_timestamp::Config + pallet_evm::Config {
 		/// The overarching event type.
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// How Ethereum state root is calculated.
 		type StateRoot: Get<H256>;
 	}
@@ -1141,7 +1141,7 @@ impl<T: Config + TypeInfo + Debug + Send + Sync> SignedExtension for FakeTransac
 
 	type AccountId = T::AccountId;
 
-	type Call = T::Call;
+	type Call = T::RuntimeCall;
 
 	type AdditionalSigned = ();
 

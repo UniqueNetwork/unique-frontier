@@ -26,8 +26,7 @@ use fp_evm::{
 };
 use frame_support::{
 	codec::Decode,
-	dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
-	weights::{DispatchClass, Pays},
+	dispatch::{DispatchClass, Dispatchable, GetDispatchInfo, Pays, PostDispatchInfo},
 };
 use pallet_evm::{AddressMapping, GasWeightMapping};
 
@@ -38,15 +37,15 @@ pub struct Dispatch<T> {
 impl<T> Precompile for Dispatch<T>
 where
 	T: pallet_evm::Config,
-	T::Call: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo + Decode,
-	<T::Call as Dispatchable>::Origin: From<Option<T::AccountId>>,
+	T::RuntimeCall: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo + Decode,
+	<T::RuntimeCall as Dispatchable>::RuntimeOrigin: From<Option<T::AccountId>>,
 {
 	fn execute(handle: &mut impl PrecompileHandle) -> PrecompileResult {
 		let input = handle.input();
 		let target_gas = handle.gas_limit();
 		let context = handle.context();
 
-		let call = T::Call::decode(&mut &*input).map_err(|_| PrecompileFailure::Error {
+		let call = T::RuntimeCall::decode(&mut &*input).map_err(|_| PrecompileFailure::Error {
 			exit_status: ExitError::Other("decode failed".into()),
 		})?;
 		let info = call.get_dispatch_info();
@@ -57,7 +56,7 @@ where
 		}
 
 		if let Some(gas) = target_gas {
-			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(gas);
+			let valid_weight = info.weight.all_lt(T::GasWeightMapping::gas_to_weight(gas));
 			if !valid_weight {
 				return Err(ExitError::OutOfGas.into());
 			}

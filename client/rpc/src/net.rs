@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use ethereum_types::H256;
 use jsonrpsee::core::RpcResult as Result;
-use sc_network::{ExHashT, NetworkService};
+use sc_network::{config::ExHashT, NetworkService};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};

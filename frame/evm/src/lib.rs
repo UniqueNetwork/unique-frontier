@@ -66,12 +66,12 @@ mod tests;
 use core::marker::PhantomData;
 
 use frame_support::{
-	dispatch::DispatchResultWithPostInfo,
+	dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
 	traits::{
 		tokens::fungible::Inspect, Currency, ExistenceRequirement, FindAuthor, Get, Imbalance,
 		OnUnbalanced, SignedImbalance, WithdrawReasons,
 	},
-	weights::{Pays, PostDispatchInfo, Weight},
+	weights::Weight,
 };
 use frame_system::RawOrigin;
 use impl_trait_for_tuples::impl_for_tuples;
@@ -127,9 +127,12 @@ pub mod pallet {
 		type BlockHashMapping: BlockHashMapping;
 
 		/// Allow the origin to call on behalf of given address.
-		type CallOrigin: EnsureAddressOrigin<Self::Origin, Success = Self::CrossAccountId>;
+		type CallOrigin: EnsureAddressOrigin<Self::RuntimeOrigin, Success = Self::CrossAccountId>;
 		/// Allow the origin to withdraw on behalf of given address.
-		type WithdrawOrigin: EnsureAddressOrigin<Self::Origin, Success = Self::CrossAccountId>;
+		type WithdrawOrigin: EnsureAddressOrigin<
+			Self::RuntimeOrigin,
+			Success = Self::CrossAccountId,
+		>;
 
 		/// Mapping from address to account id.
 		type AddressMapping: AddressMapping<Self::AccountId>;
@@ -137,7 +140,7 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId> + Inspect<Self::AccountId>;
 
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// Precompiles associated with this EVM engine.
 		type PrecompilesType: PrecompileSet;
 		type PrecompilesValue: Get<Self::PrecompilesType>;
@@ -698,7 +701,9 @@ impl<T: Config> Pallet<T> {
 		Self::account_basic_by_id(&account_id)
 	}
 
-	pub fn account_basic_by_id(account_id: &T::CrossAccountId) -> (Account, frame_support::weights::Weight) {
+	pub fn account_basic_by_id(
+		account_id: &T::CrossAccountId,
+	) -> (Account, frame_support::weights::Weight) {
 		let nonce = frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
 		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
 		let balance = T::Currency::reducible_balance(account_id.as_sub(), true);
@@ -729,9 +734,7 @@ pub trait OnMethodCall<T> {
 	fn is_used(contract: &H160) -> bool;
 
 	/// On contract call
-	fn call(
-		handle: &mut impl PrecompileHandle,
-	) -> Option<PrecompileResult>;
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult>;
 
 	/// Get hardcoded contract code
 	fn get_code(contract: &H160) -> Option<Vec<u8>>;
@@ -746,9 +749,7 @@ impl<T> OnMethodCall<T> for () {
 		false
 	}
 
-	fn call(
-		_handle: &mut impl PrecompileHandle,
-	) -> Option<PrecompileResult> {
+	fn call(_handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
 		None
 	}
 
@@ -780,9 +781,7 @@ impl<T> OnMethodCall<T> for Tuple {
 		false
 	}
 
-	fn call(
-		handle: &mut impl PrecompileHandle
-	) -> Option<PrecompileResult> {
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
 		for_tuples!(#(
 			if let Some(r) = Tuple::call(handle) {
 				return Some(r);

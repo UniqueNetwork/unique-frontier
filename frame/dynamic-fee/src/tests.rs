@@ -42,23 +42,23 @@ type Block = frame_system::mocking::MockBlock<Test>;
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
 }
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = u64;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -114,13 +114,13 @@ fn double_set_in_a_block_failed() {
 	new_test_ext().execute_with(|| {
 		run_to_block(3);
 		assert_ok!(DynamicFee::note_min_gas_price_target(
-			Origin::none(),
+			RuntimeOrigin::none(),
 			U256::zero()
 		));
-		let _ = DynamicFee::note_min_gas_price_target(Origin::none(), U256::zero());
+		let _ = DynamicFee::note_min_gas_price_target(RuntimeOrigin::none(), U256::zero());
 		run_to_block(4);
 		assert_ok!(DynamicFee::note_min_gas_price_target(
-			Origin::none(),
+			RuntimeOrigin::none(),
 			U256::zero()
 		));
 	});

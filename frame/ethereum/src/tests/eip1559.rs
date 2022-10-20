@@ -61,9 +61,9 @@ fn transaction_without_enough_gas_should_not_work() {
 
 		let call = crate::Call::<Test>::transact { transaction };
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<u64, crate::mock::Call, SignedExtra, _> {
+		let extrinsic = CheckedExtrinsic::<u64, crate::mock::RuntimeCall, SignedExtra, _> {
 			signed: fp_self_contained::CheckedSignature::SelfContained(source),
-			function: Call::Ethereum(call.clone()),
+			function: RuntimeCall::Ethereum(call.clone()),
 		};
 		let dispatch_info = extrinsic.get_dispatch_info();
 		assert_err!(
@@ -88,9 +88,9 @@ fn transaction_with_to_low_nonce_should_not_work() {
 			transaction: signed,
 		};
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<u64, crate::mock::Call, SignedExtra, H160> {
+		let extrinsic = CheckedExtrinsic::<u64, crate::mock::RuntimeCall, SignedExtra, H160> {
 			signed: fp_self_contained::CheckedSignature::SelfContained(source),
-			function: Call::Ethereum(call.clone()),
+			function: RuntimeCall::Ethereum(call.clone()),
 		};
 		let dispatch_info = extrinsic.get_dispatch_info();
 
@@ -115,9 +115,9 @@ fn transaction_with_to_low_nonce_should_not_work() {
 			transaction: signed2,
 		};
 		let source2 = call2.check_self_contained().unwrap().unwrap();
-		let extrinsic2 = CheckedExtrinsic::<u64, crate::mock::Call, SignedExtra, _> {
+		let extrinsic2 = CheckedExtrinsic::<u64, crate::mock::RuntimeCall, SignedExtra, _> {
 			signed: fp_self_contained::CheckedSignature::SelfContained(source),
-			function: Call::Ethereum(call2.clone()),
+			function: RuntimeCall::Ethereum(call2.clone()),
 		};
 
 		assert_err!(
@@ -145,7 +145,7 @@ fn transaction_with_to_hight_nonce_should_fail_in_block() {
 		let source = call.check_self_contained().unwrap().unwrap();
 		let extrinsic = CheckedExtrinsic::<_, _, SignedExtra, _> {
 			signed: fp_self_contained::CheckedSignature::SelfContained(source),
-			function: Call::Ethereum(call),
+			function: RuntimeCall::Ethereum(call),
 		};
 		let dispatch_info = extrinsic.get_dispatch_info();
 		assert_err!(
@@ -168,7 +168,7 @@ fn transaction_with_invalid_chain_id_should_fail_in_block() {
 		let source = call.check_self_contained().unwrap().unwrap();
 		let extrinsic = CheckedExtrinsic::<_, _, SignedExtra, _> {
 			signed: fp_self_contained::CheckedSignature::SelfContained(source),
-			function: Call::Ethereum(call),
+			function: RuntimeCall::Ethereum(call),
 		};
 		let dispatch_info = extrinsic.get_dispatch_info();
 		assert_err!(

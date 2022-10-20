@@ -61,7 +61,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
 		let extrinsic: OpaqueExtrinsic = create_benchmark_extrinsic(
 			self.client.as_ref(),
 			acc,
-			SystemCall::remark { remark: vec![] }.into(),
+			runtime::RuntimeCall::from(SystemCall::remark { remark: vec![] }),
 			nonce,
 		)
 		.into();
@@ -76,7 +76,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
 pub fn create_benchmark_extrinsic(
 	client: &FullClient,
 	sender: sr25519::Pair,
-	call: runtime::Call,
+	call: runtime::RuntimeCall,
 	nonce: u32,
 ) -> runtime::UncheckedExtrinsic {
 	let genesis_hash = client

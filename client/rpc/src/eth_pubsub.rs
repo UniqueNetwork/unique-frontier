@@ -27,7 +27,7 @@ use sc_client_api::{
 	backend::{Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
 };
-use sc_network::{ExHashT, NetworkService, NetworkStatusProvider};
+use sc_network::{config::ExHashT, NetworkService, NetworkStatusProvider};
 use sc_rpc::SubscriptionTaskExecutor;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::{ApiExt, BlockId, ProvideRuntimeApi};
@@ -217,7 +217,12 @@ where
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 {
-	fn subscribe(&self, mut sink: SubscriptionSink, kind: Kind, params: Option<Params>) -> jsonrpsee::types::SubscriptionResult {
+	fn subscribe(
+		&self,
+		mut sink: SubscriptionSink,
+		kind: Kind,
+		params: Option<Params>,
+	) -> jsonrpsee::types::SubscriptionResult {
 		sink.accept()?;
 
 		let filtered_params = match params {

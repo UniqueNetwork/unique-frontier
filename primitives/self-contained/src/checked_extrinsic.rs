@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use frame_support::weights::{DispatchInfo, GetDispatchInfo};
+use frame_support::dispatch::{DispatchInfo, GetDispatchInfo};
 use sp_debug_derive::RuntimeDebug;
 use sp_runtime::{
 	traits::{
@@ -62,7 +62,7 @@ impl<AccountId, Call, Extra, SelfContainedSignedInfo, Origin> traits::Applyable
 where
 	AccountId: Member + MaybeDisplay,
 	Call: Member
-		+ Dispatchable<Origin = Origin>
+		+ Dispatchable<RuntimeOrigin = Origin>
 		+ SelfContainedCall<SignedInfo = SelfContainedSignedInfo>,
 	Extra: SignedExtension<AccountId = AccountId, Call = Call>,
 	Origin: From<Option<AccountId>>,
