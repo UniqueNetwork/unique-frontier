@@ -37,8 +37,6 @@ use evm::ExitReason;
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
 use fp_evm::{CallOrCreateInfo, TransactionValidityHack, WithdrawReason};
 use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
-#[cfg(feature = "try-runtime")]
-use frame_support::traits::OnRuntimeUpgradeHelpersExt;
 use frame_support::{
 	codec::{Decode, Encode},
 	dispatch::{DispatchInfo, DispatchResultWithPostInfo, Pays, PostDispatchInfo},
@@ -1056,47 +1054,6 @@ impl<T: Config> Pallet<T> {
 			);
 		}
 		weight
-	}
-
-	#[cfg(feature = "try-runtime")]
-	pub fn pre_migrate_block_v2() -> Result<(), &'static str> {
-		let item = b"CurrentBlock";
-		let block_v0 = frame_support::storage::migration::get_storage_value::<ethereum::BlockV0>(
-			Self::name().as_bytes(),
-			item,
-			&[],
-		);
-		if let Some(block_v0) = block_v0 {
-			Self::set_temp_storage(block_v0.header.number, "number");
-			Self::set_temp_storage(block_v0.header.parent_hash, "parent_hash");
-			Self::set_temp_storage(block_v0.transactions.len() as u64, "transaction_len");
-		}
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	pub fn post_migrate_block_v2() -> Result<(), &'static str> {
-		let v0_number =
-			Self::get_temp_storage("number").expect("We stored a number; it should be there; qed");
-		let v0_parent_hash = Self::get_temp_storage("parent_hash")
-			.expect("We stored a parent hash; it should be there; qed");
-		let v0_transaction_len: u64 = Self::get_temp_storage("transaction_len")
-			.expect("We stored a transaction count; it should be there; qed");
-
-		let item = b"CurrentBlock";
-		let block_v2 = frame_support::storage::migration::get_storage_value::<ethereum::BlockV2>(
-			Self::name().as_bytes(),
-			item,
-			&[],
-		);
-
-		assert!(block_v2.is_some());
-
-		let block_v2 = block_v2.unwrap();
-		assert_eq!(block_v2.header.number, v0_number);
-		assert_eq!(block_v2.header.parent_hash, v0_parent_hash);
-		assert_eq!(block_v2.transactions.len() as u64, v0_transaction_len);
-		Ok(())
 	}
 }
 
