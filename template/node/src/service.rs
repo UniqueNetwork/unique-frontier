@@ -2,6 +2,7 @@
 
 use std::{
 	collections::BTreeMap,
+	path::PathBuf,
 	sync::{Arc, Mutex},
 	time::Duration,
 };
@@ -17,7 +18,7 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_core::U256;
 // Frontier
 use fc_consensus::FrontierBlockImport;
-use fc_db::DatabaseSource;
+use fc_db::Backend as FrontierBackend;
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
 use fc_rpc::{EthTask, OverrideHandle};
 use fc_rpc_core::types::{FeeHistoryCache, FeeHistoryCacheLimit, FilterPool};
@@ -69,40 +70,15 @@ pub type ConsensusResult = (
 	Sealing,
 );
 
-pub fn frontier_database_dir(config: &Configuration, path: &str) -> std::path::PathBuf {
-	let config_dir = config
+pub(crate) fn db_config_dir(config: &Configuration) -> PathBuf {
+	config
 		.base_path
 		.as_ref()
 		.map(|base_path| base_path.config_dir(config.chain_spec.id()))
 		.unwrap_or_else(|| {
-			BasePath::from_project("", "", &crate::cli::Cli::executable_name())
+			BasePath::from_project("", "", &Cli::executable_name())
 				.config_dir(config.chain_spec.id())
-		});
-	config_dir.join("frontier").join(path)
-}
-
-pub fn open_frontier_backend(config: &Configuration) -> Result<Arc<fc_db::Backend<Block>>, String> {
-	Ok(Arc::new(fc_db::Backend::<Block>::new(
-		&fc_db::DatabaseSettings {
-			source: match config.database {
-				DatabaseSource::RocksDb { .. } => DatabaseSource::RocksDb {
-					path: frontier_database_dir(config, "db"),
-					cache_size: 0,
-				},
-				DatabaseSource::ParityDb { .. } => DatabaseSource::ParityDb {
-					path: frontier_database_dir(config, "paritydb"),
-				},
-				DatabaseSource::Auto { .. } => DatabaseSource::Auto {
-					rocksdb_path: frontier_database_dir(config, "db"),
-					paritydb_path: frontier_database_dir(config, "paritydb"),
-					cache_size: 0,
-				},
-				_ => {
-					return Err("Supported db sources: `rocksdb` | `paritydb` | `auto`".to_string())
-				}
-			},
-		},
-	)?))
+		})
 }
 
 pub fn new_partial(
@@ -118,7 +94,7 @@ pub fn new_partial(
 		(
 			Option<Telemetry>,
 			ConsensusResult,
-			Arc<fc_db::Backend<Block>>,
+			Arc<FrontierBackend<Block>>,
 			Option<FilterPool>,
 			(FeeHistoryCache, FeeHistoryCacheLimit),
 		),
@@ -174,14 +150,17 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let frontier_backend = open_frontier_backend(config)?;
+	let frontier_backend = Arc::new(FrontierBackend::open(
+		Arc::clone(&client),
+		&config.database,
+		&db_config_dir(config),
+	)?);
 	let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new())));
 	let fee_history_cache: FeeHistoryCache = Arc::new(Mutex::new(BTreeMap::new()));
 	let fee_history_cache_limit: FeeHistoryCacheLimit = cli.run.fee_history_limit;
 
 	#[cfg(feature = "aura")]
 	{
-		use sc_client_api::ExecutorProvider;
 		use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 
 		let (grandpa_block_import, grandpa_link) = sc_finality_grandpa::block_import(
@@ -282,8 +261,7 @@ fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 /// Builds a new service for a full client.
 #[cfg(feature = "aura")]
 pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, ServiceError> {
-	use sc_client_api::{BlockBackend, ExecutorProvider};
-	use sc_network_common::sync::warp::WarpSyncProvider;
+	use sc_client_api::BlockBackend;
 	use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 
 	// Use ethereum style for subscription ids
@@ -334,12 +312,10 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 			grandpa_protocol_name.clone(),
 		));
 
-	let warp_sync: Option<Arc<dyn WarpSyncProvider<Block>>> = Some(Arc::new(
-		sc_finality_grandpa::warp_proof::NetworkProvider::new(
-			backend.clone(),
-			consensus_result.1.shared_authority_set().clone(),
-			Vec::default(),
-		),
+	let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
+		backend.clone(),
+		consensus_result.1.shared_authority_set().clone(),
+		Vec::default(),
 	));
 
 	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
@@ -350,7 +326,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync,
+			warp_sync: Some(warp_sync),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -376,7 +352,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 		prometheus_registry.clone(),
 	));
 
-	let rpc_extensions_builder = {
+	let rpc_builder = {
 		let client = client.clone();
 		let pool = transaction_pool.clone();
 		let is_authority = role.is_authority();
@@ -411,17 +387,17 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 	};
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-		network: network.clone(),
-		client: client.clone(),
-		keystore: keystore_container.sync_keystore(),
-		task_manager: &mut task_manager,
-		transaction_pool: transaction_pool.clone(),
-		rpc_builder: rpc_extensions_builder,
-		backend: backend.clone(),
-		system_rpc_tx,
 		config,
-		telemetry: telemetry.as_mut(),
+		client: client.clone(),
+		backend: backend.clone(),
+		task_manager: &mut task_manager,
+		keystore: keystore_container.sync_keystore(),
+		transaction_pool: transaction_pool.clone(),
+		rpc_builder,
+		network: network.clone(),
+		system_rpc_tx,
 		tx_handler_controller,
+		telemetry: telemetry.as_mut(),
 	})?;
 
 	spawn_frontier_tasks(
@@ -461,7 +437,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
 			sc_consensus_aura::StartAuraParams {
 				slot_duration,
-				client: client.clone(),
+				client,
 				select_chain,
 				block_import,
 				proposer_factory,
@@ -568,7 +544,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 		};
 	}
 
-	let (network, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -601,7 +577,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 	// Channel for the rpc handler to communicate with the authorship task.
 	let (command_sink, commands_stream) = futures::channel::mpsc::channel(1000);
 
-	let rpc_extensions_builder = {
+	let rpc_builder = {
 		let client = client.clone();
 		let pool = transaction_pool.clone();
 		let is_authority = role.is_authority();
@@ -637,15 +613,16 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 	};
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-		network,
-		client: client.clone(),
-		keystore: keystore_container.sync_keystore(),
-		task_manager: &mut task_manager,
-		transaction_pool: transaction_pool.clone(),
-		rpc_builder: rpc_extensions_builder,
-		backend: backend.clone(),
-		system_rpc_tx,
 		config,
+		client: client.clone(),
+		backend: backend.clone(),
+		task_manager: &mut task_manager,
+		keystore: keystore_container.sync_keystore(),
+		transaction_pool: transaction_pool.clone(),
+		rpc_builder,
+		network,
+		system_rpc_tx,
+		tx_handler_controller,
 		telemetry: telemetry.as_mut(),
 	})?;
 
@@ -748,7 +725,7 @@ fn spawn_frontier_tasks(
 	task_manager: &TaskManager,
 	client: Arc<FullClient>,
 	backend: Arc<FullBackend>,
-	frontier_backend: Arc<fc_db::Backend<Block>>,
+	frontier_backend: Arc<FrontierBackend<Block>>,
 	filter_pool: Option<FilterPool>,
 	overrides: Arc<OverrideHandle<Block>>,
 	fee_history_cache: FeeHistoryCache,
@@ -762,7 +739,7 @@ fn spawn_frontier_tasks(
 			Duration::new(6, 0),
 			client.clone(),
 			backend,
-			frontier_backend.clone(),
+			frontier_backend,
 			3,
 			0,
 			SyncStrategy::Normal,
@@ -786,16 +763,10 @@ fn spawn_frontier_tasks(
 		"frontier-fee-history",
 		None,
 		EthTask::fee_history_task(
-			client.clone(),
+			client,
 			overrides,
 			fee_history_cache,
 			fee_history_cache_limit,
 		),
-	);
-
-	task_manager.spawn_essential_handle().spawn(
-		"frontier-schema-cache-task",
-		None,
-		EthTask::ethereum_schema_cache_task(client, frontier_backend),
 	);
 }

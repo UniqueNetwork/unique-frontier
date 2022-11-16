@@ -18,6 +18,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod precompile;
+mod validation;
 
 use codec::{Decode, Encode};
 pub use evm::ExitReason;
@@ -36,7 +37,12 @@ pub use self::precompile::{
 	Transfer,
 };
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Default)]
+pub use self::validation::{
+	CheckEvmTransaction, CheckEvmTransactionConfig, CheckEvmTransactionInput,
+	InvalidEvmTransactionError,
+};
+
+#[derive(Clone, Eq, PartialEq, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 /// External input from the transaction.
 pub struct Vicinity {

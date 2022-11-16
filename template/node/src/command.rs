@@ -16,16 +16,16 @@
 // limitations under the License.
 
 use clap::Parser;
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory};
-use frontier_template_runtime::Block;
+// Substrate
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::{DatabaseSource, PartialComponents};
+// Frontier
+use fc_db::frontier_database_dir;
 
 use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
-	command_helper::{inherent_benchmark_data, RemarkBuilder},
-	service::{self, frontier_database_dir},
+	service::{self, db_config_dir},
 };
 
 impl SubstrateCli for Cli {
@@ -128,13 +128,14 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| {
 				// Remove Frontier offchain db
+				let db_config_dir = db_config_dir(&config);
 				let frontier_database_config = match config.database {
 					DatabaseSource::RocksDb { .. } => DatabaseSource::RocksDb {
-						path: frontier_database_dir(&config, "db"),
+						path: frontier_database_dir(&db_config_dir, "db"),
 						cache_size: 0,
 					},
 					DatabaseSource::ParityDb { .. } => DatabaseSource::ParityDb {
-						path: frontier_database_dir(&config, "paritydb"),
+						path: frontier_database_dir(&db_config_dir, "paritydb"),
 					},
 					_ => {
 						return Err(format!("Cannot purge `{:?}` database", config.database).into())
@@ -158,6 +159,77 @@ pub fn run() -> sc_cli::Result<()> {
 					Ok(())
 				});
 				Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
+			})
+		}
+		#[cfg(feature = "runtime-benchmarks")]
+		Some(Subcommand::Benchmark(cmd)) => {
+			use crate::benchmarking::{
+				inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
+			};
+			use frame_benchmarking_cli::{
+				BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
+			};
+			use frontier_template_runtime::{Block, ExistentialDeposit};
+
+			let runner = cli.create_runner(cmd)?;
+			match cmd {
+				BenchmarkCmd::Pallet(cmd) => {
+					runner.sync_run(|config| cmd.run::<Block, service::ExecutorDispatch>(config))
+				}
+				BenchmarkCmd::Block(cmd) => runner.sync_run(|config| {
+					let PartialComponents { client, .. } = service::new_partial(&config, &cli)?;
+					cmd.run(client)
+				}),
+				BenchmarkCmd::Storage(cmd) => runner.sync_run(|config| {
+					let PartialComponents {
+						client, backend, ..
+					} = service::new_partial(&config, &cli)?;
+					let db = backend.expose_db();
+					let storage = backend.expose_storage();
+
+					cmd.run(config, client, db, storage)
+				}),
+				BenchmarkCmd::Overhead(cmd) => runner.sync_run(|config| {
+					let PartialComponents { client, .. } = service::new_partial(&config, &cli)?;
+					let ext_builder = RemarkBuilder::new(client.clone());
+
+					cmd.run(
+						config,
+						client,
+						inherent_benchmark_data()?,
+						Vec::new(),
+						&ext_builder,
+					)
+				}),
+				BenchmarkCmd::Extrinsic(cmd) => runner.sync_run(|config| {
+					let PartialComponents { client, .. } = service::new_partial(&config, &cli)?;
+					// Register the *Remark* and *TKA* builders.
+					let ext_factory = ExtrinsicFactory(vec![
+						Box::new(RemarkBuilder::new(client.clone())),
+						Box::new(TransferKeepAliveBuilder::new(
+							client.clone(),
+							sp_keyring::Sr25519Keyring::Alice.to_account_id(),
+							ExistentialDeposit::get(),
+						)),
+					]);
+
+					cmd.run(client, inherent_benchmark_data()?, Vec::new(), &ext_factory)
+				}),
+				BenchmarkCmd::Machine(cmd) => {
+					runner.sync_run(|config| cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()))
+				}
+			}
+		}
+		#[cfg(not(feature = "runtime-benchmarks"))]
+		Some(Subcommand::Benchmark) => Err("Benchmarking wasn't enabled when building the node. \
+			You can enable it with `--features runtime-benchmarks`."
+			.into()),
+		Some(Subcommand::FrontierDb(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			runner.sync_run(|config| {
+				let PartialComponents { client, other, .. } = service::new_partial(&config, &cli)?;
+				let frontier_backend = other.2;
+				cmd.run::<_, frontier_template_runtime::opaque::Block>(client, frontier_backend)
 			})
 		}
 		None => {

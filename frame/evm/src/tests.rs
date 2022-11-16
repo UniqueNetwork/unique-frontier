@@ -119,7 +119,7 @@ fn fee_deduction() {
 		// Create an EVM address and the corresponding Substrate address that will be charged fees and refunded
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
-		let cross_addr = <Test as account::Config>::CrossAccountId::from_eth(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		// Seed account
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
@@ -170,7 +170,7 @@ fn ed_0_refund_patch_is_required() {
 		// for ED 0 configured chains.
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
-		let cross_addr = <Test as account::Config>::CrossAccountId::from_eth(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
@@ -273,8 +273,10 @@ fn issuance_after_tip() {
 		result.expect("EVM can be called");
 		let after_tip = <Test as Config>::Currency::total_issuance();
 		// Only base fee is burned
-		let (base_fee, _) = <Test as Config>::FeeCalculator::min_gas_price();
-		assert_eq!(after_tip, (before_tip - (base_fee.low_u64() * 21_000)));
+		let base_fee: u64 = <Test as Config>::FeeCalculator::min_gas_price()
+			.0
+			.unique_saturated_into();
+		assert_eq!(after_tip, (before_tip - (base_fee * 21_000)));
 	});
 }
 
@@ -360,7 +362,7 @@ fn refunds_and_priority_should_work() {
 		assert_eq!(after_call, before_call - total_cost);
 
 		let after_tip = EVM::account_basic(&author).0.balance;
-		assert_eq!(after_tip, (before_tip + actual_tip.low_u128()));
+		assert_eq!(after_tip, (before_tip + actual_tip));
 	});
 }
 
@@ -408,7 +410,6 @@ fn call_should_succeed_with_priority_equal_to_max_fee() {
 			None,
 			Vec::new(),
 		);
-		dbg!(&result);
 		assert!(result.is_ok());
 	});
 }
@@ -461,7 +462,8 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_ok_without_gas_pr
 			None,
 			None,
 			Vec::new(),
-			false,
+			false, // non-transactional
+			true,  // must be validated
 			&<Test as Config>::config().clone(),
 		)
 		.expect("Non transactional call succeeds");
@@ -494,7 +496,8 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_err_with_gas_pric
 			None,
 			None,
 			Vec::new(),
-			false,
+			false, // non-transactional
+			true,  // must be validated
 			&<Test as Config>::config().clone(),
 		);
 		assert!(res.is_err());
@@ -515,7 +518,8 @@ fn runner_transactional_call_with_zero_gas_price_fails() {
 			None,
 			None,
 			Vec::new(),
-			true,
+			true, // transactional
+			true, // must be validated
 			&<Test as Config>::config().clone(),
 		);
 		assert!(res.is_err());
@@ -536,7 +540,8 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 			Some(U256::from(2_000_000_000u32)),
 			None,
 			Vec::new(),
-			true,
+			true, // transactional
+			true, // must be validated
 			&<Test as Config>::config().clone(),
 		);
 		assert!(res.is_err());
@@ -550,7 +555,8 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 			Some(U256::from(2_000_000_000u32)),
 			None,
 			Vec::new(),
-			false,
+			false, // non-transactional
+			true,  // must be validated
 			&<Test as Config>::config().clone(),
 		);
 		assert!(res.is_err());

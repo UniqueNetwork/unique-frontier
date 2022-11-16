@@ -18,8 +18,8 @@
 //! Test utilities
 
 use ethereum::{TransactionAction, TransactionSignature};
-use fp_evm_mapping::EvmBackwardsAddressMapping;
 use frame_support::{
+	dispatch::Dispatchable,
 	parameter_types,
 	traits::{ConstU32, FindAuthor},
 	weights::Weight,
@@ -27,8 +27,7 @@ use frame_support::{
 };
 use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
 use rlp::RlpStream;
-use sha3::Digest;
-use sp_core::{H160, H256, U256};
+use sp_core::{hashing::keccak_256, H160, H256, U256};
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
@@ -59,26 +58,24 @@ frame_support::construct_runtime! {
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
 }
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId32;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
+	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<u64>;
@@ -98,13 +95,13 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Test {
-	type MaxLocks = MaxLocks;
 	type Balance = u64;
-	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxLocks = MaxLocks;
 	type MaxReserves = ();
 	type ReserveIdentifier = ();
 }
@@ -123,7 +120,7 @@ impl pallet_timestamp::Config for Test {
 pub struct FixedGasPrice;
 impl FeeCalculator for FixedGasPrice {
 	fn min_gas_price() -> (U256, Weight) {
-		(1.into(), Weight::from_ref_time(0u64))
+		(1.into(), Weight::zero())
 	}
 }
 
@@ -142,6 +139,7 @@ parameter_types! {
 	pub const ChainId: u64 = 42;
 	pub const EVMModuleId: PalletId = PalletId(*b"py/evmpa");
 	pub const BlockGasLimit: U256 = U256::MAX;
+	pub const WeightPerGas: Weight = Weight::from_ref_time(20_000);
 }
 
 pub struct HashedAddressMapping;
@@ -154,19 +152,27 @@ impl AddressMapping<AccountId32> for HashedAddressMapping {
 	}
 }
 
-pub struct MapBackwardsAddressTruncated;
+pub struct MapAddressTruncated;
 
-impl EvmBackwardsAddressMapping<AccountId32> for MapBackwardsAddressTruncated {
-	fn from_account_id(account_id: AccountId32) -> H160 {
-		let mut data = [0u8; 20];
-		data[0..20].copy_from_slice(&AsRef::<[u8]>::as_ref(&account_id)[0..20]);
-		H160(data)
+impl AddressMapping<AccountId32> for MapAddressTruncated {
+	fn into_account_id(account_id: H160) -> AccountId32 {
+		let mut data = [0u8; 32];
+		data[0..20].copy_from_slice(account_id.as_bytes());
+		AccountId32::from(data)
 	}
 }
 
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
 impl pallet_evm::Config for Test {
+	type CrossAccountId = CrossAccountId<Self>;
+	type EvmAddressMapping = MapAddressTruncated;
+	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
+
 	type FeeCalculator = FixedGasPrice;
-	type GasWeightMapping = ();
+	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
+	type WeightPerGas = WeightPerGas;
+	type BlockHashMapping = crate::EthereumBlockHashMapping<Self>;
 	type CallOrigin = EnsureAddressTruncated<Self>;
 	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AddressMapping = HashedAddressMapping;
@@ -174,27 +180,20 @@ impl pallet_evm::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type PrecompilesType = ();
 	type PrecompilesValue = ();
-	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type ChainId = ChainId;
 	type BlockGasLimit = BlockGasLimit;
-	type OnMethodCall = ();
-	type OnCreate = ();
+	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type OnChargeTransaction = ();
 	type FindAuthor = FindAuthorTruncated;
-	type BlockHashMapping = crate::EthereumBlockHashMapping<Self>;
+
+	type OnMethodCall = ();
+	type OnCreate = ();
 	type TransactionValidityHack = ();
 }
 
-impl crate::Config for Test {
+impl Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type StateRoot = IntermediateStateRoot<Self>;
-}
-
-use pallet_evm::account;
-impl account::Config for Test {
-	type CrossAccountId = account::BasicCrossAccountId<Self>;
-	type EvmAddressMapping = HashedAddressMapping;
-	type EvmBackwardsAddressMapping = MapBackwardsAddressTruncated;
 }
 
 impl fp_self_contained::SelfContainedCall for RuntimeCall {
@@ -229,9 +228,13 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 	fn pre_dispatch_self_contained(
 		&self,
 		info: &Self::SignedInfo,
+		dispatch_info: &DispatchInfoOf<RuntimeCall>,
+		len: usize,
 	) -> Option<Result<(), TransactionValidityError>> {
 		match self {
-			RuntimeCall::Ethereum(call) => call.pre_dispatch_self_contained(info),
+			RuntimeCall::Ethereum(call) => {
+				call.pre_dispatch_self_contained(info, dispatch_info, len)
+			}
 			_ => None,
 		}
 	}
@@ -240,11 +243,10 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 		self,
 		info: Self::SignedInfo,
 	) -> Option<sp_runtime::DispatchResultWithInfo<sp_runtime::traits::PostDispatchInfoOf<Self>>> {
-		use sp_runtime::traits::Dispatchable as _;
 		match self {
-			call @ RuntimeCall::Ethereum(crate::Call::transact { .. }) => Some(call.dispatch(
-				RuntimeOrigin::from(crate::RawOrigin::EthereumTransaction(info)),
-			)),
+			call @ RuntimeCall::Ethereum(crate::Call::transact { .. }) => {
+				Some(call.dispatch(RuntimeOrigin::from(RawOrigin::EthereumTransaction(info))))
+			}
 			_ => None,
 		}
 	}
@@ -260,7 +262,7 @@ fn address_build(seed: u8) -> AccountInfo {
 	let private_key = H256::from_slice(&[(seed + 1) as u8; 32]); //H256::from_low_u64_be((i + 1) as u64);
 	let secret_key = libsecp256k1::SecretKey::parse_slice(&private_key[..]).unwrap();
 	let public_key = &libsecp256k1::PublicKey::from_secret_key(&secret_key).serialize()[1..65];
-	let address = H160::from(H256::from_slice(&Keccak256::digest(public_key)[..]));
+	let address = H160::from(H256::from(keccak_256(public_key)));
 
 	let mut data = [0u8; 32];
 	data[0..20].copy_from_slice(&address[..]);
@@ -295,16 +297,42 @@ pub fn new_test_ext(accounts_len: usize) -> (Vec<AccountInfo>, sp_io::TestExtern
 	(pairs, ext.into())
 }
 
+// This function basically just builds a genesis storage key/value store according to
+// our desired mockup.
+pub fn new_test_ext_with_initial_balance(
+	accounts_len: usize,
+	initial_balance: u64,
+) -> (Vec<AccountInfo>, sp_io::TestExternalities) {
+	// sc_cli::init_logger("");
+	let mut ext = frame_system::GenesisConfig::default()
+		.build_storage::<Test>()
+		.unwrap();
+
+	let pairs = (0..accounts_len)
+		.map(|i| address_build(i as u8))
+		.collect::<Vec<_>>();
+
+	let balances: Vec<_> = (0..accounts_len)
+		.map(|i| (pairs[i].account_id.clone(), initial_balance))
+		.collect();
+
+	pallet_balances::GenesisConfig::<Test> { balances }
+		.assimilate_storage(&mut ext)
+		.unwrap();
+
+	(pairs, ext.into())
+}
+
 pub fn contract_address(sender: H160, nonce: u64) -> H160 {
 	let mut rlp = RlpStream::new_list(2);
 	rlp.append(&sender);
 	rlp.append(&nonce);
 
-	H160::from_slice(&Keccak256::digest(&rlp.out())[12..])
+	H160::from_slice(&keccak_256(&rlp.out())[12..])
 }
 
 pub fn storage_address(sender: H160, slot: H256) -> H256 {
-	H256::from_slice(&Keccak256::digest(
+	H256::from(keccak_256(
 		[&H256::from(sender)[..], &slot[..]].concat().as_slice(),
 	))
 }
@@ -335,7 +363,7 @@ impl LegacyUnsignedTransaction {
 	fn signing_hash(&self) -> H256 {
 		let mut stream = RlpStream::new();
 		self.signing_rlp_append(&mut stream);
-		H256::from_slice(&Keccak256::digest(&stream.out()).as_slice())
+		H256::from(keccak_256(&stream.out()))
 	}
 
 	pub fn sign(&self, key: &H256) -> Transaction {

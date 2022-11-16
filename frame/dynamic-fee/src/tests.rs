@@ -21,6 +21,7 @@ use crate as pallet_dynamic_fee;
 use frame_support::{
 	assert_ok, parameter_types,
 	traits::{ConstU32, OnFinalize, OnInitialize},
+	weights::Weight,
 };
 use sp_core::{H256, U256};
 use sp_io::TestExternalities;
@@ -48,11 +49,10 @@ impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
-	type RuntimeCall = RuntimeCall;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
@@ -60,6 +60,7 @@ impl frame_system::Config for Test {
 	type Header = Header;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
+	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = ();
@@ -71,7 +72,7 @@ impl frame_system::Config for Test {
 	type MaxConsumers = ConstU32<16>;
 }
 
-frame_support::parameter_types! {
+parameter_types! {
 	pub const MinimumPeriod: u64 = 1000;
 }
 impl pallet_timestamp::Config for Test {
@@ -81,7 +82,7 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-frame_support::parameter_types! {
+parameter_types! {
 	pub BoundDivision: U256 = 1024.into();
 }
 impl Config for Test {

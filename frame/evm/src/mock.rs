@@ -22,12 +22,12 @@ use frame_support::{
 	parameter_types,
 	traits::{ConstU32, FindAuthor},
 	weights::Weight,
-	ConsensusEngineId,
 };
 use sp_core::{H160, H256, U256};
 use sp_runtime::{
 	generic,
 	traits::{BlakeTwo256, IdentityLookup},
+	ConsensusEngineId,
 };
 use sp_std::{boxed::Box, prelude::*, str::FromStr};
 
@@ -58,18 +58,18 @@ impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = H160;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = generic::Header<u64, BlakeTwo256>;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
+	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<u64>;
@@ -85,13 +85,13 @@ parameter_types! {
 	pub const ExistentialDeposit: u64 = 0;
 }
 impl pallet_balances::Config for Test {
-	type MaxLocks = ();
 	type Balance = u64;
 	type DustRemoval = ();
 	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = ();
 }
@@ -123,26 +123,34 @@ impl FindAuthor<H160> for FindAuthorTruncated {
 		Some(H160::from_str("1234500000000000000000000000000000000000").unwrap())
 	}
 }
-
+parameter_types! {
+	pub BlockGasLimit: U256 = U256::max_value();
+	pub WeightPerGas: Weight = Weight::from_ref_time(20_000);
+}
 impl crate::Config for Test {
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type EvmAddressMapping = crate::IdentityAddressMapping;
+	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
+
 	type FeeCalculator = FixedGasPrice;
-	type GasWeightMapping = ();
+	type GasWeightMapping = crate::FixedGasWeightMapping<Self>;
+	type WeightPerGas = WeightPerGas;
 
+	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
 	type CallOrigin = EnsureAddressRoot<Self>;
-	type WithdrawOrigin = EnsureAddressNever<Self::CrossAccountId>;
 
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
-	type Runner = crate::runner::stack::Runner<Self>;
 
 	type RuntimeEvent = RuntimeEvent;
 	type PrecompilesType = ();
 	type PrecompilesValue = ();
 	type ChainId = ();
-	type BlockGasLimit = ();
+	type BlockGasLimit = BlockGasLimit;
+	type Runner = crate::runner::stack::Runner<Self>;
 	type OnChargeTransaction = ();
 	type TransactionValidityHack = ();
-	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
 	type FindAuthor = FindAuthorTruncated;
 
 	type OnMethodCall = ();
@@ -157,8 +165,3 @@ impl EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
 }
 
 use crate::account;
-impl account::Config for Test {
-	type CrossAccountId = account::BasicCrossAccountId<Self>;
-	type EvmAddressMapping = crate::IdentityAddressMapping;
-	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
-}

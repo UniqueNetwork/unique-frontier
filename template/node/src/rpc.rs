@@ -123,8 +123,8 @@ where
 		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub,
 		EthPubSubApiServer, EthSigner, Net, NetApiServer, Web3, Web3ApiServer,
 	};
-	use pallet_transaction_payment_rpc::{TransactionPaymentApiServer, TransactionPayment};
-	use substrate_frame_rpc_system::{SystemApiServer, System};
+	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
+	use substrate_frame_rpc_system::{System, SystemApiServer};
 
 	let mut io = RpcModule::new(());
 	let FullDeps {
@@ -146,8 +146,8 @@ where
 		command_sink,
 	} = deps;
 
-	io.merge(System::new(Arc::clone(&client), Arc::clone(&pool), deny_unsafe).into_rpc())?;
-	io.merge(TransactionPayment::new(Arc::clone(&client)).into_rpc())?;
+	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
+	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
 
 	let mut signers = Vec::new();
 	if enable_dev_signer {
@@ -156,19 +156,20 @@ where
 
 	io.merge(
 		Eth::new(
-			Arc::clone(&client),
-			Arc::clone(&pool),
+			client.clone(),
+			pool.clone(),
 			graph,
 			Some(frontier_template_runtime::TransactionConverter),
-			Arc::clone(&network),
+			network.clone(),
 			signers,
-			Arc::clone(&overrides),
-			Arc::clone(&backend),
+			overrides.clone(),
+			backend.clone(),
 			// Is authority.
 			is_authority,
-			Arc::clone(&block_data_cache),
+			block_data_cache.clone(),
 			fee_history_cache,
 			fee_history_cache_limit,
+			10,
 		)
 		.into_rpc(),
 	)?;
@@ -188,20 +189,27 @@ where
 	}
 
 	io.merge(
-		Net::new(
+		EthPubSub::new(
+			pool,
 			client.clone(),
 			network.clone(),
+			subscription_task_executor,
+			overrides,
+		)
+		.into_rpc(),
+	)?;
+
+	io.merge(
+		Net::new(
+			client.clone(),
+			network,
 			// Whether to format the `peer_count` response as Hex (default) or not.
 			true,
 		)
 		.into_rpc(),
 	)?;
 
-	io.merge(Web3::new(client.clone()).into_rpc())?;
-
-	io.merge(
-		EthPubSub::new(pool, client, network, subscription_task_executor, overrides).into_rpc(),
-	)?;
+	io.merge(Web3::new(client).into_rpc())?;
 
 	#[cfg(feature = "manual-seal")]
 	if let Some(command_sink) = command_sink {

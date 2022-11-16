@@ -1,8 +1,7 @@
-use crate::AddressMapping;
+use crate::{AddressMapping, Config};
 use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use core::cmp::Ordering;
 use fp_evm_mapping::EvmBackwardsAddressMapping;
-use frame_system::Config as FrameSystemConfig;
 use scale_info::{Type, TypeInfo};
 use sp_core::H160;
 use sp_std::{clone::Clone, vec::Vec};
@@ -10,16 +9,8 @@ use sp_std::{clone::Clone, vec::Vec};
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-pub trait Config: FrameSystemConfig {
-	type CrossAccountId: CrossAccountId<Self::AccountId>;
-	type EvmAddressMapping: AddressMapping<Self::AccountId>;
-	type EvmBackwardsAddressMapping: fp_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
-}
-
 pub trait CrossAccountId<AccountId>:
 	Encode + EncodeLike + Decode + TypeInfo + MaxEncodedLen + Clone + PartialEq + Ord + core::fmt::Debug
-// +
-// Serialize + Deserialize<'static>
 {
 	fn as_sub(&self) -> &AccountId;
 	fn as_eth(&self) -> &H160;

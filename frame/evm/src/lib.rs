@@ -53,6 +53,7 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::too_many_arguments)]
+#![cfg_attr(test, feature(assert_matches))]
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -66,7 +67,7 @@ mod tests;
 use core::marker::PhantomData;
 
 use frame_support::{
-	dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
+	dispatch::{DispatchResultWithPostInfo, Pays, PostDispatchInfo},
 	traits::{
 		tokens::fungible::Inspect, Currency, ExistenceRequirement, FindAuthor, Get, Imbalance,
 		OnUnbalanced, SignedImbalance, WithdrawReasons,
@@ -80,7 +81,7 @@ use sp_runtime::{
 	traits::{BadOrigin, Saturating, UniqueSaturatedInto, Zero},
 	AccountId32, DispatchErrorWithPostInfo,
 };
-use sp_std::vec::Vec;
+use sp_std::{cmp::min, vec::Vec};
 
 pub use evm::{
 	Config as EvmConfig, Context, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
@@ -88,9 +89,9 @@ pub use evm::{
 #[cfg(feature = "std")]
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, LinearCostPrecompile, Log,
-	Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult,
-	PrecompileSet, Vicinity, WithdrawReason,
+	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, InvalidEvmTransactionError,
+	LinearCostPrecompile, Log, Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput,
+	PrecompileResult, PrecompileSet, Vicinity, WithdrawReason,
 };
 
 pub use self::{
@@ -111,17 +112,22 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
-	pub struct Pallet<T>(_);
+	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::config]
-	pub trait Config:
-		frame_system::Config + pallet_timestamp::Config + crate::account::Config
-	{
+	pub trait Config: frame_system::Config + pallet_timestamp::Config {
+		type CrossAccountId: CrossAccountId<Self::AccountId>;
+		type EvmAddressMapping: AddressMapping<Self::AccountId>;
+		type EvmBackwardsAddressMapping: fp_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
+
 		/// Calculator for current gas price.
 		type FeeCalculator: FeeCalculator;
 
 		/// Maps Ethereum gas to Substrate weight.
 		type GasWeightMapping: GasWeightMapping;
+
+		/// Weight corresponding to a gas unit.
+		type WeightPerGas: Get<Weight>;
 
 		/// Block number to block hash.
 		type BlockHashMapping: BlockHashMapping;
@@ -186,7 +192,7 @@ pub mod pallet {
 
 			T::Currency::transfer(
 				&address_account_id,
-				destination.as_sub(),
+				&destination.as_sub(),
 				value,
 				ExistenceRequirement::AllowDeath,
 			)?;
@@ -195,7 +201,10 @@ pub mod pallet {
 		}
 
 		/// Issue an EVM call operation. This is similar to a message call transaction in Ethereum.
-		#[pallet::weight(T::GasWeightMapping::gas_to_weight(*gas_limit))]
+		#[pallet::weight({
+			let without_base_extrinsic_weight = true;
+			T::GasWeightMapping::gas_to_weight(*gas_limit, without_base_extrinsic_weight)
+		})]
 		pub fn call(
 			origin: OriginFor<T>,
 			source: H160,
@@ -211,6 +220,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::call(
 				sender,
 				target,
@@ -222,6 +232,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -238,16 +249,17 @@ pub mod pallet {
 
 			match info.exit_reason {
 				ExitReason::Succeed(_) => {
-					Pallet::<T>::deposit_event(Event::<T>::Executed(target));
+					Pallet::<T>::deposit_event(Event::<T>::Executed { address: target });
 				}
 				_ => {
-					Pallet::<T>::deposit_event(Event::<T>::ExecutedFailed(target));
+					Pallet::<T>::deposit_event(Event::<T>::ExecutedFailed { address: target });
 				}
 			};
 
 			Ok(PostDispatchInfo {
 				actual_weight: Some(T::GasWeightMapping::gas_to_weight(
 					info.used_gas.unique_saturated_into(),
+					true,
 				)),
 				pays_fee: Pays::No,
 			})
@@ -255,7 +267,10 @@ pub mod pallet {
 
 		/// Issue an EVM create operation. This is similar to a contract creation transaction in
 		/// Ethereum.
-		#[pallet::weight(T::GasWeightMapping::gas_to_weight(*gas_limit))]
+		#[pallet::weight({
+			let without_base_extrinsic_weight = true;
+			T::GasWeightMapping::gas_to_weight(*gas_limit, without_base_extrinsic_weight)
+		})]
 		pub fn create(
 			origin: OriginFor<T>,
 			source: H160,
@@ -270,6 +285,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::create(
 				sender,
 				init,
@@ -280,6 +296,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -300,27 +317,35 @@ pub mod pallet {
 					value: create_address,
 					..
 				} => {
-					Pallet::<T>::deposit_event(Event::<T>::Created(create_address));
+					Pallet::<T>::deposit_event(Event::<T>::Created {
+						address: create_address,
+					});
 				}
 				CreateInfo {
 					exit_reason: _,
 					value: create_address,
 					..
 				} => {
-					Pallet::<T>::deposit_event(Event::<T>::CreatedFailed(create_address));
+					Pallet::<T>::deposit_event(Event::<T>::CreatedFailed {
+						address: create_address,
+					});
 				}
 			}
 
 			Ok(PostDispatchInfo {
 				actual_weight: Some(T::GasWeightMapping::gas_to_weight(
 					info.used_gas.unique_saturated_into(),
+					true,
 				)),
 				pays_fee: Pays::No,
 			})
 		}
 
 		/// Issue an EVM create2 operation.
-		#[pallet::weight(T::GasWeightMapping::gas_to_weight(*gas_limit))]
+		#[pallet::weight({
+			let without_base_extrinsic_weight = true;
+			T::GasWeightMapping::gas_to_weight(*gas_limit, without_base_extrinsic_weight)
+		})]
 		pub fn create2(
 			origin: OriginFor<T>,
 			source: H160,
@@ -336,6 +361,7 @@ pub mod pallet {
 			let sender = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
+			let validate = true;
 			let info = match T::Runner::create2(
 				sender,
 				init,
@@ -347,6 +373,7 @@ pub mod pallet {
 				nonce,
 				access_list,
 				is_transactional,
+				validate,
 				T::config(),
 			) {
 				Ok(info) => info,
@@ -367,20 +394,25 @@ pub mod pallet {
 					value: create_address,
 					..
 				} => {
-					Pallet::<T>::deposit_event(Event::<T>::Created(create_address));
+					Pallet::<T>::deposit_event(Event::<T>::Created {
+						address: create_address,
+					});
 				}
 				CreateInfo {
 					exit_reason: _,
 					value: create_address,
 					..
 				} => {
-					Pallet::<T>::deposit_event(Event::<T>::CreatedFailed(create_address));
+					Pallet::<T>::deposit_event(Event::<T>::CreatedFailed {
+						address: create_address,
+					});
 				}
 			}
 
 			Ok(PostDispatchInfo {
 				actual_weight: Some(T::GasWeightMapping::gas_to_weight(
 					info.used_gas.unique_saturated_into(),
+					true,
 				)),
 				pays_fee: Pays::No,
 			})
@@ -391,19 +423,15 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Ethereum events from contracts.
-		Log(Log),
-		/// A contract has been created at given \[address\].
-		Created(H160),
-		/// A \[contract\] was attempted to be created, but the execution failed.
-		CreatedFailed(H160),
-		/// A \[contract\] has been executed successfully with states applied.
-		Executed(H160),
-		/// A \[contract\] has been executed with errors. States are reverted with only gas fees applied.
-		ExecutedFailed(H160),
-		/// A deposit has been made at a given address. \[sender, address, value\]
-		BalanceDeposit(T::AccountId, H160, U256),
-		/// A withdrawal has been made from a given address. \[sender, address, value\]
-		BalanceWithdraw(T::AccountId, H160, U256),
+		Log { log: Log },
+		/// A contract has been created at given address.
+		Created { address: H160 },
+		/// A contract was attempted to be created, but the execution failed.
+		CreatedFailed { address: H160 },
+		/// A contract has been executed successfully with states applied.
+		Executed { address: H160 },
+		/// A contract has been executed with errors. States are reverted with only gas fees applied.
+		ExecutedFailed { address: H160 },
 	}
 
 	#[pallet::error]
@@ -420,6 +448,30 @@ pub mod pallet {
 		GasPriceTooLow,
 		/// Nonce is invalid
 		InvalidNonce,
+		/// Gas limit is too low.
+		GasLimitTooLow,
+		/// Gas limit is too high.
+		GasLimitTooHigh,
+		/// Undefined error.
+		Undefined,
+		/// EVM reentrancy
+		Reentrancy,
+	}
+
+	impl<T> From<InvalidEvmTransactionError> for Error<T> {
+		fn from(validation_error: InvalidEvmTransactionError) -> Self {
+			match validation_error {
+				InvalidEvmTransactionError::GasLimitTooLow => Error::<T>::GasLimitTooLow,
+				InvalidEvmTransactionError::GasLimitTooHigh => Error::<T>::GasLimitTooHigh,
+				InvalidEvmTransactionError::GasPriceTooLow => Error::<T>::GasPriceTooLow,
+				InvalidEvmTransactionError::PriorityFeeTooHigh => Error::<T>::GasPriceTooLow,
+				InvalidEvmTransactionError::BalanceTooLow => Error::<T>::BalanceLow,
+				InvalidEvmTransactionError::TxNonceTooLow => Error::<T>::InvalidNonce,
+				InvalidEvmTransactionError::TxNonceTooHigh => Error::<T>::InvalidNonce,
+				InvalidEvmTransactionError::InvalidPaymentInput => Error::<T>::GasPriceTooLow,
+				_ => Error::<T>::Undefined,
+			}
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -429,21 +481,26 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig
+	where
+		U256: UniqueSaturatedInto<BalanceOf<T>>,
+	{
 		fn build(&self) {
+			const MAX_ACCOUNT_NONCE: usize = 100;
+
 			for (address, account) in &self.accounts {
 				let account_id = T::AddressMapping::into_account_id(*address);
 
 				// ASSUME: in one single EVM transaction, the nonce will not increase more than
 				// `u128::max_value()`.
-				for _ in 0..account.nonce.low_u128() {
+				for _ in 0..min(
+					MAX_ACCOUNT_NONCE,
+					UniqueSaturatedInto::<usize>::unique_saturated_into(account.nonce),
+				) {
 					frame_system::Pallet::<T>::inc_account_nonce(&account_id);
 				}
 
-				T::Currency::deposit_creating(
-					&account_id,
-					account.balance.low_u128().unique_saturated_into(),
-				);
+				T::Currency::deposit_creating(&account_id, account.balance.unique_saturated_into());
 
 				Pallet::<T>::create_account(*address, account.code.clone());
 
@@ -519,7 +576,7 @@ pub struct EnsureAddressRoot<T>(sp_std::marker::PhantomData<T>);
 
 impl<OuterOrigin, T> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<T>
 where
-	T: crate::account::Config,
+	T: Config,
 	OuterOrigin: Into<Result<RawOrigin<T::AccountId>, OuterOrigin>> + From<RawOrigin<T::AccountId>>,
 {
 	type Success = T::CrossAccountId;
@@ -536,12 +593,15 @@ where
 }
 
 /// Ensure that the origin never happens.
-pub struct EnsureAddressNever<AccountId>(sp_std::marker::PhantomData<AccountId>);
+pub struct EnsureAddressNever<T: Config>(sp_std::marker::PhantomData<T>);
 
-impl<OuterOrigin, AccountId> EnsureAddressOrigin<OuterOrigin> for EnsureAddressNever<AccountId> {
-	type Success = AccountId;
+impl<OuterOrigin, T: Config> EnsureAddressOrigin<OuterOrigin> for EnsureAddressNever<T> {
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(_address: &H160, origin: OuterOrigin) -> Result<AccountId, OuterOrigin> {
+	fn try_address_origin(
+		_address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		Err(origin)
 	}
 }
@@ -552,7 +612,7 @@ pub struct EnsureAddressTruncated<T>(PhantomData<T>);
 
 impl<T, OuterOrigin> EnsureAddressOrigin<OuterOrigin> for EnsureAddressTruncated<T>
 where
-	T: crate::account::Config,
+	T: Config,
 	T::AccountId: From<AccountId32>,
 	OuterOrigin: Into<Result<RawOrigin<AccountId32>, OuterOrigin>> + From<RawOrigin<AccountId32>>,
 {
@@ -614,16 +674,25 @@ impl<T: Config> BlockHashMapping for SubstrateBlockHashMapping<T> {
 
 /// A mapping function that converts Ethereum gas to Substrate weight
 pub trait GasWeightMapping {
-	fn gas_to_weight(gas: u64) -> Weight;
+	fn gas_to_weight(gas: u64, without_base_weight: bool) -> Weight;
 	fn weight_to_gas(weight: Weight) -> u64;
 }
 
-impl GasWeightMapping for () {
-	fn gas_to_weight(gas: u64) -> Weight {
-		Weight::from_ref_time(gas)
+pub struct FixedGasWeightMapping<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> GasWeightMapping for FixedGasWeightMapping<T> {
+	fn gas_to_weight(gas: u64, without_base_weight: bool) -> Weight {
+		let mut weight = T::WeightPerGas::get().saturating_mul(gas);
+		if without_base_weight {
+			weight = weight.saturating_sub(
+				T::BlockWeights::get()
+					.get(frame_support::dispatch::DispatchClass::Normal)
+					.base_extrinsic,
+			);
+		}
+		weight
 	}
 	fn weight_to_gas(weight: Weight) -> u64 {
-		weight.ref_time()
+		weight.div(T::WeightPerGas::get().ref_time()).ref_time()
 	}
 }
 
@@ -865,6 +934,7 @@ where
 		Opposite = C::PositiveImbalance,
 	>,
 	OU: OnUnbalanced<NegativeImbalanceOf<C, T>>,
+	U256: UniqueSaturatedInto<<C as Currency<<T as frame_system::Config>::AccountId>>::Balance>,
 {
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
@@ -897,7 +967,7 @@ where
 			// Calculate how much refund we should return
 			let refund_amount = paid
 				.peek()
-				.saturating_sub(corrected_fee.low_u128().unique_saturated_into());
+				.saturating_sub(corrected_fee.unique_saturated_into());
 			// refund to the account that paid the fees. If this fails, the
 			// account might have dropped below the existential balance. In
 			// that case we don't refund anything.
@@ -928,7 +998,7 @@ where
 				.same()
 				.unwrap_or_else(|_| C::NegativeImbalance::zero());
 
-			let (base_fee, tip) = adjusted_paid.split(base_fee.low_u128().unique_saturated_into());
+			let (base_fee, tip) = adjusted_paid.split(base_fee.unique_saturated_into());
 			// Handle base fee. Can be either burned, rationed, etc ...
 			OU::on_unbalanced(base_fee);
 			return Some(tip);
@@ -952,7 +1022,10 @@ impl<T> OnChargeEVMTransaction<T> for ()
 	<T::Currency as Currency<<T as frame_system::Config>::AccountId>>::PositiveImbalance:
 		Imbalance<<T::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance, Opposite = <T::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance>,
 	<T::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance:
-		Imbalance<<T::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance, Opposite = <T::Currency as Currency<<T as frame_system::Config>::AccountId>>::PositiveImbalance>, {
+Imbalance<<T::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance, Opposite = <T::Currency as Currency<<T as frame_system::Config>::AccountId>>::PositiveImbalance>,
+U256: UniqueSaturatedInto<BalanceOf<T>>,
+
+{
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<T::Currency, T>>;
 

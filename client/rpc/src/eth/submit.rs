@@ -19,9 +19,9 @@
 use ethereum_types::H256;
 use futures::future::TryFutureExt;
 use jsonrpsee::core::RpcResult as Result;
-
+// Substrate
 use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
-use sc_network::config::ExHashT;
+use sc_network_common::ExHashT;
 use sc_transaction_pool::ChainApi;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -32,11 +32,14 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT},
 	transaction_validity::TransactionSource,
 };
-
+// Frontier
 use fc_rpc_core::types::*;
 use fp_rpc::{ConvertTransaction, ConvertTransactionRuntimeApi, EthereumRuntimeRPCApi};
 
-use crate::{eth::Eth, internal_err};
+use crate::{
+	eth::{format, Eth},
+	internal_err,
+};
 
 impl<B, C, P, CT, BE, H: ExHashT, A: ChainApi> Eth<B, C, P, CT, BE, H, A>
 where
@@ -202,7 +205,7 @@ where
 		self.pool
 			.submit_one(&block_hash, TransactionSource::Local, extrinsic)
 			.map_ok(move |_| transaction_hash)
-			.map_err(|err| internal_err(format!("submit transaction to pool failed: {:?}", err)))
+			.map_err(|err| internal_err(format::Geth::pool_error(err)))
 			.await
 	}
 
@@ -211,7 +214,7 @@ where
 		if slice.is_empty() {
 			return Err(internal_err("transaction data is empty"));
 		}
-		let first = slice.get(0).unwrap();
+		let first = slice.first().unwrap();
 		let transaction = if first > &0x7f {
 			// Legacy transaction. Decode and wrap in envelope.
 			match rlp::decode::<ethereum::TransactionV0>(slice) {
@@ -289,7 +292,7 @@ where
 		self.pool
 			.submit_one(&block_hash, TransactionSource::Local, extrinsic)
 			.map_ok(move |_| transaction_hash)
-			.map_err(|err| internal_err(format!("submit transaction to pool failed: {:?}", err)))
+			.map_err(|err| internal_err(format::Geth::pool_error(err)))
 			.await
 	}
 }

@@ -19,7 +19,7 @@
 use std::{collections::BTreeMap, ops::Deref};
 
 use crate::types::{Bytes, Transaction};
-use ethereum_types::{Bloom as H2048, H160, H256, U256};
+use ethereum_types::{Bloom as H2048, H160, H256, H64, U256};
 use serde::{ser::Error, Serialize, Serializer};
 
 /// Block Transactions
@@ -64,7 +64,7 @@ pub struct Block {
 }
 
 /// Block header representation.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Header {
 	/// Hash of the block
@@ -98,8 +98,8 @@ pub struct Header {
 	pub timestamp: U256,
 	/// Difficulty
 	pub difficulty: U256,
-	/// Seal fields
-	pub seal_fields: Vec<Bytes>,
+	/// Nonce
+	pub nonce: Option<H64>,
 	/// Size in bytes
 	pub size: Option<U256>,
 }
@@ -111,7 +111,7 @@ pub type RichBlock = Rich<Block>;
 pub type RichHeader = Rich<Header>;
 
 /// Value representation with additional info
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Rich<T> {
 	/// Standard value.
 	pub inner: T,

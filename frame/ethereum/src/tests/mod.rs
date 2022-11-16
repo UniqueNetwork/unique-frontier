@@ -18,7 +18,6 @@
 use frame_support::{
 	assert_err, assert_ok, dispatch::GetDispatchInfo, unsigned::TransactionValidityError,
 };
-use rustc_hex::{FromHex, ToHex};
 use sp_runtime::{
 	traits::Applyable,
 	transaction_validity::{InvalidTransaction, ValidTransactionBuilder},
