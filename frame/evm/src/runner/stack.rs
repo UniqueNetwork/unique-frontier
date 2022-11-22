@@ -334,7 +334,29 @@ where
 		)
 		.validate_in_block_for(&source_account)
 		.and_then(|v| v.with_base_fee())
-		.and_then(|v| v.with_balance_for(&source_account))
+		.and_then(|v| {
+			let (max_fee_per_gas, _) = v.transaction_fee_input()?;
+			let gas_limit = v.transaction.gas_limit;
+			let reason = if let Some(to) = v.transaction.to {
+				WithdrawReason::Call {
+					target: to,
+					input: v.transaction.input.clone(),
+				}
+			} else {
+				WithdrawReason::Create
+			};
+			let sponsor = get_sponsor::<T>(
+				*source.as_eth(),
+				Some(max_fee_per_gas),
+				gas_limit,
+				&reason,
+				v.config.is_transactional,
+			)
+			.as_ref()
+			.map(crate::Pallet::<T>::account_basic_by_id)
+			.map(|v| v.0);
+			v.with_balance_for(&source_account, sponsor.as_ref())
+		})
 		.map_err(|error| RunnerError { error, weight })?;
 		Ok(())
 	}
@@ -360,7 +382,7 @@ where
 		let sponsor = get_sponsor::<T>(
 			*source.as_eth(),
 			max_fee_per_gas,
-			gas_limit,
+			gas_limit.into(),
 			&reason,
 			is_transactional,
 		);
@@ -421,7 +443,7 @@ where
 		let sponsor = get_sponsor::<T>(
 			*source.as_eth(),
 			max_fee_per_gas,
-			gas_limit,
+			gas_limit.into(),
 			&reason,
 			is_transactional,
 		);
@@ -482,7 +504,7 @@ where
 		let sponsor = get_sponsor::<T>(
 			*source.as_eth(),
 			max_fee_per_gas,
-			gas_limit,
+			gas_limit.into(),
 			&reason,
 			is_transactional,
 		);
@@ -887,10 +909,10 @@ where
 			.recursive_is_cold(&|a: &Accessed| a.accessed_storage.contains(&(address, key)))
 	}
 }
-fn get_sponsor<T: Config>(
+pub fn get_sponsor<T: Config>(
 	source: H160,
 	max_fee_per_gas: Option<U256>,
-	gas_limit: u64,
+	gas_limit: U256,
 	reason: &WithdrawReason,
 	is_transactional: bool,
 ) -> Option<T::CrossAccountId> {
@@ -903,7 +925,7 @@ fn get_sponsor<T: Config>(
 		_ => return None,
 	};
 
-	let max_fee = max_fee_per_gas.saturating_mul(U256::from(gas_limit));
+	let max_fee = max_fee_per_gas.saturating_mul(gas_limit);
 
 	#[cfg(feature = "debug-logging")]
 	log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
