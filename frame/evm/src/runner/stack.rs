@@ -33,9 +33,12 @@ use fp_evm::{
 	CallInfo, CreateInfo, ExecutionInfo, Log, PrecompileResult, PrecompileSet,
 	TransactionValidityHack, Vicinity, WithdrawReason,
 };
-use frame_support::traits::{Currency, ExistenceRequirement, Get};
+use frame_support::{
+	storage::with_transaction,
+	traits::{Currency, ExistenceRequirement, Get},
+};
 use sp_core::{H160, H256, U256};
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::{traits::UniqueSaturatedInto, DispatchError, TransactionOutcome};
 use sp_std::{
 	boxed::Box,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -351,6 +354,7 @@ where
 				gas_limit,
 				&reason,
 				v.config.is_transactional,
+				true,
 			)
 			.as_ref()
 			.map(crate::Pallet::<T>::account_basic_by_id)
@@ -379,13 +383,6 @@ where
 			target,
 			input: input.clone(),
 		};
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-		);
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -401,6 +398,14 @@ where
 				config,
 			)?;
 		}
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
@@ -440,13 +445,6 @@ where
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
 		let reason = WithdrawReason::Create;
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-		);
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -462,6 +460,14 @@ where
 				config,
 			)?;
 		}
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
@@ -501,13 +507,6 @@ where
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
 		let reason = WithdrawReason::Create2;
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-		);
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -523,6 +522,14 @@ where
 				config,
 			)?;
 		}
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
@@ -915,6 +922,7 @@ pub fn get_sponsor<T: Config>(
 	gas_limit: U256,
 	reason: &WithdrawReason,
 	is_transactional: bool,
+	is_check: bool,
 ) -> Option<T::CrossAccountId> {
 	let (base_fee, _) = T::FeeCalculator::min_gas_price();
 	let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
@@ -929,9 +937,18 @@ pub fn get_sponsor<T: Config>(
 
 	#[cfg(feature = "debug-logging")]
 	log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
-	may_sponsor
-		.then(|| T::TransactionValidityHack::who_pays_fee(source, max_fee, reason))
-		.flatten()
+	with_transaction(|| {
+		let result = may_sponsor
+			.then(|| T::TransactionValidityHack::who_pays_fee(source, max_fee, reason))
+			.flatten();
+		if is_check {
+			TransactionOutcome::Rollback(Ok::<_, DispatchError>(result))
+		} else {
+			TransactionOutcome::Commit(Ok(result))
+		}
+	})
+	.ok()
+	.flatten()
 }
 
 #[cfg(feature = "forbid-evm-reentrancy")]

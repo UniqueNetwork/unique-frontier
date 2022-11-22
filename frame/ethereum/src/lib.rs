@@ -499,6 +499,7 @@ impl<T: Config> Pallet<T> {
 				gas_limit,
 				&reason,
 				v.config.is_transactional,
+				true,
 			)
 			.as_ref()
 			.map(pallet_evm::Pallet::<T>::account_basic_by_id)
@@ -898,6 +899,7 @@ impl<T: Config> Pallet<T> {
 				gas_limit,
 				&reason,
 				v.config.is_transactional,
+				true,
 			)
 			.as_ref()
 			.map(pallet_evm::Pallet::<T>::account_basic_by_id)
