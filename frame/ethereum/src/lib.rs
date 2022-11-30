@@ -70,7 +70,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
 	AccessListItem, BlockV2 as Block, EIP658ReceiptData, LegacyTransactionMessage, Log,
-	ReceiptV3 as Receipt, TransactionAction, TransactionV2 as Transaction,
+	ReceiptV3 as Receipt, TransactionAction, TransactionV2 as Transaction, EnvelopedEncodable,
 };
 pub use fp_rpc::TransactionStatus;
 
@@ -409,7 +409,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let ommers = Vec::<ethereum::Header>::new();
-		let receipts_root = ethereum::util::ordered_trie_root(receipts.iter().map(rlp::encode));
+		let receipts_root = ethereum::util::ordered_trie_root(receipts.iter().map(EnvelopedEncodable::encode));
 		let partial_header = ethereum::PartialHeader {
 			parent_hash: if block_number > U256::zero() {
 				BlockHash::<T>::get(block_number - 1)
@@ -688,7 +688,7 @@ impl<T: Config> Pallet<T> {
 		});
 
 		let transaction_hash =
-			H256::from_slice(sp_io::hashing::keccak_256(&rlp::encode(&transaction)).as_slice());
+			H256::from_slice(sp_io::hashing::keccak_256(&EnvelopedEncodable::encode(&transaction)).as_slice());
 		let transaction_index = <Pending<T>>::get().len() as u32;
 
 		let logs_bloom = {

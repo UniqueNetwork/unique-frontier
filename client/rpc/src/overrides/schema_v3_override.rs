@@ -21,10 +21,13 @@ use std::{marker::PhantomData, sync::Arc};
 use codec::Decode;
 use ethereum_types::{H160, H256, U256};
 // Substrate
-use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
+use sc_client_api::{
+	backend::{Backend, StateBackend, StorageProvider},
+	blockchain::HeaderBackend,
+};
 use sp_api::BlockId;
 use sp_runtime::{
-	traits::{BlakeTwo256, Block as BlockT},
+	traits::{BlakeTwo256, Block as BlockT, Header},
 	Permill,
 };
 use sp_storage::StorageKey;
@@ -52,12 +55,14 @@ impl<B: BlockT, C, BE> SchemaV3Override<B, C, BE> {
 impl<B, C, BE> SchemaV3Override<B, C, BE>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: StorageProvider<B, BE> + Send + Sync + 'static,
+	C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 {
 	fn query_storage<T: Decode>(&self, id: &BlockId<B>, key: &StorageKey) -> Option<T> {
-		if let Ok(Some(data)) = self.client.storage(id, key) {
+		let hash = self.client.header(*id).ok()??.hash();
+
+		if let Ok(Some(data)) = self.client.storage(hash, key) {
 			if let Ok(result) = Decode::decode(&mut &data.0[..]) {
 				return Some(result);
 			}
@@ -69,7 +74,7 @@ where
 impl<B, C, BE> StorageOverride<B> for SchemaV3Override<B, C, BE>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: StorageProvider<B, BE> + Send + Sync + 'static,
+	C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 {

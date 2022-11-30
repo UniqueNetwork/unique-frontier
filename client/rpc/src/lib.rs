@@ -147,11 +147,16 @@ pub mod frontier_backend_client {
 	) -> EthereumStorageSchema
 	where
 		B: BlockT<Hash = H256> + Send + Sync + 'static,
-		C: StorageProvider<B, BE> + Send + Sync + 'static,
+		C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
 		BE: Backend<B> + 'static,
 		BE::State: StateBackend<BlakeTwo256>,
 	{
-		match client.storage(&at, &StorageKey(PALLET_ETHEREUM_SCHEMA.to_vec())) {
+		let hash = match client.header(at) {
+			Ok(Some(header)) => header.hash(),
+			_ => return EthereumStorageSchema::Undefined,
+		};
+
+		match client.storage(hash, &StorageKey(PALLET_ETHEREUM_SCHEMA.to_vec())) {
 			Ok(Some(bytes)) => Decode::decode(&mut &bytes.0[..])
 				.ok()
 				.unwrap_or(EthereumStorageSchema::Undefined),
