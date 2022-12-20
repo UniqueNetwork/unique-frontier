@@ -21,19 +21,21 @@ use std::{marker::PhantomData, sync::Arc};
 use codec::Decode;
 use ethereum_types::{H160, H256, U256};
 // Substrate
-use sc_client_api::{
-	backend::{Backend, StateBackend, StorageProvider},
-	blockchain::HeaderBackend,
-};
-use sp_api::{BlockId, ProvideRuntimeApi};
+use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
+use sp_api::BlockId;
+use sp_blockchain::HeaderBackend;
 use sp_runtime::{
-	traits::{BlakeTwo256, Block as BlockT, Header},
+	traits::{BlakeTwo256, Block as BlockT, Header as HeaderT},
 	Permill,
 };
 use sp_storage::StorageKey;
 // Frontier
-use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
+use fp_rpc::TransactionStatus;
 use fp_storage::*;
+
+// Unique
+use fp_rpc::EthereumRuntimeRPCApi;
+use sp_api::ProvideRuntimeApi;
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
@@ -55,40 +57,41 @@ impl<B: BlockT, C, BE> SchemaV1Override<B, C, BE> {
 impl<B, C, BE> SchemaV1Override<B, C, BE>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
+	C: StorageProvider<B, BE> + HeaderBackend<B> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 {
 	fn query_storage<T: Decode>(&self, id: &BlockId<B>, key: &StorageKey) -> Option<T> {
-		let hash = self.client.header(*id).ok()??.hash();
-
-		if let Ok(Some(data)) = self.client.storage(hash, key) {
-			if let Ok(result) = Decode::decode(&mut &data.0[..]) {
-				return Some(result);
+		if let Ok(Some(header)) = self.client.header(*id) {
+			if let Ok(Some(data)) = self.client.storage(header.hash(), key) {
+				if let Ok(result) = Decode::decode(&mut &data.0[..]) {
+					return Some(result);
+				}
 			}
 		}
 		None
 	}
 }
 
-impl<Block, C, BE> StorageOverride<Block> for SchemaV1Override<Block, C, BE>
+impl<B, C, BE> StorageOverride<B> for SchemaV1Override<B, C, BE>
 where
-	C: ProvideRuntimeApi<Block>,
-	C::Api: EthereumRuntimeRPCApi<Block>,
-	C: HeaderBackend<Block> + StorageProvider<Block, BE> + Send + Sync + 'static,
-	BE: Backend<Block> + 'static,
+	B: BlockT<Hash = H256> + Send + Sync + 'static,
+	C: StorageProvider<B, BE> + HeaderBackend<B> + Send + Sync + 'static,
+	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
-	Block: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: Send + Sync + 'static,
+	// Unique
+	C: ProvideRuntimeApi<B>,
+	C::Api: EthereumRuntimeRPCApi<B>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
-	fn account_code_at(&self, block: &BlockId<Block>, address: H160) -> Option<Vec<u8>> {
+	fn account_code_at(&self, block: &BlockId<B>, address: H160) -> Option<Vec<u8>> {
+		// Unique: always use runtime api, as precompiles can have associated code
 		let api = self.client.runtime_api();
 		api.account_code_at(block, address).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.
-	fn storage_at(&self, block: &BlockId<Block>, address: H160, index: U256) -> Option<H256> {
+	fn storage_at(&self, block: &BlockId<B>, address: H160, index: U256) -> Option<H256> {
 		let tmp: &mut [u8; 32] = &mut [0; 32];
 		index.to_big_endian(tmp);
 
@@ -100,7 +103,7 @@ where
 	}
 
 	/// Return the current block.
-	fn current_block(&self, block: &BlockId<Block>) -> Option<ethereum::BlockV2> {
+	fn current_block(&self, block: &BlockId<B>) -> Option<ethereum::BlockV2> {
 		self.query_storage::<ethereum::BlockV0>(
 			block,
 			&StorageKey(storage_prefix_build(
@@ -112,7 +115,7 @@ where
 	}
 
 	/// Return the current receipt.
-	fn current_receipts(&self, block: &BlockId<Block>) -> Option<Vec<ethereum::ReceiptV3>> {
+	fn current_receipts(&self, block: &BlockId<B>) -> Option<Vec<ethereum::ReceiptV3>> {
 		self.query_storage::<Vec<ethereum::ReceiptV0>>(
 			block,
 			&StorageKey(storage_prefix_build(
@@ -136,10 +139,7 @@ where
 	}
 
 	/// Return the current transaction status.
-	fn current_transaction_statuses(
-		&self,
-		block: &BlockId<Block>,
-	) -> Option<Vec<TransactionStatus>> {
+	fn current_transaction_statuses(&self, block: &BlockId<B>) -> Option<Vec<TransactionStatus>> {
 		self.query_storage::<Vec<TransactionStatus>>(
 			block,
 			&StorageKey(storage_prefix_build(
@@ -149,17 +149,12 @@ where
 		)
 	}
 
-	/// Prior to eip-1559 there is no base fee.
-	fn base_fee(&self, _block: &BlockId<Block>) -> Option<U256> {
-		None
-	}
-
 	/// Prior to eip-1559 there is no elasticity.
-	fn elasticity(&self, _block: &BlockId<Block>) -> Option<Permill> {
+	fn elasticity(&self, _block: &BlockId<B>) -> Option<Permill> {
 		None
 	}
 
-	fn is_eip1559(&self, _block: &BlockId<Block>) -> bool {
+	fn is_eip1559(&self, _block: &BlockId<B>) -> bool {
 		false
 	}
 }

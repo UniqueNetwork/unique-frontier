@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::types::Bytes;
-use ethereum::{AccessListItem, TransactionV2, EnvelopedEncodable};
+use ethereum::{AccessListItem, TransactionV2};
 use ethereum_types::{H160, H256, H512, U256, U64};
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 
@@ -80,7 +80,7 @@ pub struct Transaction {
 
 impl From<TransactionV2> for Transaction {
 	fn from(transaction: TransactionV2) -> Self {
-		let serialized = EnvelopedEncodable::encode(&transaction);
+		let serialized = ethereum::EnvelopedEncodable::encode(&transaction);
 		let hash = transaction.hash();
 		let raw = Bytes(serialized.to_vec());
 		match transaction {

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethereum_types::H256;
-use ethereum::EnvelopedDecodable;
 use futures::future::TryFutureExt;
 use jsonrpsee::core::RpcResult as Result;
 // Substrate
@@ -215,8 +214,9 @@ where
 		if slice.is_empty() {
 			return Err(internal_err("transaction data is empty"));
 		}
-		let transaction = match EnvelopedDecodable::decode(slice) {
-			Ok(transaction) => ethereum::TransactionV2::Legacy(transaction),
+		let transaction: ethereum::TransactionV2 = match ethereum::EnvelopedDecodable::decode(slice)
+		{
+			Ok(transaction) => transaction,
 			Err(_) => return Err(internal_err("decode transaction failed")),
 		};
 

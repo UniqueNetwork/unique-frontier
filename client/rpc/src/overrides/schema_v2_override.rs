@@ -27,13 +27,17 @@ use sc_client_api::{
 };
 use sp_api::BlockId;
 use sp_runtime::{
-	traits::{BlakeTwo256, Block as BlockT, Header},
+	traits::{BlakeTwo256, Block as BlockT, Header as HeaderT},
 	Permill,
 };
 use sp_storage::StorageKey;
 // Frontier
 use fp_rpc::TransactionStatus;
 use fp_storage::*;
+
+// Unique
+use fp_rpc::EthereumRuntimeRPCApi;
+use sp_api::ProvideRuntimeApi;
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
@@ -55,16 +59,16 @@ impl<B: BlockT, C, BE> SchemaV2Override<B, C, BE> {
 impl<B, C, BE> SchemaV2Override<B, C, BE>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
+	C: StorageProvider<B, BE> + HeaderBackend<B> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 {
 	fn query_storage<T: Decode>(&self, id: &BlockId<B>, key: &StorageKey) -> Option<T> {
-		let hash = self.client.header(*id).ok()??.hash();
-
-		if let Ok(Some(data)) = self.client.storage(hash, key) {
-			if let Ok(result) = Decode::decode(&mut &data.0[..]) {
-				return Some(result);
+		if let Ok(Some(header)) = self.client.header(*id) {
+			if let Ok(Some(data)) = self.client.storage(header.hash(), key) {
+				if let Ok(result) = Decode::decode(&mut &data.0[..]) {
+					return Some(result);
+				}
 			}
 		}
 		None
@@ -74,15 +78,18 @@ where
 impl<B, C, BE> StorageOverride<B> for SchemaV2Override<B, C, BE>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: HeaderBackend<B> + StorageProvider<B, BE> + Send + Sync + 'static,
+	C: StorageProvider<B, BE> + HeaderBackend<B> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
+	// Unique
+	C: ProvideRuntimeApi<B>,
+	C::Api: EthereumRuntimeRPCApi<B>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block: &BlockId<B>, address: H160) -> Option<Vec<u8>> {
-		let mut key: Vec<u8> = storage_prefix_build(PALLET_EVM, EVM_ACCOUNT_CODES);
-		key.extend(blake2_128_extend(address.as_bytes()));
-		self.query_storage::<Vec<u8>>(block, &StorageKey(key))
+		// Unique: always use runtime api, as precompiles can have associated code
+		let api = self.client.runtime_api();
+		api.account_code_at(block, address).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.
@@ -140,14 +147,6 @@ where
 				PALLET_ETHEREUM,
 				ETHEREUM_CURRENT_TRANSACTION_STATUS,
 			)),
-		)
-	}
-
-	/// Return the base fee at the given height.
-	fn base_fee(&self, block: &BlockId<B>) -> Option<U256> {
-		self.query_storage::<U256>(
-			block,
-			&StorageKey(storage_prefix_build(PALLET_BASE_FEE, BASE_FEE_PER_GAS)),
 		)
 	}
 
