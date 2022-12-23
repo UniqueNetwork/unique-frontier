@@ -117,6 +117,37 @@ where
 			})
 		}
 	}
+
+	#[cfg(feature = "try-runtime")]
+	fn unchecked_into_checked_i_know_what_i_am_doing(
+		self,
+		lookup: &Lookup,
+	) -> Result<Self::Checked, TransactionValidityError> {
+		if self.0.function.is_self_contained() {
+			if self.0.signature.is_some() {
+				return Err(TransactionValidityError::Invalid(
+					InvalidTransaction::BadProof,
+				));
+			}
+
+			let signed_info = self.0.function.check_self_contained().ok_or(
+				TransactionValidityError::Invalid(InvalidTransaction::BadProof),
+			)??;
+			Ok(CheckedExtrinsic {
+				signed: CheckedSignature::SelfContained(signed_info),
+				function: self.0.function,
+			})
+		} else {
+			let checked = Checkable::<Lookup>::unchecked_into_checked_i_know_what_i_am_doing(self.0, lookup)?;
+			Ok(CheckedExtrinsic {
+				signed: match checked.signed {
+					Some((id, extra)) => CheckedSignature::Signed(id, extra),
+					None => CheckedSignature::Unsigned,
+				},
+				function: checked.function,
+			})
+		}
+	}
 }
 
 impl<Address, Call, Signature, Extra> ExtrinsicMetadata
