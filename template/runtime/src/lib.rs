@@ -629,7 +629,9 @@ impl_runtime_apis! {
 		}
 
 		fn account_code_at(address: H160) -> Vec<u8> {
-			EVM::account_codes(address)
+			// Unique: return code for OnMethodCall
+			T::OnMethodCall::get_code(&address)
+				.unwrap_or_else(|| EVM::account_codes(address))
 		}
 
 		fn author() -> H160 {
