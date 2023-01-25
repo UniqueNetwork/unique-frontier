@@ -65,7 +65,7 @@ pub use ethereum::{
 pub use fp_rpc::TransactionStatus;
 
 // Unique
-use pallet_evm::account::CrossAccountId;
+use pallet_evm::{account::CrossAccountId, CurrentLogs};
 
 #[derive(Clone, Eq, PartialEq, RuntimeDebug, Encode, Decode, MaxEncodedLen, TypeInfo)]
 pub enum RawOrigin {
@@ -211,6 +211,7 @@ pub mod pallet {
 				));
 			}
 			Pending::<T>::kill();
+			assert_eq!(<CurrentLogs<T>>::get().len(), 0, "fake transaction finalizer is not initialized, as some logs was left after block is finished");
 		}
 
 		fn on_initialize(_: T::BlockNumber) -> Weight {
@@ -394,7 +395,7 @@ impl<T: Config> Pallet<T> {
 				}
 			};
 			cumulative_gas_used = used_gas;
-			Self::logs_bloom(logs, &mut logs_bloom);
+			Self::logs_bloom(logs.iter(), &mut logs_bloom);
 		}
 
 		let ommers = Vec::<ethereum::Header>::new();
@@ -438,10 +439,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn logs_bloom(logs: Vec<Log>, bloom: &mut Bloom) {
+	fn logs_bloom<'a>(logs: impl IntoIterator<Item = &'a Log>, bloom: &'a mut Bloom) {
 		for log in logs {
 			bloom.accrue(BloomInput::Raw(&log.address[..]));
-			for topic in log.topics {
+			for topic in &log.topics {
 				bloom.accrue(BloomInput::Raw(&topic[..]));
 			}
 		}
@@ -525,42 +526,48 @@ impl<T: Config> Pallet<T> {
 		let transaction_index = pending.len() as u32;
 
 		let (reason, status, used_gas, dest) = match info {
-			CallOrCreateInfo::Call(info) => (
-				info.exit_reason,
-				TransactionStatus {
-					transaction_hash,
-					transaction_index,
-					from: source,
-					to,
-					contract_address: None,
-					logs: info.logs.clone(),
-					logs_bloom: {
-						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs, &mut bloom);
-						bloom
+			CallOrCreateInfo::Call(info) => {
+				let logs = <CurrentLogs<T>>::take();
+				(
+					info.exit_reason,
+					TransactionStatus {
+						transaction_hash,
+						transaction_index,
+						from: source,
+						to,
+						contract_address: None,
+						logs_bloom: {
+							let mut bloom: Bloom = Bloom::default();
+							Self::logs_bloom(logs.iter(), &mut bloom);
+							bloom
+						},
+						logs,
 					},
-				},
-				info.used_gas,
-				to,
-			),
-			CallOrCreateInfo::Create(info) => (
-				info.exit_reason,
-				TransactionStatus {
-					transaction_hash,
-					transaction_index,
-					from: source,
+					info.used_gas,
 					to,
-					contract_address: Some(info.value),
-					logs: info.logs.clone(),
-					logs_bloom: {
-						let mut bloom: Bloom = Bloom::default();
-						Self::logs_bloom(info.logs, &mut bloom);
-						bloom
+				)
+			}
+			CallOrCreateInfo::Create(info) => {
+				let logs = <CurrentLogs<T>>::take();
+				(
+					info.exit_reason,
+					TransactionStatus {
+						transaction_hash,
+						transaction_index,
+						from: source,
+						to,
+						contract_address: Some(info.value),
+						logs_bloom: {
+							let mut bloom: Bloom = Bloom::default();
+							Self::logs_bloom(logs.iter(), &mut bloom);
+							bloom
+						},
+						logs,
 					},
-				},
-				info.used_gas,
-				Some(info.value),
-			),
+					info.used_gas,
+					Some(info.value),
+				)
+			}
 		};
 
 		let receipt = {
