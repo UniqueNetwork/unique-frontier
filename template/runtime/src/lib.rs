@@ -347,6 +347,7 @@ impl pallet_evm::Config for Runtime {
 	type BackwardsAddressMapping = IdentityAddressMapping;
 	type OnMethodCall = ();
 	type OnCreate = ();
+	type TransactionValidityHack = ();
 }
 
 impl pallet_ethereum::Config for Runtime {
