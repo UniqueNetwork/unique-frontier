@@ -36,8 +36,19 @@ use crate::{
 	PrecompileResult, PrecompileSet,
 };
 
+// Unique
+use {fp_evm_mapping::EvmBackwardsAddressMapping, crate::account};
+
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+// Unique:
+pub struct EvmToEvmBackwardAddressMap {}
+impl EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
+	fn from_account_id(account_id: H160) -> H160 {
+		account_id
+	}
+}
 
 frame_support::construct_runtime! {
 	pub enum Test where
@@ -132,14 +143,19 @@ parameter_types! {
 	pub MockPrecompiles: MockPrecompileSet = MockPrecompileSet;
 }
 impl crate::Config for Test {
+
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = crate::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	// Unique:
+	// type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
 
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	// Unique:
+	// type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 
@@ -151,6 +167,11 @@ impl crate::Config for Test {
 	type Runner = crate::runner::stack::Runner<Self>;
 	type OnChargeTransaction = ();
 	type FindAuthor = FindAuthorTruncated;
+
+	// Unique:
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type EvmAddressMapping = crate::IdentityAddressMapping;
+	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
 }
 
 /// Exemple PrecompileSet with only Identity precompile.

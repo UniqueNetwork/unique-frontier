@@ -45,6 +45,8 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 # Frontier
 fp-rpc = { workspace = true }
 fp-self-contained = { workspace = true }
+# Unique
+fp-evm-mapping = { workspace = true }
 # Frontier FRAME
 pallet-base-fee = { workspace = true }
 pallet-dynamic-fee = { workspace = true }
