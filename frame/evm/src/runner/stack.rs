@@ -40,7 +40,7 @@ use sp_std::{
 };
 
 // Unique
-use crate::{account::CrossAccountId, CurrentLogs, OnMethodCall};
+use crate::{account::CrossAccountId, CurrentLogs, OnCreate, OnMethodCall};
 use evm::executor::stack::PrecompileHandle;
 use fp_evm::{PrecompileResult, TransactionValidityHack, WithdrawReason};
 use frame_support::storage::with_transaction;
@@ -517,6 +517,8 @@ where
 				let address = executor.create_address(evm::CreateScheme::Legacy {
 					caller: *source.as_eth(),
 				});
+				// Unique:
+				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
 					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
