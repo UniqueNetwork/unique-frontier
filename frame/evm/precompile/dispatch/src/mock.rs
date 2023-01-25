@@ -180,6 +180,7 @@ impl pallet_evm::Config for Test {
 	type EvmAddressMapping = pallet_evm::IdentityAddressMapping;
 	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
 	type OnMethodCall = ();
+	type OnCreate = ();
 }
 
 pub(crate) struct MockHandle {
