@@ -65,7 +65,6 @@ where
 		source: H160,
 		*/
 		source: &T::CrossAccountId,
-		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -126,7 +125,6 @@ where
 		source: H160,
 		*/
 		source: &T::CrossAccountId,
-		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -446,7 +444,6 @@ where
 		);
 		Self::execute(
 			&source,
-			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -524,7 +521,6 @@ where
 		);
 		Self::execute(
 			&source,
-			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -537,7 +533,6 @@ where
 				let address = executor.create_address(evm::CreateScheme::Legacy {
 					caller: *source.as_eth(),
 				});
-				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
 					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
@@ -594,7 +589,6 @@ where
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
-			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
