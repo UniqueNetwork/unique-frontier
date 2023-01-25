@@ -434,14 +434,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		Self::execute(
 			&source,
 			value,
@@ -511,14 +503,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		Self::execute(
 			&source,
 			value,
@@ -578,14 +562,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,

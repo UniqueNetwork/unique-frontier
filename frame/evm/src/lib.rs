@@ -104,6 +104,7 @@ pub mod account;
 use account::CrossAccountId;
 use core::marker::PhantomData;
 use fp_evm::WithdrawReason;
+use impl_trait_for_tuples::impl_for_tuples;
 
 #[frame_support::pallet]
 pub mod pallet {

@@ -346,11 +346,6 @@ impl pallet_evm::Config for Runtime {
 	type CrossAccountId = Self::AccountId;
 	type BackwardsAddressMapping = IdentityAddressMapping;
 	type OnMethodCall = ();
-	type TransactionValidityHack = ();
-}
-
-parameter_types! {
-	pub const PostBlockAndTxnHashes: PostLogContent = PostLogContent::BlockAndTxnHashes;
 }
 
 impl pallet_ethereum::Config for Runtime {

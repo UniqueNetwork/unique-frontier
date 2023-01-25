@@ -34,6 +34,7 @@ fp-account = { workspace = true }
 fp-evm = { workspace = true }
 # Unique
 serde = { workspace = true }
+impl-trait-for-tuples = "0.2.2"
 
 [dev-dependencies]
 # Substrate
