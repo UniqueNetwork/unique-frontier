@@ -349,6 +349,7 @@ impl pallet_evm::Config for Runtime {
 	type CrossAccountId = CrossAccountId<Self>;
 	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
 	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
+	type OnMethodCall = ();
 }
 
 impl pallet_ethereum::Config for Runtime {

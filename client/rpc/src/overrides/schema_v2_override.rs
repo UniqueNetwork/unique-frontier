@@ -21,9 +21,11 @@ use std::{marker::PhantomData, sync::Arc};
 use ethereum_types::{H160, H256, U256};
 use scale_codec::Decode;
 // Substrate
-use sc_client_api::backend::{Backend, StateBackend, StorageProvider};
+use sc_client_api::{
+	backend::{Backend, StateBackend, StorageProvider},
+	blockchain::HeaderBackend,
+};
 use sp_api::BlockId;
-use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, Header as HeaderT},
 	Permill,
@@ -32,6 +34,10 @@ use sp_storage::StorageKey;
 // Frontier
 use fp_rpc::TransactionStatus;
 use fp_storage::*;
+
+// Unique
+use fp_rpc::EthereumRuntimeRPCApi;
+use sp_api::ProvideRuntimeApi;
 
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
@@ -75,12 +81,15 @@ where
 	C: StorageProvider<B, BE> + HeaderBackend<B> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
+	// Unique
+	C: ProvideRuntimeApi<B>,
+	C::Api: EthereumRuntimeRPCApi<B>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block: &BlockId<B>, address: H160) -> Option<Vec<u8>> {
-		let mut key: Vec<u8> = storage_prefix_build(PALLET_EVM, EVM_ACCOUNT_CODES);
-		key.extend(blake2_128_extend(address.as_bytes()));
-		self.query_storage::<Vec<u8>>(block, &StorageKey(key))
+		// Unique: always use runtime api, as precompiles can have associated code
+		let api = self.client.runtime_api();
+		api.account_code_at(block, address).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.

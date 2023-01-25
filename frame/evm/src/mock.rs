@@ -172,6 +172,7 @@ impl crate::Config for Test {
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
 	type EvmAddressMapping = crate::IdentityAddressMapping;
 	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
+	type OnMethodCall = ();
 }
 
 /// Exemple PrecompileSet with only Identity precompile.

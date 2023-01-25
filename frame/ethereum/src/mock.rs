@@ -190,6 +190,7 @@ impl pallet_evm::Config for Test {
 	type CrossAccountId = CrossAccountId<Self>;
 	type EvmAddressMapping = MapAddressTruncated;
 	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
+	type OnMethodCall = ();
 }
 
 impl Config for Test {

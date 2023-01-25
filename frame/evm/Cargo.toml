@@ -33,6 +33,7 @@ fp-evm = { workspace = true }
 # Unique
 fp-evm-mapping = { workspace = true }
 serde = { workspace = true }
+impl-trait-for-tuples = "0.2.2"
 
 [dev-dependencies]
 # Substrate
