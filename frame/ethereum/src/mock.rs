@@ -192,6 +192,7 @@ impl pallet_evm::Config for Test {
 	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
 	type OnMethodCall = ();
 	type OnCreate = ();
+	type TransactionValidityHack = ();
 }
 
 impl Config for Test {

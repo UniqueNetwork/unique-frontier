@@ -351,6 +351,7 @@ impl pallet_evm::Config for Runtime {
 	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
 	type OnMethodCall = ();
 	type OnCreate = ();
+	type TransactionValidityHack = ();
 }
 
 impl pallet_ethereum::Config for Runtime {

@@ -174,6 +174,7 @@ impl crate::Config for Test {
 	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
 	type OnMethodCall = ();
 	type OnCreate = ();
+	type TransactionValidityHack = ();
 }
 
 /// Exemple PrecompileSet with only Identity precompile.

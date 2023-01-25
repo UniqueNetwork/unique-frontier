@@ -109,6 +109,10 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
+	// Unique:
+	use fp_evm::TransactionValidityHack;
+	use frame_support::storage::types::StorageValue;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
@@ -181,6 +185,7 @@ pub mod pallet {
 		type OnMethodCall: OnMethodCall<Self>;
 		/// Called on create calls, used to record owner
 		type OnCreate: OnCreate<Self>;
+		type TransactionValidityHack: TransactionValidityHack<Self::CrossAccountId>;
 	}
 
 	#[pallet::call]
