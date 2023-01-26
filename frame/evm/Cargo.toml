@@ -64,6 +64,7 @@ std = [
 	"fp-evm/std",
 	# Unique
 	"fp-evm-mapping/std",
+	"serde/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
