@@ -434,14 +434,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		Self::execute(
 			&source,
 			value,
@@ -511,14 +503,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		Self::execute(
 			&source,
 			value,
@@ -533,7 +517,7 @@ where
 				let address = executor.create_address(evm::CreateScheme::Legacy {
 					caller: *source.as_eth(),
 				});
-				T::OnCreate::on_create(source, address);
+				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
 					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
@@ -579,14 +563,6 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
-		let sponsor = get_sponsor::<T>(
-			*source.as_eth(),
-			max_fee_per_gas,
-			gas_limit.into(),
-			&reason,
-			is_transactional,
-			false,
-		);
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
