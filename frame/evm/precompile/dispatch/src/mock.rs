@@ -171,6 +171,7 @@ impl pallet_evm::Config for Test {
 	type CrossAccountId = pallet_evm::account::BasicCrossAccountId<Self>;
 	type BackwardsAddressMapping = IdentityAddressMapping;
 	type OnMethodCall = ();
+	type TransactionValidityHack = ();
 }
 
 pub(crate) struct MockHandle {
