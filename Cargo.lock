@@ -2074,6 +2074,7 @@ dependencies = [
  "fc-rpc-core",
  "fc-storage",
  "fp-ethereum",
+ "fp-evm",
  "fp-rpc",
  "fp-storage",
  "futures",
@@ -2082,6 +2083,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "lru",
+ "pallet-evm",
  "parity-scale-codec",
  "prometheus",
  "rand 0.8.5",
@@ -2103,6 +2105,8 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
  "substrate-prometheus-endpoint",
  "substrate-test-runtime-client",
  "tempfile",
@@ -2312,11 +2316,20 @@ version = "3.0.0-dev"
 dependencies = [
  "evm",
  "frame-support",
+ "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
  "sp-core",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "fp-evm-mapping"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "sp-core",
 ]
 
 [[package]]
@@ -2331,6 +2344,7 @@ dependencies = [
  "sp-api",
  "sp-core",
  "sp-runtime",
+ "sp-state-machine",
  "sp-std",
 ]
 
@@ -2644,6 +2658,7 @@ version = "0.0.0"
 dependencies = [
  "fp-account",
  "fp-evm",
+ "fp-evm-mapping",
  "fp-rpc",
  "fp-self-contained",
  "frame-benchmarking",
@@ -5069,6 +5084,7 @@ dependencies = [
  "fp-consensus",
  "fp-ethereum",
  "fp-evm",
+ "fp-evm-mapping",
  "fp-rpc",
  "fp-self-contained",
  "fp-storage",
@@ -5108,6 +5124,7 @@ dependencies = [
  "parity-scale-codec",
  "rlp",
  "scale-info",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -5155,6 +5172,7 @@ name = "pallet-evm-precompile-dispatch"
 version = "2.0.0-dev"
 dependencies = [
  "fp-evm",
+ "fp-evm-mapping",
  "frame-support",
  "frame-system",
  "pallet-balances",
