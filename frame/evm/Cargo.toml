@@ -32,6 +32,8 @@ sp-std = { workspace = true }
 # Frontier
 fp-account = { workspace = true }
 fp-evm = { workspace = true }
+# Unique
+serde = { workspace = true }
 
 [dev-dependencies]
 # Substrate
@@ -61,6 +63,8 @@ std = [
 	# Frontier
 	"fp-account/std",
 	"fp-evm/std",
+	# Unique
+	"serde/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
