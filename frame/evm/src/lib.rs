@@ -109,6 +109,10 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
+	// Unique:
+	use fp_evm::TransactionValidityHack;
+	use frame_support::storage::types::StorageValue;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
@@ -182,6 +186,7 @@ pub mod pallet {
 		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
 		/// pallets
 		type OnMethodCall: OnMethodCall<Self>;
+		type TransactionValidityHack: TransactionValidityHack<Self::CrossAccountId>;
 	}
 
 	#[pallet::call]

@@ -357,6 +357,7 @@ impl pallet_evm::Config for Runtime {
 	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
 	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
 	type OnMethodCall = ();
+	type TransactionValidityHack = ();
 }
 
 parameter_types! {
