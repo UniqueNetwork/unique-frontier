@@ -179,6 +179,9 @@ pub mod pallet {
 		type CrossAccountId: CrossAccountId<Self::AccountId>;
 		type EvmAddressMapping: AddressMapping<Self::AccountId>;
 		type EvmBackwardsAddressMapping: fp_evm_mapping::EvmBackwardsAddressMapping<Self::AccountId>;
+		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
+		/// pallets
+		type OnMethodCall: OnMethodCall<Self>;
 	}
 
 	#[pallet::call]
@@ -722,6 +725,13 @@ static LONDON_CONFIG: EvmConfig = EvmConfig::london();
 impl<T: Config> Pallet<T> {
 	/// Check whether an account is empty.
 	pub fn is_account_empty(address: &H160) -> bool {
+		// Unique:
+		if T::OnMethodCall::is_used(address) {
+			return false;
+		} else if T::OnMethodCall::is_reserved(address) {
+			return true;
+		}
+
 		let (account, _) = Self::account_basic(address);
 		let code_len = <AccountCodes<T>>::decode_len(address).unwrap_or(0);
 
@@ -737,6 +747,11 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove an account.
 	pub fn remove_account(address: &H160) {
+		// Unique:
+		if T::OnMethodCall::is_reserved(address) {
+			return;
+		}
+
 		if <AccountCodes<T>>::contains_key(address) {
 			let account_id = T::AddressMapping::into_account_id(*address);
 			let _ = frame_system::Pallet::<T>::dec_sufficients(&account_id);
@@ -987,5 +1002,80 @@ impl<T> OnCreate<T> for Tuple {
 		for_tuples!(#(
 			Tuple::on_create(owner, contract);
 		)*)
+	}
+}
+
+// Unique:
+pub trait OnMethodCall<T> {
+	/// Is address is reserved, it shouldn't be created/deleted
+	fn is_reserved(contract: &H160) -> bool;
+
+	/// Is contract is actually used for anything
+	fn is_used(contract: &H160) -> bool;
+
+	/// On contract call
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult>;
+
+	/// Get hardcoded contract code
+	fn get_code(contract: &H160) -> Option<Vec<u8>>;
+}
+
+/// Implementation for () disables method call interception
+impl<T> OnMethodCall<T> for () {
+	fn is_reserved(_contract: &H160) -> bool {
+		false
+	}
+	fn is_used(_contract: &H160) -> bool {
+		false
+	}
+
+	fn call(_handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
+		None
+	}
+
+	fn get_code(_contract: &H160) -> Option<Vec<u8>> {
+		None
+	}
+}
+
+/// Allow chaining
+#[impl_for_tuples(1, 12)]
+impl<T> OnMethodCall<T> for Tuple {
+	for_tuples!( where #( Tuple: OnMethodCall<T> )* );
+
+	fn is_reserved(contract: &H160) -> bool {
+		for_tuples!(#(
+			if Tuple::is_reserved(contract) {
+				return true;
+			}
+		)*);
+		false
+	}
+
+	fn is_used(contract: &H160) -> bool {
+		for_tuples!(#(
+			if Tuple::is_used(contract) {
+				return true;
+			}
+		)*);
+		false
+	}
+
+	fn call(handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
+		for_tuples!(#(
+			if let Some(r) = Tuple::call(handle) {
+				return Some(r);
+			}
+		)*);
+		None
+	}
+
+	fn get_code(address: &H160) -> Option<Vec<u8>> {
+		for_tuples!(#(
+			if let Some(r) = Tuple::get_code(address) {
+				return Some(r);
+			}
+		)*);
+		None
 	}
 }

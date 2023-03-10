@@ -180,6 +180,7 @@ impl pallet_evm::Config for Test {
 	type CrossAccountId = pallet_evm::account::BasicCrossAccountId<Self>;
 	type EvmAddressMapping = pallet_evm::IdentityAddressMapping;
 	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
+	type OnMethodCall = ();
 }
 
 pub(crate) struct MockHandle {
