@@ -36,6 +36,9 @@ use crate::{
 	PrecompileResult, PrecompileSet,
 };
 
+// Unique
+use crate::account;
+
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -141,9 +144,13 @@ impl crate::Config for Test {
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	// Unique:
+	// type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
 
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	// Unique:
+	// type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 
@@ -158,6 +165,10 @@ impl crate::Config for Test {
 	type FindAuthor = FindAuthorTruncated;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+
+	// Unique:
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
 }
 
 /// Example PrecompileSet with only Identity precompile.

@@ -39,6 +39,9 @@ use sp_std::{
 	vec::Vec,
 };
 
+// Unique
+use crate::account::CrossAccountId;
+
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
 
@@ -54,7 +57,10 @@ where
 	#[allow(clippy::let_and_return)]
 	/// Execute an already validated EVM operation.
 	fn execute<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &T::CrossAccountId,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -108,7 +114,10 @@ where
 
 	// Execute an already validated EVM operation.
 	fn execute_inner<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &T::CrossAccountId,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -141,8 +150,10 @@ where
 		// of a precompile. While mainnet Ethereum currently only has stateless precompiles,
 		// projects using Frontier can have stateful precompiles that can manage funds or
 		// which calls other contracts that expects this precompile address to be trustworthy.
+		let eth_source = *source.as_eth();
 		if is_transactional
-			&& (!<AccountCodes<T>>::get(source).is_empty() || precompiles.is_precompile(source))
+			&& (!<AccountCodes<T>>::get(eth_source).is_empty()
+				|| precompiles.is_precompile(eth_source))
 		{
 			return Err(RunnerError {
 				error: Error::<T>::TransactionMustComeFromEOA,
@@ -196,7 +207,7 @@ where
 		// Execute the EVM call.
 		let vicinity = Vicinity {
 			gas_price: base_fee,
-			origin: source,
+			origin: *source.as_eth(),
 		};
 
 		let metadata = StackSubstateMetadata::new(gas_limit, config);
@@ -296,7 +307,10 @@ where
 	type Error = Error<T>;
 
 	fn validate(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: Option<H160>,
 		input: Vec<u8>,
 		value: U256,
@@ -309,7 +323,7 @@ where
 		evm_config: &evm::Config,
 	) -> Result<(), RunnerError<Self::Error>> {
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
-		let (source_account, inner_weight) = Pallet::<T>::account_basic(&source);
+		let (source_account, inner_weight) = Pallet::<T>::account_basic_by_id(&source);
 		weight = weight.saturating_add(inner_weight);
 
 		let _ = fp_evm::CheckEvmTransaction::<Self::Error>::new(
@@ -341,7 +355,10 @@ where
 	}
 
 	fn call(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: H160,
 		input: Vec<u8>,
 		value: U256,
@@ -356,7 +373,7 @@ where
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				Some(target),
 				input.clone(),
 				value,
@@ -371,7 +388,7 @@ where
 		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -379,12 +396,24 @@ where
 			config,
 			&precompiles,
 			is_transactional,
-			|executor| executor.transact_call(source, target, value, input, gas_limit, access_list),
+			|executor| {
+				executor.transact_call(
+					*source.as_eth(),
+					target,
+					value,
+					input,
+					gas_limit,
+					access_list,
+				)
+			},
 		)
 	}
 
 	fn create(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		value: U256,
 		gas_limit: u64,
@@ -398,7 +427,7 @@ where
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -413,7 +442,7 @@ where
 		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -422,17 +451,22 @@ where
 			&precompiles,
 			is_transactional,
 			|executor| {
-				let address = executor.create_address(evm::CreateScheme::Legacy { caller: source });
-				T::OnCreate::on_create(source, address);
+				let address = executor.create_address(evm::CreateScheme::Legacy {
+					caller: *source.as_eth(),
+				});
+				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
-					executor.transact_create(source, value, init, gas_limit, access_list);
+					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				(reason, address)
 			},
 		)
 	}
 
 	fn create2(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		salt: H256,
 		value: U256,
@@ -447,7 +481,7 @@ where
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -463,7 +497,7 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -473,13 +507,20 @@ where
 			is_transactional,
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Create2 {
-					caller: source,
+					caller: *source.as_eth(),
 					code_hash,
 					salt,
 				});
-				T::OnCreate::on_create(source, address);
-				let (reason, _) =
-					executor.transact_create2(source, value, init, salt, gas_limit, access_list);
+				T::OnCreate::on_create(*source.as_eth(), address);
+				let (reason, _) = executor.transact_create2(
+					// Unique
+					*source.as_eth(),
+					value,
+					init,
+					salt,
+					gas_limit,
+					access_list,
+				);
 				(reason, address)
 			},
 		)

@@ -19,6 +19,8 @@
 
 use super::*;
 use crate::mock::*;
+// Unique:
+use crate::account::BasicCrossAccountId;
 
 use frame_support::{
 	assert_ok,
@@ -117,17 +119,18 @@ fn fee_deduction() {
 		// Create an EVM address and the corresponding Substrate address that will be charged fees and refunded
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		// Seed account
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
 
 		// Deduct fees as 10 units
-		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&evm_addr, U256::from(10)).unwrap();
+		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&cross_addr, U256::from(10)).unwrap();
 		assert_eq!(Balances::free_balance(&substrate_addr), 90);
 
 		// Refund fees as 5 units
-		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&evm_addr, U256::from(5), U256::from(5), imbalance);
+		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&cross_addr, U256::from(5), U256::from(5), imbalance);
 		assert_eq!(Balances::free_balance(&substrate_addr), 95);
 	});
 }
@@ -167,6 +170,7 @@ fn ed_0_refund_patch_is_required() {
 		// for ED 0 configured chains.
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
@@ -174,7 +178,7 @@ fn ed_0_refund_patch_is_required() {
 		// Drain funds
 		let _ =
 			<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(
-				&evm_addr,
+				&cross_addr,
 				U256::from(100),
 			)
 			.unwrap();
@@ -450,7 +454,7 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_ok_without_gas_pr
 			U256::zero()
 		);
 		let _ = <Test as Config>::Runner::call(
-			non_balance_account,
+			BasicCrossAccountId::from_eth(non_balance_account),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -484,7 +488,7 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_err_with_gas_pric
 			U256::zero()
 		);
 		let res = <Test as Config>::Runner::call(
-			non_balance_account,
+			BasicCrossAccountId::from_eth(non_balance_account),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -506,7 +510,7 @@ fn runner_transactional_call_with_zero_gas_price_fails() {
 	// Transactional calls are rejected when `max_fee_per_gas == None`.
 	new_test_ext().execute_with(|| {
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -528,7 +532,7 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 	// Transactional and non transactional calls enforce `max_fee_per_gas >= max_priority_fee_per_gas`.
 	new_test_ext().execute_with(|| {
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -543,7 +547,7 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 		);
 		assert!(res.is_err());
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -566,7 +570,9 @@ fn eip3607_transaction_from_contract() {
 		// external transaction
 		match <Test as Config>::Runner::call(
 			// Contract address.
-			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			<Test as Config>::CrossAccountId::from_eth(
+				H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -589,7 +595,9 @@ fn eip3607_transaction_from_contract() {
 		// internal call
 		assert!(<Test as Config>::Runner::call(
 			// Contract address.
-			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			BasicCrossAccountId::from_eth(
+				H160::from_str("1000000000000000000000000000000000000001").unwrap()
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -612,7 +620,9 @@ fn eip3607_transaction_from_precompile() {
 		// external transaction
 		match <Test as Config>::Runner::call(
 			// Precompile address.
-			H160::from_str("0000000000000000000000000000000000000001").unwrap(),
+			BasicCrossAccountId::from_eth(
+				H160::from_str("0000000000000000000000000000000000000001").unwrap(),
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -635,7 +645,9 @@ fn eip3607_transaction_from_precompile() {
 		// internal call
 		assert!(<Test as Config>::Runner::call(
 			// Contract address.
-			H160::from_str("0000000000000000000000000000000000000001").unwrap(),
+			BasicCrossAccountId::from_eth(
+				H160::from_str("0000000000000000000000000000000000000001").unwrap()
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),

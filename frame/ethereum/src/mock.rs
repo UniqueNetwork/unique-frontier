@@ -25,7 +25,7 @@ use frame_support::{
 	weights::Weight,
 	ConsensusEngineId, PalletId,
 };
-use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
+use pallet_evm::{AddressMapping, BackwardsAddressMapping, EnsureAddressTruncated, FeeCalculator};
 use rlp::RlpStream;
 use sp_core::{hashing::keccak_256, H160, H256, U256};
 use sp_runtime::{
@@ -154,14 +154,37 @@ impl AddressMapping<AccountId32> for HashedAddressMapping {
 		AccountId32::from(Into::<[u8; 32]>::into(data))
 	}
 }
+impl BackwardsAddressMapping<AccountId32> for HashedAddressMapping {
+	fn from_account_id(account_id: AccountId32) -> H160 {
+		let bytes = <[u8; 32]>::from(account_id);
+		let mut data = [0u8; 20];
+		data[0..20].copy_from_slice(&bytes[0..20]);
+		H160(data)
+	}
+}
+
+// Unique:
+pub struct MapAddressTruncated;
+impl AddressMapping<AccountId32> for MapAddressTruncated {
+	fn into_account_id(account_id: H160) -> AccountId32 {
+		let mut data = [0u8; 32];
+		data[0..20].copy_from_slice(account_id.as_bytes());
+		AccountId32::from(data)
+	}
+}
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
 
 impl pallet_evm::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 	type BlockHashMapping = crate::EthereumBlockHashMapping<Self>;
+	/* Unique
 	type CallOrigin = EnsureAddressTruncated;
 	type WithdrawOrigin = EnsureAddressTruncated;
+	*/
+	type CallOrigin = EnsureAddressTruncated<Self>;
+	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AddressMapping = HashedAddressMapping;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
@@ -175,6 +198,10 @@ impl pallet_evm::Config for Test {
 	type FindAuthor = FindAuthorTruncated;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+
+	// Unique:
+	type CrossAccountId = CrossAccountId<Self>;
+	type BackwardsAddressMapping = HashedAddressMapping;
 }
 
 parameter_types! {
