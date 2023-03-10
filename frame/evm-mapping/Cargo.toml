@@ -1,0 +1,14 @@
+[package]
+name = "fp-evm-mapping"
+version = "0.1.0"
+license = "GPLv3"
+edition = "2021"
+
+[dependencies]
+frame-support = { workspace = true }
+sp-core = { workspace = true }
+
+[features]
+default = ["std"]
+std = ["sp-core/std", "frame-support/std"]
+try-runtime = ["frame-support/try-runtime"]

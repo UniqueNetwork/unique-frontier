@@ -170,6 +170,17 @@ impl AddressMapping<AccountId32> for MapAddressTruncated {
 }
 type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
 
+// Unique:
+pub struct MapAddressTruncated;
+impl AddressMapping<AccountId32> for MapAddressTruncated {
+	fn into_account_id(account_id: H160) -> AccountId32 {
+		let mut data = [0u8; 32];
+		data[0..20].copy_from_slice(account_id.as_bytes());
+		AccountId32::from(data)
+	}
+}
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
 impl pallet_evm::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;

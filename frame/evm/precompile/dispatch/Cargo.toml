@@ -13,6 +13,8 @@ frame-support = { workspace = true }
 # Frontier
 fp-evm = { workspace = true }
 pallet-evm = { workspace = true }
+# Unique
+fp-evm-mapping = { workspace = true }
 
 [dev-dependencies]
 scale-codec = { package = "parity-scale-codec", workspace = true }
@@ -35,4 +37,6 @@ std = [
 	# Frontier
 	"fp-evm/std",
 	"pallet-evm/std",
+	# Unique
+	"fp-evm-mapping/std",
 ]

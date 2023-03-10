@@ -50,6 +50,8 @@ use pallet_ethereum::{Call::transact, PostLogContent, Transaction as EthereumTra
 use pallet_evm::{
 	Account as EVMAccount, EnsureAccountId20, FeeCalculator, IdentityAddressMapping, Runner,
 };
+// Unique
+use pallet_evm::account::CrossAccountId as _;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_system::Call as SystemCall;
@@ -317,6 +319,9 @@ parameter_types! {
 	pub PrecompilesValue: FrontierPrecompiles<Runtime> = FrontierPrecompiles::<_>::new();
 	pub WeightPerGas: Weight = Weight::from_parts(weight_per_gas(BLOCK_GAS_LIMIT, NORMAL_DISPATCH_RATIO, WEIGHT_MILLISECS_PER_BLOCK), 0);
 }
+
+// Unique:
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
 
 impl pallet_evm::Config for Runtime {
 	type FeeCalculator = BaseFee;

@@ -42,6 +42,14 @@ use crate::account;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
+// Unique:
+pub struct EvmToEvmBackwardAddressMap {}
+impl EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
+	fn from_account_id(account_id: H160) -> H160 {
+		account_id
+	}
+}
+
 frame_support::construct_runtime! {
 	pub enum Test where
 		Block = Block,

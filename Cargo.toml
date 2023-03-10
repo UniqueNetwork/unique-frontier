@@ -14,6 +14,7 @@ members = [
 	"frame/evm/precompile/blake2",
 	"frame/evm/precompile/dispatch",
 	"frame/evm/precompile/curve25519",
+	"frame/evm-mapping",
 	"client/consensus",
 	"client/rpc-core",
 	"client/rpc",
@@ -150,3 +151,5 @@ pallet-evm-test-vector-support = { version = "1.0.0-dev", path = "frame/evm/test
 pallet-hotfix-sufficients = { version = "1.0.0", path = "frame/hotfix-sufficients", default-features = false }
 # Frontier Template
 frontier-template-runtime = { path = "template/runtime", default-features = false }
+# Unique
+fp-evm-mapping = { path = "frame/evm-mapping", default-features = false }
