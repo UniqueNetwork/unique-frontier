@@ -78,6 +78,14 @@ pub enum CallOrCreateInfo {
 	Create(CreateInfo),
 }
 
+// Unique:
+#[derive(Debug, Clone)]
+pub enum WithdrawReason {
+	Call { target: H160, input: Vec<u8> },
+	Create,
+	Create2,
+}
+
 /// Account definition used for genesis block construction.
 #[cfg(feature = "std")]
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, Serialize, Deserialize)]
