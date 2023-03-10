@@ -163,7 +163,6 @@ impl AddressMapping<AccountId32> for MapAddressTruncated {
 type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
 
 impl pallet_evm::Config for Test {
-
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
