@@ -48,6 +48,8 @@ use pallet_ethereum::{Call::transact, PostLogContent, Transaction as EthereumTra
 use pallet_evm::{
 	Account as EVMAccount, EnsureAddressTruncated, FeeCalculator, HashedAddressMapping, Runner,
 };
+// Unique
+use pallet_evm::account::CrossAccountId as _;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_system::Call as SystemCall;
@@ -325,13 +327,19 @@ parameter_types! {
 	pub WeightPerGas: Weight = Weight::from_ref_time(weight_per_gas(BLOCK_GAS_LIMIT, NORMAL_DISPATCH_RATIO, WEIGHT_MILLISECS_PER_BLOCK));
 }
 
+// Unique:
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
 impl pallet_evm::Config for Runtime {
 	type FeeCalculator = BaseFee;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressTruncated;
-	type WithdrawOrigin = EnsureAddressTruncated;
+	// Unique:
+	// type CallOrigin = EnsureAddressTruncated;
+	// type WithdrawOrigin = EnsureAddressTruncated;
+	type CallOrigin = EnsureAddressTruncated<Self>;
+	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AddressMapping = HashedAddressMapping<BlakeTwo256>;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
@@ -343,6 +351,11 @@ impl pallet_evm::Config for Runtime {
 	type OnChargeTransaction = ();
 	type OnCreate = ();
 	type FindAuthor = FindAuthorTruncated<Aura>;
+
+	// Unique:
+	type CrossAccountId = CrossAccountId<Self>;
+	type EvmAddressMapping = pallet_evm::HashedAddressMapping<Self::Hashing>;
+	type EvmBackwardsAddressMapping = fp_evm_mapping::MapBackwardsAddressTruncated;
 }
 
 parameter_types! {
@@ -673,7 +686,9 @@ impl_runtime_apis! {
 			let validate = true;
 			let evm_config = config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config());
 			<Runtime as pallet_evm::Config>::Runner::call(
-				from,
+				// Unique:
+				// from,
+				<CrossAccountId<Runtime>>::from_eth(from),
 				to,
 				data,
 				value,
@@ -711,7 +726,9 @@ impl_runtime_apis! {
 			let validate = true;
 			let evm_config = config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config());
 			<Runtime as pallet_evm::Config>::Runner::create(
-				from,
+				// Unique:
+				// from,
+				<CrossAccountId<Runtime>>::from_eth(from),
 				data,
 				value,
 				gas_limit.unique_saturated_into(),

@@ -138,15 +138,31 @@ parameter_types! {
 	pub BlockGasLimit: U256 = U256::max_value();
 	pub WeightPerGas: Weight = Weight::from_ref_time(20_000);
 }
+
+// Unique:
+pub struct EvmToEvmBackwardAddressMap {}
+impl fp_evm_mapping::EvmBackwardsAddressMapping<H160> for EvmToEvmBackwardAddressMap {
+	fn from_account_id(account_id: H160) -> H160 {
+		account_id
+	}
+}
+
 impl pallet_evm::Config for Test {
+
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = pallet_evm::SubstrateBlockHashMapping<Self>;
+	/* Unique
 	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	*/
+	type CallOrigin = EnsureAddressRoot<Self>;
 
+	/* Unique
 	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	*/
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 
@@ -159,6 +175,11 @@ impl pallet_evm::Config for Test {
 	type OnChargeTransaction = ();
 	type OnCreate = ();
 	type FindAuthor = FindAuthorTruncated;
+
+	// Unique:
+	type CrossAccountId = pallet_evm::account::BasicCrossAccountId<Self>;
+	type EvmAddressMapping = pallet_evm::IdentityAddressMapping;
+	type EvmBackwardsAddressMapping = EvmToEvmBackwardAddressMap;
 }
 
 pub(crate) struct MockHandle {

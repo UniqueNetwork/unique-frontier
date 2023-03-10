@@ -35,6 +35,9 @@ fp-self-contained = { workspace = true }
 fp-storage = { workspace = true }
 pallet-evm = { workspace = true }
 
+# Unique
+fp-evm-mapping = { workspace = true }
+
 [dev-dependencies]
 hex = "0.4.3"
 libsecp256k1 = { workspace = true, features = ["static-context", "hmac"] }
