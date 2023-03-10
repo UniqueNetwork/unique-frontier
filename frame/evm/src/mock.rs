@@ -170,6 +170,7 @@ impl crate::Config for Test {
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
 	type BackwardsAddressMapping = IdentityAddressMapping;
 	type OnMethodCall = ();
+	type TransactionValidityHack = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.
