@@ -986,9 +986,12 @@ pub fn get_sponsor<T: Config>(
 	is_transactional: bool,
 	is_check: bool,
 ) -> Option<T::CrossAccountId> {
-	let (base_fee, _) = T::FeeCalculator::min_gas_price();
+	let accept_gas_fee = |gas_fee| {
+		let (base_fee, _) = T::FeeCalculator::min_gas_price();
+		base_fee <= gas_fee && gas_fee <= base_fee * 21 / 10
+	};
 	let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
-		(Some(max_fee_per_gas), _) => (max_fee_per_gas, max_fee_per_gas == base_fee),
+		(Some(max_fee_per_gas), _) => (max_fee_per_gas, accept_gas_fee(max_fee_per_gas)),
 		// Gas price check is skipped for non-transactional calls that don't
 		// define a `max_fee_per_gas` input.
 		(None, false) => (Default::default(), true),
