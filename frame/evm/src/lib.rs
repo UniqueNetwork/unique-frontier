@@ -89,9 +89,9 @@ use fp_account::AccountId20;
 #[cfg(feature = "std")]
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfo, FeeCalculator, InvalidEvmTransactionError,
-	LinearCostPrecompile, Log, Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput,
-	PrecompileResult, PrecompileSet, Vicinity,
+	Account, CallInfo, CheckEvmTransaction, CreateInfo, ExecutionInfo, FeeCalculator,
+	InvalidEvmTransactionError, LinearCostPrecompile, Log, Precompile, PrecompileFailure,
+	PrecompileHandle, PrecompileOutput, PrecompileResult, PrecompileSet, Vicinity,
 };
 
 pub use self::{
@@ -109,12 +109,8 @@ use impl_trait_for_tuples::impl_for_tuples;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{pallet_prelude::*, storage::types::StorageValue};
 	use frame_system::pallet_prelude::*;
-
-	// Unique:
-	use fp_evm::TransactionValidityHack;
-	use frame_support::storage::types::StorageValue;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
@@ -187,7 +183,13 @@ pub mod pallet {
 		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
 		/// pallets
 		type OnMethodCall: OnMethodCall<Self>;
-		type TransactionValidityHack: TransactionValidityHack<Self::CrossAccountId>;
+		/// Called on create calls, used to record owner
+		type OnCreate: OnCreate<Self>;
+
+		type TransactionValidityOnChain<E: From<InvalidEvmTransactionError>>: TransactionValidate<
+			Self,
+			E,
+		>;
 	}
 
 	#[pallet::call]
@@ -561,7 +563,7 @@ pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Type alias for negative imbalance during fees
-type NegativeImbalanceOf<C, T> =
+pub type NegativeImbalanceOf<C, T> =
 	<C as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 pub trait EnsureAddressOrigin<OuterOrigin> {
@@ -1146,5 +1148,21 @@ impl<T> OnCreate<T> for Tuple {
 		for_tuples!(#(
 			Tuple::on_create(owner, contract);
 		)*)
+	}
+}
+
+pub trait TransactionValidate<T: Config, E: From<InvalidEvmTransactionError>> {
+	fn check_evm_transaction<'a>(
+		v: CheckEvmTransaction<'a, E>,
+		origin: &T::CrossAccountId,
+	) -> Result<CheckEvmTransaction<'a, E>, E>;
+}
+
+impl<T: Config, E: From<InvalidEvmTransactionError>> TransactionValidate<T, E> for () {
+	fn check_evm_transaction<'a>(
+		v: CheckEvmTransaction<'a, E>,
+		_origin: &T::CrossAccountId,
+	) -> Result<CheckEvmTransaction<'a, E>, E> {
+		Ok(v)
 	}
 }

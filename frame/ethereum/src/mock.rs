@@ -208,7 +208,8 @@ impl pallet_evm::Config for Test {
 	type CrossAccountId = CrossAccountId<Self>;
 	type BackwardsAddressMapping = HashedAddressMapping;
 	type OnMethodCall = ();
-	type TransactionValidityHack = ();
+	type OnCreate = ();
+	type TransactionValidityOnChain<E: From<pallet_evm::InvalidEvmTransactionError>> = ();
 }
 
 parameter_types! {

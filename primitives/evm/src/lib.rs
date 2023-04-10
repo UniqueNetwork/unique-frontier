@@ -80,41 +80,16 @@ pub enum CallOrCreateInfo {
 // Unique:
 #[derive(Debug, Clone)]
 pub enum WithdrawReason {
-	Call { target: H160, input: Vec<u8> },
+	Call {
+		target: H160,
+		input: Vec<u8>,
+		max_fee_per_gas: Option<U256>,
+		gas_limit: U256,
+		is_transactional: bool,
+		is_check: bool,
+	},
 	Create,
 	Create2,
-}
-
-// Unique:
-pub trait TransactionValidityHack<CrossAccountId> {
-	fn who_pays_fee(origin: H160, max_fee: U256, reason: &WithdrawReason)
-		-> Option<CrossAccountId>;
-}
-
-impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for () {
-	fn who_pays_fee(
-		_origin: H160,
-		_max_fee: U256,
-		_reason: &WithdrawReason,
-	) -> Option<CrossAccountId> {
-		None
-	}
-}
-
-#[impl_trait_for_tuples::impl_for_tuples(1, 12)]
-impl<CrossAccountId> TransactionValidityHack<CrossAccountId> for Tuple {
-	fn who_pays_fee(
-		origin: H160,
-		max_fee: U256,
-		reason: &WithdrawReason,
-	) -> Option<CrossAccountId> {
-		for_tuples!(#(
-			if let Some(who) = Tuple::who_pays_fee(origin, max_fee, reason) {
-				return Some(who);
-			}
-		)*);
-		None
-	}
 }
 
 /// Account definition used for genesis block construction.

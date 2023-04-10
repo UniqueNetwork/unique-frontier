@@ -32,8 +32,8 @@ use sp_runtime::{
 use sp_std::{boxed::Box, prelude::*, str::FromStr};
 
 use crate::{
-	EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping, PrecompileHandle,
-	PrecompileResult, PrecompileSet,
+	EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping,
+	InvalidEvmTransactionError, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
 
 // Unique
@@ -172,7 +172,8 @@ impl crate::Config for Test {
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
 	type BackwardsAddressMapping = IdentityAddressMapping;
 	type OnMethodCall = ();
-	type TransactionValidityHack = ();
+	type OnCreate = ();
+	type TransactionValidityOnChain<E: From<InvalidEvmTransactionError>> = ();
 }
 
 /// Exemple PrecompileSet with only Identity precompile.
