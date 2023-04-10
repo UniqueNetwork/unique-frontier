@@ -209,7 +209,7 @@ pub mod pallet {
 				&address_account_id,
 				// Unique:
 				// &destination,
-				&destination.as_sub(),
+				destination.as_sub(),
 				value,
 				ExistenceRequirement::AllowDeath,
 			)?;

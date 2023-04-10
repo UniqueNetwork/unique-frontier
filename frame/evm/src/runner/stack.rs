@@ -782,7 +782,7 @@ impl<'vicinity, 'config, T: Config> BackendT for SubstrateStackState<'vicinity, 
 	fn code(&self, address: H160) -> Vec<u8> {
 		// Unique
 		<T as Config>::OnMethodCall::get_code(&address)
-			.unwrap_or_else(|| <AccountCodes<T>>::get(&address))
+			.unwrap_or_else(|| <AccountCodes<T>>::get(address))
 	}
 
 	fn storage(&self, address: H160, index: H256) -> H256 {
@@ -1025,13 +1025,9 @@ impl<T: Config> PrecompileSetWithMethods<T> {
 
 impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 	fn execute(&self, handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
-		if let Some(result) = self.0.execute(handle) {
-			Some(result)
-		} else if let Some(result) = T::OnMethodCall::call(handle) {
-			Some(result)
-		} else {
-			None
-		}
+		self.0
+			.execute(handle)
+			.or_else(|| T::OnMethodCall::call(handle))
 	}
 
 	fn is_precompile(&self, address: H160) -> bool {

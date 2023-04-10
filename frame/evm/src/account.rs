@@ -139,7 +139,7 @@ where
 		S: serde::Serializer,
 	{
 		let repr = BasicCrossAccountIdRepr::from(self.clone());
-		(&repr).serialize(serializer)
+		repr.serialize(serializer)
 	}
 }
 
