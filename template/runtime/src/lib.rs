@@ -283,7 +283,17 @@ impl pallet_balances::Config for Runtime {
 }
 
 #[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo,
+	Copy,
+	Clone,
+	Eq,
+	PartialEq,
+	Ord,
+	PartialOrd,
+	Encode,
+	Decode,
+	MaxEncodedLen,
+	Debug,
+	TypeInfo
 )]
 pub enum HoldIdentifier {
 	Nis,
@@ -578,7 +588,7 @@ impl_runtime_apis! {
 		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
 			Runtime::metadata_at_version(version)
 		}
-		
+
 		fn metadata_versions() -> sp_std::vec::Vec<u32> {
 			Runtime::metadata_versions()
 		}

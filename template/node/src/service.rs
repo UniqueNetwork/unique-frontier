@@ -7,7 +7,7 @@ use futures::{channel::mpsc, prelude::*};
 use prometheus_endpoint::Registry;
 use sc_client_api::{BlockBackend, StateBackendFor};
 use sc_consensus::BasicQueue;
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::NativeExecutionDispatch;
 use sc_network_common::sync::warp::WarpSyncParams;
 use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
@@ -94,12 +94,7 @@ where
 		})
 		.transpose()?;
 
-	let executor = NativeElseWasmExecutor::<Executor>::new(
-		config.wasm_method,
-		config.default_heap_pages,
-		config.max_runtime_instances,
-		config.runtime_cache_size,
-	);
+	let executor = sc_service::new_native_or_wasm_executor(config);
 
 	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, _>(
