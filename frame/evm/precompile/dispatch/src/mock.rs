@@ -93,7 +93,7 @@ impl pallet_utility::Config for Test {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
+	pub const ExistentialDeposit: u64 = 0;
 }
 impl pallet_balances::Config for Test {
 	type Balance = u64;
