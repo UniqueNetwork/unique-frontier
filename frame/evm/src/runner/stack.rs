@@ -40,7 +40,7 @@ use sp_std::{
 };
 
 // Unique
-use crate::{account::CrossAccountId, CurrentLogs, OnCreate, OnMethodCall};
+use crate::{account::CrossAccountId, CurrentLogs, OnMethodCall};
 use evm::executor::stack::PrecompileHandle;
 use fp_evm::{PrecompileResult, WithdrawReason};
 

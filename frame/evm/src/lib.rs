@@ -104,7 +104,6 @@ pub mod account;
 use account::CrossAccountId;
 use core::marker::PhantomData;
 use fp_evm::WithdrawReason;
-use impl_trait_for_tuples::impl_for_tuples;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -183,9 +182,6 @@ pub mod pallet {
 		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
 		/// pallets
 		type OnMethodCall: OnMethodCall<Self>;
-		/// Called on create calls, used to record owner
-		type OnCreate: OnCreate<Self>;
-
 		type TransactionValidityOnChain<E: From<InvalidEvmTransactionError>>: TransactionValidate<
 			Self,
 			E,
@@ -1130,24 +1126,6 @@ impl<T> OnMethodCall<T> for Tuple {
 			}
 		)*);
 		None
-	}
-}
-
-// Unique:
-pub trait OnCreate<T> {
-	fn on_create(owner: H160, contract: H160);
-}
-
-impl<T> OnCreate<T> for () {
-	fn on_create(_owner: H160, _contract: H160) {}
-}
-
-#[impl_for_tuples(1, 12)]
-impl<T> OnCreate<T> for Tuple {
-	fn on_create(owner: H160, contract: H160) {
-		for_tuples!(#(
-			Tuple::on_create(owner, contract);
-		)*)
 	}
 }
 
