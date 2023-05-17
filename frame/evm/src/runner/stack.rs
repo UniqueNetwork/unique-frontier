@@ -435,16 +435,6 @@ where
 					access_list,
 				)
 			},
-			|executor| {
-				executor.transact_call(
-					*source.as_eth(),
-					target,
-					value,
-					input,
-					gas_limit,
-					access_list,
-				)
-			},
 		)
 	}
 
@@ -503,7 +493,6 @@ where
 				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
 					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
-				executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				(reason, address)
 			},
 		)

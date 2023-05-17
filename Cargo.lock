@@ -2316,7 +2316,6 @@ version = "3.0.0-dev"
 dependencies = [
  "evm",
  "frame-support",
- "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
  "sp-core",
@@ -5084,7 +5083,6 @@ dependencies = [
  "fp-consensus",
  "fp-ethereum",
  "fp-evm",
- "fp-evm-mapping",
  "fp-rpc",
  "fp-self-contained",
  "fp-storage",
@@ -5172,7 +5170,6 @@ name = "pallet-evm-precompile-dispatch"
 version = "2.0.0-dev"
 dependencies = [
  "fp-evm",
- "fp-evm-mapping",
  "frame-support",
  "frame-system",
  "pallet-balances",

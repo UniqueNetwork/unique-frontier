@@ -19,8 +19,6 @@ frame-support = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-# Unique
-impl-trait-for-tuples = "0.2.2"
 
 [features]
 default = ["std"]
