@@ -64,7 +64,7 @@ where
 		/* Unique:
 		source: H160,
 		*/
-		source: &T::CrossAccountId,
+		source: &'config T::CrossAccountId,
 		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		gas_limit: u64,
@@ -125,7 +125,7 @@ where
 		/* Unique:
 		source: H160,
 		*/
-		source: &T::CrossAccountId,
+		source: &'config T::CrossAccountId,
 		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		gas_limit: u64,
@@ -238,7 +238,7 @@ where
 		};
 
 		let metadata = StackSubstateMetadata::new(gas_limit, config);
-		let state = SubstrateStackState::new(&vicinity, metadata);
+		let state = SubstrateStackState::new(&vicinity, metadata, source);
 		let mut executor = StackExecutor::new_with_precompiles(state, config, precompiles);
 
 		let (reason, retv) = f(&mut executor);
@@ -748,16 +748,21 @@ impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 }
 
 /// Substrate backend for EVM.
-pub struct SubstrateStackState<'vicinity, 'config, T> {
+pub struct SubstrateStackState<'vicinity, 'config, T: Config> {
 	vicinity: &'vicinity Vicinity,
 	substate: SubstrateStackSubstate<'config, T>,
 	original_storage: BTreeMap<(H160, H256), H256>,
+	source: &'config T::CrossAccountId,
 	_marker: PhantomData<T>,
 }
 
 impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 	/// Create a new backend with given vicinity.
-	pub fn new(vicinity: &'vicinity Vicinity, metadata: StackSubstateMetadata<'config>) -> Self {
+	pub fn new(
+		vicinity: &'vicinity Vicinity,
+		metadata: StackSubstateMetadata<'config>,
+		source: &'config T::CrossAccountId,
+	) -> Self {
 		Self {
 			vicinity,
 			substate: SubstrateStackSubstate {
@@ -771,7 +776,12 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 			},
 			_marker: PhantomData,
 			original_storage: BTreeMap::new(),
+			source,
 		}
+	}
+
+	fn source(&self) -> &'config T::CrossAccountId {
+		&self.source
 	}
 }
 
@@ -956,11 +966,16 @@ where
 	}
 
 	fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
-		let source = T::AddressMapping::into_account_id(transfer.source);
+		let sub_mirror = T::AddressMapping::into_account_id(transfer.source);
+		let source = if self.source().is_canonical_substrate() {
+			self.source().as_sub()
+		} else {
+			&sub_mirror
+		};
 		let target = T::AddressMapping::into_account_id(transfer.target);
 
 		T::Currency::transfer(
-			&source,
+			source,
 			&target,
 			transfer
 				.value
