@@ -225,8 +225,10 @@ where
 		// Deduct fee from the sponsor account. Returns `None` if `max_fee` is Zero.
 		// Unique: Do not charge on estimate
 		let fee = if !config.estimate {
-			Some(T::OnChargeTransaction::withdraw_fee(sponsor, reason, total_fee)
-			.map_err(|e| RunnerError { error: e, weight })?)
+			Some(
+				T::OnChargeTransaction::withdraw_fee(sponsor, reason, total_fee)
+					.map_err(|e| RunnerError { error: e, weight })?,
+			)
 		} else {
 			None
 		};
@@ -966,11 +968,11 @@ where
 	}
 
 	fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
-		let sub_mirror = T::AddressMapping::into_account_id(transfer.source);
-		let source = if self.source().is_canonical_substrate() {
+		let transfer_cross = T::CrossAccountId::from_eth(transfer.source);
+		let source = if self.source().conv_eq(&transfer_cross) {
 			self.source().as_sub()
 		} else {
-			&sub_mirror
+			transfer_cross.as_sub()
 		};
 		let target = T::AddressMapping::into_account_id(transfer.target);
 
