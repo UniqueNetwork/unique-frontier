@@ -98,7 +98,7 @@ pub use fp_evm::{
 	Account, CallInfo, CheckEvmTransaction, CreateInfo, ExecutionInfoV2 as ExecutionInfo,
 	FeeCalculator, InvalidEvmTransactionError, IsPrecompileResult, LinearCostPrecompile, Log,
 	Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult,
-	PrecompileSet, Vicinity,
+	PrecompileSet, Vicinity, WithdrawReason,
 };
 
 pub use self::{
@@ -571,7 +571,7 @@ pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Type alias for negative imbalance during fees
-type NegativeImbalanceOf<C, T> =
+pub type NegativeImbalanceOf<C, T> =
 	<C as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 #[derive(
@@ -885,7 +885,11 @@ pub trait OnChargeEVMTransaction<T: Config> {
 
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
+	fn withdraw_fee(
+		who: &H160,
+		reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>>;
 
 	/// After the transaction was executed the actual fee can be calculated.
 	/// This function should refund any overpaid fees and optionally deposit
@@ -927,7 +931,11 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
+	fn withdraw_fee(
+		who: &H160,
+		_reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>> {
 		if fee.is_zero() {
 			return Ok(None);
 		}
@@ -1018,9 +1026,10 @@ U256: UniqueSaturatedInto<BalanceOf<T>>,
 
 	fn withdraw_fee(
 		who: &H160,
+		reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
-		EVMCurrencyAdapter::<<T as Config>::Currency, ()>::withdraw_fee(who, fee)
+		EVMCurrencyAdapter::<<T as Config>::Currency, ()>::withdraw_fee(who, reason, fee)
 	}
 
 	fn correct_and_deposit_fee(

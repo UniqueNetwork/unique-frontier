@@ -183,6 +183,20 @@ pub enum CallOrCreateInfo {
 	Create(CreateInfo),
 }
 
+#[derive(Debug, Clone)]
+pub enum WithdrawReason {
+	Call {
+		target: H160,
+		input: Vec<u8>,
+		max_fee_per_gas: Option<U256>,
+		gas_limit: U256,
+		is_transactional: bool,
+		is_check: bool,
+	},
+	Create,
+	Create2,
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExecutionInfo<T> {

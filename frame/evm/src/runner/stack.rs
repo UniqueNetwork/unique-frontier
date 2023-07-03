@@ -48,8 +48,9 @@ use sp_std::{
 // Frontier
 use fp_evm::{
 	AccessedStorage, CallInfo, CreateInfo, ExecutionInfoV2, IsPrecompileResult, Log, PrecompileSet,
-	Vicinity, WeightInfo, ACCOUNT_BASIC_PROOF_SIZE, ACCOUNT_CODES_METADATA_PROOF_SIZE,
-	ACCOUNT_STORAGE_PROOF_SIZE, IS_EMPTY_CHECK_PROOF_SIZE, WRITE_PROOF_SIZE,
+	Vicinity, WeightInfo, WithdrawReason, ACCOUNT_BASIC_PROOF_SIZE,
+	ACCOUNT_CODES_METADATA_PROOF_SIZE, ACCOUNT_STORAGE_PROOF_SIZE, IS_EMPTY_CHECK_PROOF_SIZE,
+	WRITE_PROOF_SIZE,
 };
 
 #[cfg(feature = "forbid-evm-reentrancy")]
@@ -72,6 +73,7 @@ where
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
 		precompiles: &'precompiles T::PrecompilesType,
 		is_transactional: bool,
@@ -106,6 +108,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			precompiles,
 			is_transactional,
@@ -131,6 +134,7 @@ where
 		mut gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
 		precompiles: &'precompiles T::PrecompilesType,
 		is_transactional: bool,
@@ -232,7 +236,7 @@ where
 				})?;
 
 		// Deduct fee from the `source` account. Returns `None` if `total_fee` is Zero.
-		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)
+		let fee = T::OnChargeTransaction::withdraw_fee(&source, reason, total_fee)
 			.map_err(|e| RunnerError { error: e, weight })?;
 
 		// Execute the EVM call.
@@ -423,6 +427,14 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Call {
+			target,
+			input: input.clone(),
+			max_fee_per_gas,
+			gas_limit: gas_limit.into(),
+			is_transactional,
+			is_check: false,
+		};
 		if validate {
 			Self::validate(
 				source,
@@ -441,12 +453,14 @@ where
 			)?;
 		}
 		let precompiles = T::PrecompilesValue::get();
+
 		Self::execute(
 			source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -471,6 +485,7 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create;
 		if validate {
 			Self::validate(
 				source,
@@ -489,12 +504,14 @@ where
 			)?;
 		}
 		let precompiles = T::PrecompilesValue::get();
+
 		Self::execute(
 			source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -526,6 +543,7 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create2;
 		if validate {
 			Self::validate(
 				source,
@@ -551,6 +569,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
