@@ -95,10 +95,10 @@ use sp_std::{cmp::min, collections::btree_map::BTreeMap, vec::Vec};
 use fp_account::AccountId20;
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfoV2 as ExecutionInfo, FeeCalculator,
-	InvalidEvmTransactionError, IsPrecompileResult, LinearCostPrecompile, Log, Precompile,
-	PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult, PrecompileSet,
-	Vicinity,
+	Account, CallInfo, CheckEvmTransaction, CreateInfo, ExecutionInfoV2 as ExecutionInfo,
+	FeeCalculator, InvalidEvmTransactionError, IsPrecompileResult, LinearCostPrecompile, Log,
+	Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult,
+	PrecompileSet, Vicinity,
 };
 
 pub use self::{
@@ -177,6 +177,12 @@ pub mod pallet {
 		fn config() -> &'static EvmConfig {
 			&SHANGHAI_CONFIG
 		}
+
+		// Called when transaction info for validation is created
+		type OnCheckEvmTransaction<E: From<InvalidEvmTransactionError>>: OnCheckEvmTransaction<
+			Self,
+			E,
+		>;
 	}
 
 	#[pallet::call]
@@ -1045,5 +1051,21 @@ impl<T> OnCreate<T> for Tuple {
 		for_tuples!(#(
 			Tuple::on_create(owner, contract);
 		)*)
+	}
+}
+
+pub trait OnCheckEvmTransaction<T: Config, E: From<InvalidEvmTransactionError>> {
+	fn on_check_evm_transaction<'config>(
+		v: &mut CheckEvmTransaction<'config, E>,
+		origin: &H160,
+	) -> Result<(), E>;
+}
+
+impl<T: Config, E: From<InvalidEvmTransactionError>> OnCheckEvmTransaction<T, E> for () {
+	fn on_check_evm_transaction<'config>(
+		_v: &mut CheckEvmTransaction<'config, E>,
+		_origin: &H160,
+	) -> Result<(), E> {
+		Ok(())
 	}
 }

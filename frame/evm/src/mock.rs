@@ -32,7 +32,8 @@ use sp_std::{boxed::Box, prelude::*, str::FromStr};
 
 use crate::{
 	EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping,
-	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
+	InvalidEvmTransactionError, IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult,
+	PrecompileSet,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -162,6 +163,7 @@ impl crate::Config for Test {
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+	type OnCheckEvmTransaction<E: From<InvalidEvmTransactionError>> = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.
