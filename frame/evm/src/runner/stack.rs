@@ -56,7 +56,9 @@ use crate::{
 // Unique
 use crate::{account::CrossAccountId, CurrentLogs, OnMethodCall};
 use evm::executor::stack::PrecompileHandle;
-use fp_evm::{PrecompileResult, WithdrawReason};
+use fp_evm::{PrecompileResult, TransactionValidityHack, WithdrawReason};
+use frame_support::storage::with_transaction;
+use sp_runtime::{DispatchError, TransactionOutcome};
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
@@ -77,6 +79,7 @@ where
 		source: H160,
 		*/
 		source: &T::CrossAccountId,
+		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -112,6 +115,7 @@ where
 
 		let res = Self::execute_inner(
 			source,
+			sponsor,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -141,6 +145,7 @@ where
 		source: H160,
 		*/
 		source: &T::CrossAccountId,
+		sponsor: Option<&T::CrossAccountId>,
 		value: U256,
 		mut gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -151,7 +156,7 @@ where
 		is_transactional: bool,
 		f: F,
 		base_fee: U256,
-		weight: Weight,
+		mut weight: Weight,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
 	) -> Result<ExecutionInfoV2<R>, RunnerError<Error<T>>>
@@ -240,6 +245,9 @@ where
 				}
 			};
 
+		let (_, inner_weight) = Pallet::<T>::account_basic_by_id(source);
+		weight = weight.saturating_add(inner_weight);
+
 		// After eip-1559 we make sure the account can pay both the evm execution and priority fees.
 		let total_fee =
 			total_fee_per_gas
@@ -249,8 +257,10 @@ where
 					weight,
 				})?;
 
-		// Deduct fee from the `source` account. Returns `None` if `total_fee` is Zero.
-		let fee = T::OnChargeTransaction::withdraw_fee(&source, reason, total_fee)
+		let sponsor = sponsor.unwrap_or(source);
+
+		// Deduct fee from the sponsor account. Returns `None` if `max_fee` is Zero.
+		let fee = T::OnChargeTransaction::withdraw_fee(sponsor, reason, total_fee)
 			.map_err(|e| RunnerError { error: e, weight })?;
 
 		// Execute the EVM call.
@@ -311,7 +321,7 @@ where
 		// Tip 5 * 6 = 30.
 		// Burned 200 - (160 + 30) = 10. Which is equivalent to gas_used * base_fee.
 		let actual_priority_fee = T::OnChargeTransaction::correct_and_deposit_fee(
-			&source,
+			sponsor,
 			// Actual fee after evm execution, including tip.
 			actual_fee,
 			// Base fee.
@@ -421,7 +431,30 @@ where
 		)
 		.validate_in_block_for(&source_account)
 		.and_then(|v| v.with_base_fee())
-		.and_then(|v| v.with_balance_for(&source_account))
+		.and_then(|v| {
+			let (max_fee_per_gas, _) = v.transaction_fee_input()?;
+			let gas_limit = v.transaction.gas_limit;
+			let reason = if let Some(to) = v.transaction.to {
+				WithdrawReason::Call {
+					target: to,
+					input: v.transaction.input.clone(),
+				}
+			} else {
+				WithdrawReason::Create
+			};
+			let sponsor = get_sponsor::<T>(
+				*source.as_eth(),
+				Some(max_fee_per_gas),
+				gas_limit,
+				&reason,
+				v.config.is_transactional,
+				true,
+			)
+			.as_ref()
+			.map(crate::Pallet::<T>::account_basic_by_id)
+			.map(|v| v.0);
+			v.with_balance_for(&source_account, sponsor.as_ref())
+		})
 		.map_err(|error| RunnerError { error, weight })?;
 		Ok(())
 	}
@@ -470,8 +503,17 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		Self::execute(
 			&source,
+			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -535,8 +577,17 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		Self::execute(
 			&source,
+			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -600,9 +651,18 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		*/
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
+		let sponsor = get_sponsor::<T>(
+			*source.as_eth(),
+			max_fee_per_gas,
+			gas_limit.into(),
+			&reason,
+			is_transactional,
+			false,
+		);
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
+			sponsor.as_ref(),
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -1294,6 +1354,44 @@ where
 }
 
 // Unique:
+pub fn get_sponsor<T: Config>(
+	source: H160,
+	max_fee_per_gas: Option<U256>,
+	gas_limit: U256,
+	reason: &WithdrawReason,
+	is_transactional: bool,
+	is_check: bool,
+) -> Option<T::CrossAccountId> {
+	let accept_gas_fee = |gas_fee| {
+		let (base_fee, _) = T::FeeCalculator::min_gas_price();
+		base_fee <= gas_fee && gas_fee <= base_fee * 21 / 10
+	};
+	let (max_fee_per_gas, may_sponsor) = match (max_fee_per_gas, is_transactional) {
+		(Some(max_fee_per_gas), _) => (max_fee_per_gas, accept_gas_fee(max_fee_per_gas)),
+		// Gas price check is skipped for non-transactional calls that don't
+		// define a `max_fee_per_gas` input.
+		(None, false) => (Default::default(), true),
+		_ => return None,
+	};
+
+	let max_fee = max_fee_per_gas.saturating_mul(gas_limit);
+
+	#[cfg(feature = "debug-logging")]
+	log::trace!(target: "sponsoring", "checking who will pay fee for {:?} {:?}", source, reason);
+	with_transaction(|| {
+		let result = may_sponsor
+			.then(|| T::TransactionValidityHack::who_pays_fee(source, max_fee, reason))
+			.flatten();
+		if is_check {
+			TransactionOutcome::Rollback(Ok::<_, DispatchError>(result))
+		} else {
+			TransactionOutcome::Commit(Ok(result))
+		}
+	})
+	.ok()
+	.flatten()
+}
+
 pub struct PrecompileSetWithMethods<T: Config>(T::PrecompilesType);
 impl<T: Config> PrecompileSetWithMethods<T> {
 	fn get() -> Self {
