@@ -170,7 +170,9 @@ pub struct ExecutionInfoV2<T> {
 	pub value: T,
 	pub used_gas: UsedGas,
 	pub weight_info: Option<WeightInfo>,
+	/* Unique:
 	pub logs: Vec<Log>,
+	*/
 }
 
 pub type CallInfo = ExecutionInfoV2<Vec<u8>>;
@@ -189,7 +191,9 @@ pub struct ExecutionInfo<T> {
 	pub exit_reason: ExitReason,
 	pub value: T,
 	pub used_gas: U256,
+	/* Unique:
 	pub logs: Vec<Log>,
+	*/
 }
 
 /// Account definition used for genesis block construction.
