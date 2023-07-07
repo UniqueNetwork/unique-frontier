@@ -348,6 +348,10 @@ impl pallet_evm::Config for Runtime {
 	type Timestamp = Timestamp;
 	type WeightInfo = pallet_evm::weights::SubstrateWeight<Self>;
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = Self::AccountId;
+	type BackwardsAddressMapping = IdentityAddressMapping;
 }
 
 parameter_types! {
@@ -702,7 +706,7 @@ impl_runtime_apis! {
 			let (weight_limit, proof_size_base_cost) = pallet_ethereum::Pallet::<Runtime>::transaction_weight(&transaction_data);
 
 			<Runtime as pallet_evm::Config>::Runner::call(
-				from,
+				from.into(),
 				to,
 				data,
 				value,
@@ -753,7 +757,7 @@ impl_runtime_apis! {
 			let (weight_limit, proof_size_base_cost) = pallet_ethereum::Pallet::<Runtime>::transaction_weight(&transaction_data);
 
 			<Runtime as pallet_evm::Config>::Runner::create(
-				from,
+				from.into(),
 				data,
 				value,
 				gas_limit.unique_saturated_into(),

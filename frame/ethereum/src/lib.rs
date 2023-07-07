@@ -68,7 +68,9 @@ use fp_evm::{
 };
 pub use fp_rpc::TransactionStatus;
 use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
-use pallet_evm::{BlockHashMapping, FeeCalculator, GasWeightMapping, Runner};
+
+// Unique
+use pallet_evm::account::CrossAccountId;
 
 #[derive(Clone, Eq, PartialEq, RuntimeDebug)]
 #[derive(Encode, Decode, MaxEncodedLen, TypeInfo)]
@@ -511,7 +513,7 @@ impl<T: Config> Pallet<T> {
 			proof_size_base_cost,
 		);
 
-		T::OnCheckEvmTransaction::on_check_evm_transaction(&mut v, &origin)
+		T::OnCheckEvmTransaction::on_check_evm_transaction(&mut v, &T::CrossAccountId::from_eth(origin))
 			.map_err(|e| InvalidTransactionWrapper::from(e).0)?;
 
 		v.validate_in_pool()
@@ -732,6 +734,9 @@ impl<T: Config> Pallet<T> {
 		let is_transactional = true;
 		let validate = false;
 
+		// Unique:
+		let from = T::CrossAccountId::from_eth(from);
+
 		let (
 			input,
 			value,
@@ -884,7 +889,7 @@ impl<T: Config> Pallet<T> {
 			proof_size_base_cost,
 		);
 
-		T::OnCheckEvmTransaction::on_check_evm_transaction(&mut v, &origin)
+		T::OnCheckEvmTransaction::on_check_evm_transaction(&mut v, &T::CrossAccountId::from_eth(origin))
 			.map_err(|e| TransactionValidityError::Invalid(InvalidTransactionWrapper::from(e).0))?;
 
 		v.validate_in_block()
