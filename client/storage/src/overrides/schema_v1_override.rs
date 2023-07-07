@@ -29,6 +29,10 @@ use sp_storage::StorageKey;
 use fp_rpc::TransactionStatus;
 use fp_storage::*;
 
+// Unique
+use fp_rpc::EthereumRuntimeRPCApi;
+use sp_api::ProvideRuntimeApi;
+
 use super::{blake2_128_extend, storage_prefix_build, StorageOverride};
 
 /// An override for runtimes that use Schema V1
@@ -67,12 +71,15 @@ where
 	B: BlockT,
 	C: HeaderBackend<B> + StorageProvider<B, BE> + 'static,
 	BE: Backend<B> + 'static,
+	// Unique
+	C: ProvideRuntimeApi<B>,
+	C::Api: EthereumRuntimeRPCApi<B>,
 {
 	/// For a given account address, returns pallet_evm::AccountCodes.
 	fn account_code_at(&self, block_hash: B::Hash, address: H160) -> Option<Vec<u8>> {
-		let mut key: Vec<u8> = storage_prefix_build(PALLET_EVM, EVM_ACCOUNT_CODES);
-		key.extend(blake2_128_extend(address.as_bytes()));
-		self.query_storage::<Vec<u8>>(block_hash, &StorageKey(key))
+		// Unique: always use runtime api, as precompiles can have associated code
+		let api = self.client.runtime_api();
+		api.account_code_at(block_hash, address).ok()
 	}
 
 	/// For a given account address and index, returns pallet_evm::AccountStorages.

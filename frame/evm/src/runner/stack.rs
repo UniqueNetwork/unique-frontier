@@ -54,8 +54,9 @@ use crate::{
 };
 
 // Unique
-use crate::{account::CrossAccountId, CurrentLogs};
-use fp_evm::WithdrawReason;
+use crate::{account::CrossAccountId, CurrentLogs, OnMethodCall};
+use evm::executor::stack::PrecompileHandle;
+use fp_evm::{PrecompileResult, WithdrawReason};
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
@@ -82,7 +83,7 @@ where
 		max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
@@ -94,7 +95,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -146,7 +147,7 @@ where
 		max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
 		f: F,
 		base_fee: U256,
@@ -160,7 +161,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -465,7 +466,10 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
 			value,
@@ -527,7 +531,10 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
 			value,
@@ -589,7 +596,10 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
@@ -864,7 +874,9 @@ where
 	}
 
 	fn code(&self, address: H160) -> Vec<u8> {
-		<AccountCodes<T>>::get(address)
+		// Unique
+		<T as Config>::OnMethodCall::get_code(&address)
+			.unwrap_or_else(|| <AccountCodes<T>>::get(&address))
 	}
 
 	fn storage(&self, address: H160, index: H256) -> H256 {
@@ -1277,6 +1289,42 @@ where
 			if let Some(amount) = proof_size {
 				weight_info.refund_proof_size(amount);
 			}
+		}
+	}
+}
+
+// Unique:
+pub struct PrecompileSetWithMethods<T: Config>(T::PrecompilesType);
+impl<T: Config> PrecompileSetWithMethods<T> {
+	fn get() -> Self {
+		Self(T::PrecompilesValue::get())
+	}
+}
+
+impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
+	fn execute(&self, handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
+		if let Some(result) = self.0.execute(handle) {
+			Some(result)
+		} else if let Some(result) = T::OnMethodCall::call(handle) {
+			Some(result)
+		} else {
+			None
+		}
+	}
+
+	fn is_precompile(&self, address: H160, remaining_gas: u64) -> IsPrecompileResult {
+		let result = self.0.is_precompile(address, remaining_gas);
+		if let IsPrecompileResult::Answer {
+			is_precompile: true,
+			..
+		} = result
+		{
+			return result;
+		}
+
+		IsPrecompileResult::Answer {
+			is_precompile: T::OnMethodCall::is_used(&address),
+			extra_cost: 0,
 		}
 	}
 }
