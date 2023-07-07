@@ -1123,10 +1123,8 @@ mod test {
 			Encode::encode(&EthereumStorageSchema::V3),
 		);
 		// Client
-		let (client, _) = builder
-			.build_with_native_executor::<substrate_test_runtime_client::runtime::RuntimeApi, _>(
-				None,
-			);
+		let (client, _) =
+			builder.build_with_native_executor::<frontier_template_runtime::RuntimeApi, _>(None);
 		let client = Arc::new(client);
 		// Overrides
 		let mut overrides_map = BTreeMap::new();
