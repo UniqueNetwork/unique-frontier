@@ -5461,6 +5461,7 @@ dependencies = [
  "parity-scale-codec",
  "rlp",
  "scale-info",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
