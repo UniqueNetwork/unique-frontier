@@ -195,6 +195,7 @@ impl pallet_evm::Config for Test {
 	// Unique:
 	type CrossAccountId = CrossAccountId<Self>;
 	type BackwardsAddressMapping = HashedAddressMapping;
+	type OnMethodCall = ();
 }
 
 parameter_types! {

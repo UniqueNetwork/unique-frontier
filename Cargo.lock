@@ -2533,6 +2533,7 @@ dependencies = [
  "fp-consensus",
  "fp-rpc",
  "fp-storage",
+ "frontier-template-runtime",
  "futures",
  "kvdb-rocksdb",
  "log",
