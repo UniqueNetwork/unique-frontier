@@ -67,6 +67,9 @@ pub use ethereum::{
 };
 pub use fp_rpc::TransactionStatus;
 
+// Unique
+use pallet_evm::account::CrossAccountId;
+
 #[derive(Clone, Eq, PartialEq, RuntimeDebug)]
 #[derive(Encode, Decode, MaxEncodedLen, TypeInfo)]
 pub enum RawOrigin {
@@ -516,7 +519,8 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::OnCheckEvmTransaction::<InvalidTransactionWrapper>::on_check_evm_transaction(
-			&mut v, &origin,
+			&mut v,
+			&T::CrossAccountId::from_eth(origin),
 		)
 		.map_err(|e| e.0)?;
 
@@ -780,6 +784,9 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
+		// Unique:
+		let from = T::CrossAccountId::from_eth(from);
+
 		let is_transactional = true;
 		let validate = false;
 
@@ -899,7 +906,8 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::OnCheckEvmTransaction::<InvalidTransactionWrapper>::on_check_evm_transaction(
-			&mut v, &origin,
+			&mut v,
+			&T::CrossAccountId::from_eth(origin),
 		)
 		.map_err(|e| TransactionValidityError::Invalid(e.0))?;
 
