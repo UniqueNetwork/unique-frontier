@@ -162,6 +162,7 @@ impl crate::Config for Test {
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+	type OnCheckEvmTransaction = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.

@@ -95,10 +95,10 @@ use sp_std::{cmp::min, collections::btree_map::BTreeMap, vec::Vec};
 use fp_account::AccountId20;
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, CallInfo, CreateInfo, ExecutionInfoV2 as ExecutionInfo, FeeCalculator,
-	InvalidEvmTransactionError, IsPrecompileResult, LinearCostPrecompile, Log, Precompile,
-	PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult, PrecompileSet,
-	Vicinity,
+	Account, CallInfo, CheckEvmTransaction, CreateInfo, ExecutionInfoV2 as ExecutionInfo,
+	FeeCalculator, InvalidEvmTransactionError, IsPrecompileResult, LinearCostPrecompile, Log,
+	Precompile, PrecompileFailure, PrecompileHandle, PrecompileOutput, PrecompileResult,
+	PrecompileSet, Vicinity,
 };
 
 pub use self::{
@@ -177,6 +177,9 @@ pub mod pallet {
 		fn config() -> &'static EvmConfig {
 			&SHANGHAI_CONFIG
 		}
+
+		// Called when transaction info for validation is created
+		type OnCheckEvmTransaction: OnCheckEvmTransaction<Self>;
 	}
 
 	#[pallet::call]
@@ -565,7 +568,7 @@ pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Type alias for negative imbalance during fees
-type NegativeImbalanceOf<C, T> =
+pub type NegativeImbalanceOf<C, T> =
 	<C as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 #[derive(
@@ -1045,5 +1048,61 @@ impl<T> OnCreate<T> for Tuple {
 		for_tuples!(#(
 			Tuple::on_create(owner, contract);
 		)*)
+	}
+}
+
+<<<<<<< HEAD
+pub trait OnCheckEvmTransaction<T: Config, E: From<InvalidEvmTransactionError>> {
+<<<<<<< HEAD
+	fn on_check_evm_transaction(v: &mut CheckEvmTransaction<E>, origin: &H160) -> Result<(), E>;
+||||||| parent of 775300b8 (fix: remove generic error from `OnCheckEvmTransaction`)
+	fn on_check_evm_transaction(
+		v: &mut CheckEvmTransaction<E>,
+		origin: &T::CrossAccountId,
+	) -> Result<(), E>;
+=======
+	fn on_check_evm_transaction(
+		v: &mut CheckEvmTransaction<E>,
+		origin: &T::CrossAccountId,
+	) -> Result<(), E>;
+||||||| parent of b7aad7ba (fix: remove generic error from `OnCheckEvmTransaction`)
+pub trait OnCheckEvmTransaction<T: Config, E: From<TransactionValidationError>> {
+	fn on_check_evm_transaction(v: &mut CheckEvmTransaction<E>, origin: &H160) -> Result<(), E>;
+=======
+pub trait OnCheckEvmTransaction<T: Config> {
+	fn on_check_evm_transaction(
+		v: &mut CheckEvmTransaction,
+		origin: &H160,
+	) -> Result<(), TransactionValidationError>;
+>>>>>>> b7aad7ba (fix: remove generic error from `OnCheckEvmTransaction`)
+>>>>>>> 775300b8 (fix: remove generic error from `OnCheckEvmTransaction`)
+}
+
+<<<<<<< HEAD
+impl<T: Config, E: From<InvalidEvmTransactionError>> OnCheckEvmTransaction<T, E> for () {
+<<<<<<< HEAD
+	fn on_check_evm_transaction(_v: &mut CheckEvmTransaction<E>, _origin: &H160) -> Result<(), E> {
+||||||| parent of 775300b8 (fix: remove generic error from `OnCheckEvmTransaction`)
+	fn on_check_evm_transaction(
+		_v: &mut CheckEvmTransaction<E>,
+		_origin: &T::CrossAccountId,
+	) -> Result<(), E> {
+=======
+	fn on_check_evm_transaction(
+		_v: &mut CheckEvmTransaction<E>,
+		_origin: &T::CrossAccountId,
+	) -> Result<(), E> {
+||||||| parent of b7aad7ba (fix: remove generic error from `OnCheckEvmTransaction`)
+impl<T: Config, E: From<TransactionValidationError>> OnCheckEvmTransaction<T, E> for () {
+	fn on_check_evm_transaction(_v: &mut CheckEvmTransaction<E>, _origin: &H160) -> Result<(), E> {
+=======
+impl<T: Config> OnCheckEvmTransaction<T> for () {
+	fn on_check_evm_transaction(
+		_v: &mut CheckEvmTransaction,
+		_origin: &H160,
+	) -> Result<(), TransactionValidationError> {
+>>>>>>> b7aad7ba (fix: remove generic error from `OnCheckEvmTransaction`)
+>>>>>>> 775300b8 (fix: remove generic error from `OnCheckEvmTransaction`)
+		Ok(())
 	}
 }

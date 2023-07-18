@@ -180,6 +180,7 @@ impl pallet_evm::Config for Test {
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+	type OnCheckEvmTransaction = ();
 }
 
 parameter_types! {
