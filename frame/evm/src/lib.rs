@@ -111,6 +111,7 @@ pub use self::{
 pub mod account;
 use account::CrossAccountId;
 use core::marker::PhantomData;
+use fp_evm::WithdrawReason;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -982,7 +983,11 @@ pub trait OnChargeEVMTransaction<T: Config> {
 
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
-	fn withdraw_fee(who: &T::CrossAccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
+	fn withdraw_fee(
+		who: &T::CrossAccountId,
+		reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>>;
 
 	/// After the transaction was executed the actual fee can be calculated.
 	/// This function should refund any overpaid fees and optionally deposit
@@ -1024,7 +1029,11 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
-	fn withdraw_fee(who: &T::CrossAccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
+	fn withdraw_fee(
+		who: &T::CrossAccountId,
+		_reason: WithdrawReason,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>> {
 		if fee.is_zero() {
 			return Ok(None);
 		}
@@ -1112,9 +1121,10 @@ U256: UniqueSaturatedInto<BalanceOf<T>>,
 
 	fn withdraw_fee(
 		who: &T::CrossAccountId,
+		reason: WithdrawReason,
 		fee: U256,
 	) -> Result<Self::LiquidityInfo, Error<T>> {
-		EVMCurrencyAdapter::<<T as Config>::Currency, ()>::withdraw_fee(who, fee)
+		EVMCurrencyAdapter::<<T as Config>::Currency, ()>::withdraw_fee(who, reason, fee)
 	}
 
 	fn correct_and_deposit_fee(
