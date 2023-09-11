@@ -347,6 +347,7 @@ impl pallet_evm::Config for Runtime {
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = pallet_evm::weights::SubstrateWeight<Self>;
+	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
 }
 
 parameter_types! {
