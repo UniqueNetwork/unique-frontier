@@ -303,8 +303,8 @@ where
 								}
 								None => {
 									return Err(Error::Protocol(format!(
-									"Missing ethereum block for hash mismatch {expect_eth_block_hash:?}"
-								)))
+										"Missing ethereum block for hash mismatch {expect_eth_block_hash:?}"
+									)))
 								}
 							}
 						}
@@ -341,24 +341,17 @@ where
 						is_canon,
 					})
 				}
-				Err(FindLogError::NotFound) => {
-					return Err(Error::Protocol(format!(
-						"[Metadata] No logs found for hash {:?}",
-						hash
-					)))
-				}
-				Err(FindLogError::MultipleLogs) => {
-					return Err(Error::Protocol(format!(
-						"[Metadata] Multiple logs found for hash {:?}",
-						hash
-					)))
-				}
+				Err(FindLogError::NotFound) => Err(Error::Protocol(format!(
+					"[Metadata] No logs found for hash {hash:?}",
+				))),
+				Err(FindLogError::MultipleLogs) => Err(Error::Protocol(format!(
+					"[Metadata] Multiple logs found for hash {hash:?}",
+				))),
 			}
 		} else {
-			return Err(Error::Protocol(format!(
-				"[Metadata] Failed retrieving header for hash {:?}",
-				hash
-			)));
+			Err(Error::Protocol(format!(
+				"[Metadata] Failed retrieving header for hash {hash:?}"
+			)))
 		}
 	}
 
@@ -864,7 +857,7 @@ impl<Block: BlockT<Hash = H256>> BackendReader<Block> for Backend<Block> {
 		to_block: u64,
 		addresses: Vec<H160>,
 		topics: Vec<Vec<Option<H256>>>,
-	) -> Result<Vec<FilteredLog>, String> {
+	) -> Result<Vec<FilteredLog<Block>>, String> {
 		let mut unique_topics: [HashSet<H256>; 4] = [
 			HashSet::new(),
 			HashSet::new(),
@@ -906,7 +899,7 @@ impl<Block: BlockT<Hash = H256>> BackendReader<Block> for Backend<Block> {
 			});
 		log::debug!(target: "frontier-sql", "Query: {sql:?} - {log_key}");
 
-		let mut out: Vec<FilteredLog> = vec![];
+		let mut out: Vec<FilteredLog<Block>> = vec![];
 		let mut rows = query.fetch(&mut *conn);
 		let maybe_err = loop {
 			match rows.try_next().await {
@@ -1053,7 +1046,7 @@ mod test {
 		DefaultTestClientBuilderExt, TestClientBuilder, TestClientBuilderExt,
 	};
 	// Frontier
-	use fc_rpc::{OverrideHandle, SchemaV3Override, StorageOverride};
+	use fc_storage::{OverrideHandle, SchemaV3Override, StorageOverride};
 	use fp_storage::{EthereumStorageSchema, PALLET_ETHEREUM_SCHEMA};
 
 	type OpaqueBlock =
@@ -1064,7 +1057,7 @@ mod test {
 		pub to_block: u64,
 		pub addresses: Vec<H160>,
 		pub topics: Vec<Vec<Option<H256>>>,
-		pub expected_result: Vec<FilteredLog>,
+		pub expected_result: Vec<FilteredLog<OpaqueBlock>>,
 	}
 
 	#[derive(Debug, Clone)]
@@ -1104,7 +1097,7 @@ mod test {
 		log_3_badc_2_0_bob: Log,
 	}
 
-	impl From<Log> for FilteredLog {
+	impl From<Log> for FilteredLog<OpaqueBlock> {
 		fn from(value: Log) -> Self {
 			Self {
 				substrate_block_hash: value.substrate_block_hash,
@@ -1125,10 +1118,8 @@ mod test {
 			Encode::encode(&EthereumStorageSchema::V3),
 		);
 		// Client
-		let (client, _) = builder
-			.build_with_native_executor::<substrate_test_runtime_client::runtime::RuntimeApi, _>(
-				None,
-			);
+		let (client, _) =
+			builder.build_with_native_executor::<frontier_template_runtime::RuntimeApi, _>(None);
 		let client = Arc::new(client);
 		// Overrides
 		let mut overrides_map = BTreeMap::new();
@@ -1392,7 +1383,7 @@ mod test {
 	async fn run_test_case(
 		backend: super::Backend<OpaqueBlock>,
 		test_case: &TestFilter,
-	) -> Result<Vec<FilteredLog>, String> {
+	) -> Result<Vec<FilteredLog<OpaqueBlock>>, String> {
 		backend
 			.filter_logs(
 				test_case.from_block,

@@ -23,11 +23,12 @@ mod validation;
 
 use frame_support::weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, Weight};
 use scale_codec::{Decode, Encode};
-#[cfg(feature = "std")]
+use scale_info::TypeInfo;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::{H160, H256, U256};
 use sp_runtime::Perbill;
-use sp_std::vec::Vec;
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 pub use evm::{
 	backend::{Basic as Account, Log},
@@ -46,8 +47,8 @@ pub use self::{
 	},
 };
 
-#[derive(Clone, Eq, PartialEq, Default, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Default, Debug, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// External input from the transaction.
 pub struct Vicinity {
 	/// Current transaction gas price.
@@ -56,8 +57,8 @@ pub struct Vicinity {
 	pub origin: H160,
 }
 
-/// `System::Account` 16(hash) + 20 (key) + 52 (AccountInfo::max_encoded_len)
-pub const ACCOUNT_BASIC_PROOF_SIZE: u64 = 88;
+/// `System::Account` 16(hash) + 20 (key) + 60 (AccountInfo::max_encoded_len)
+pub const ACCOUNT_BASIC_PROOF_SIZE: u64 = 96;
 /// `AccountCodesMetadata` read, temptatively 16 (hash) + 20 (key) + 40 (CodeMetadata).
 pub const ACCOUNT_CODES_METADATA_PROOF_SIZE: u64 = 76;
 /// 16 (hash1) + 20 (key1) + 16 (hash2) + 32 (key2) + 32 (value)
@@ -72,8 +73,8 @@ pub enum AccessedStorage {
 	AccountStorages((H160, H256)),
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WeightInfo {
 	pub ref_time_limit: Option<u64>,
 	pub proof_size_limit: Option<u64>,
@@ -152,8 +153,8 @@ impl WeightInfo {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UsedGas {
 	/// The used_gas as returned by the evm gasometer on exit.
 	pub standard: U256,
@@ -162,45 +163,65 @@ pub struct UsedGas {
 	pub effective: U256,
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExecutionInfoV2<T> {
 	pub exit_reason: ExitReason,
 	pub value: T,
 	pub used_gas: UsedGas,
 	pub weight_info: Option<WeightInfo>,
+	/* Unique:
 	pub logs: Vec<Log>,
+	*/
 }
 
 pub type CallInfo = ExecutionInfoV2<Vec<u8>>;
 pub type CreateInfo = ExecutionInfoV2<H160>;
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CallOrCreateInfo {
 	Call(CallInfo),
 	Create(CreateInfo),
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExecutionInfo<T> {
 	pub exit_reason: ExitReason,
 	pub value: T,
 	pub used_gas: U256,
+	/* Unique:
 	pub logs: Vec<Log>,
+	*/
+}
+
+// Unique:
+
+#[derive(Debug, Clone)]
+pub enum WithdrawReason {
+	Call {
+		target: H160,
+		input: Vec<u8>,
+		max_fee_per_gas: Option<U256>,
+		gas_limit: U256,
+		is_transactional: bool,
+		is_check: bool,
+	},
+	Create,
+	Create2,
 }
 
 /// Account definition used for genesis block construction.
-#[cfg(feature = "std")]
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GenesisAccount {
 	/// Account nonce.
 	pub nonce: U256,
 	/// Account balance.
 	pub balance: U256,
 	/// Full account storage.
-	pub storage: std::collections::BTreeMap<sp_core::H256, sp_core::H256>,
+	pub storage: BTreeMap<H256, H256>,
 	/// Account code.
 	pub code: Vec<u8>,
 }

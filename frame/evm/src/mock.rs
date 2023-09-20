@@ -35,6 +35,9 @@ use crate::{
 	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
 
+// Unique
+use crate::account;
+
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -87,15 +90,19 @@ parameter_types! {
 	pub const ExistentialDeposit: u64 = 0;
 }
 impl pallet_balances::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
 	type Balance = u64;
 	type DustRemoval = ();
-	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = ();
+	type ReserveIdentifier = ();
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
 	type MaxLocks = ();
 	type MaxReserves = ();
-	type ReserveIdentifier = ();
+	type MaxHolds = ();
+	type MaxFreezes = ();
 }
 
 parameter_types! {
@@ -140,9 +147,13 @@ impl crate::Config for Test {
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	// Unique:
+	// type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
 
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	// Unique:
+	// type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 
@@ -158,6 +169,12 @@ impl crate::Config for Test {
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
+	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
+	type OnMethodCall = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.

@@ -20,7 +20,7 @@
 use crate::{
 	runner::Runner as RunnerT, AccountCodes, AccountCodesMetadata, AccountStorages, AddressMapping,
 	BalanceOf, BlockHashMapping, Config, Error, Event, FeeCalculator, OnChargeEVMTransaction,
-	OnCreate, Pallet, RunnerError, Weight,
+	OnCheckEvmTransaction, OnCreate, Pallet, RunnerError,
 };
 use evm::{
 	backend::Backend as BackendT,
@@ -28,13 +28,14 @@ use evm::{
 	gasometer::{GasCost, StorageTarget},
 	ExitError, ExitReason, Opcode, Transfer,
 };
-use fp_evm::{
-	AccessedStorage, CallInfo, CreateInfo, ExecutionInfoV2, IsPrecompileResult, Log, PrecompileSet,
-	Vicinity, WeightInfo, ACCOUNT_BASIC_PROOF_SIZE, ACCOUNT_CODES_METADATA_PROOF_SIZE,
-	ACCOUNT_STORAGE_PROOF_SIZE, IS_EMPTY_CHECK_PROOF_SIZE, WRITE_PROOF_SIZE,
+// Substrate
+use frame_support::{
+	traits::{
+		tokens::{currency::Currency, ExistenceRequirement},
+		Get, Time,
+	},
+	weights::Weight,
 };
-
-use frame_support::traits::{Currency, ExistenceRequirement, Get, Time};
 use sp_core::{H160, H256, U256};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
@@ -44,6 +45,17 @@ use sp_std::{
 	mem,
 	vec::Vec,
 };
+// Frontier
+use fp_evm::{
+	AccessedStorage, CallInfo, CreateInfo, ExecutionInfoV2, IsPrecompileResult, Log, PrecompileSet,
+	Vicinity, WeightInfo, ACCOUNT_BASIC_PROOF_SIZE, ACCOUNT_CODES_METADATA_PROOF_SIZE,
+	ACCOUNT_STORAGE_PROOF_SIZE, IS_EMPTY_CHECK_PROOF_SIZE, WRITE_PROOF_SIZE,
+};
+
+// Unique
+use crate::{account::CrossAccountId, CurrentLogs, OnMethodCall};
+use evm::executor::stack::PrecompileHandle;
+use fp_evm::{PrecompileResult, WithdrawReason};
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::thread_local_impl!(static IN_EVM: environmental::RefCell<bool> = environmental::RefCell::new(false));
@@ -60,13 +72,17 @@ where
 	#[allow(clippy::let_and_return)]
 	/// Execute an already validated EVM operation.
 	fn execute<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &'config T::CrossAccountId,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
@@ -78,7 +94,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -99,6 +115,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			precompiles,
 			is_transactional,
@@ -119,16 +136,20 @@ where
 
 	// Execute an already validated EVM operation.
 	fn execute_inner<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &'config T::CrossAccountId,
 		value: U256,
 		mut gas_limit: u64,
-		max_fee_per_gas: Option<U256>,
-		max_priority_fee_per_gas: Option<U256>,
+		mut max_fee_per_gas: Option<U256>,
+		mut max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
 		f: F,
-		base_fee: U256,
+		mut base_fee: U256,
 		weight: Weight,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
@@ -139,7 +160,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -152,9 +173,10 @@ where
 					weight,
 				},
 			)?;
+		let eth_source = *source.as_eth();
 		// The precompile check is only used for transactional invocations. However, here we always
 		// execute the check, because the check has side effects.
-		match precompiles.is_precompile(source, gas_limit) {
+		match precompiles.is_precompile(eth_source, gas_limit) {
 			IsPrecompileResult::Answer { extra_cost, .. } => {
 				gas_limit = gas_limit.saturating_sub(extra_cost);
 			}
@@ -167,8 +189,10 @@ where
 						effective: gas_limit.into(),
 					},
 					weight_info: maybe_weight_info,
+					/* Unique:
 					logs: Default::default(),
-				})
+					*/
+				});
 			}
 		};
 
@@ -178,11 +202,18 @@ where
 		//
 		// EIP-3607: https://eips.ethereum.org/EIPS/eip-3607
 		// Do not allow transactions for which `tx.sender` has any code deployed.
-		if is_transactional && !<AccountCodes<T>>::get(source).is_empty() {
+		if is_transactional && !<AccountCodes<T>>::get(eth_source).is_empty() {
 			return Err(RunnerError {
 				error: Error::<T>::TransactionMustComeFromEOA,
 				weight,
 			});
+		}
+
+		// Unique:
+		if !is_transactional {
+			max_fee_per_gas = Some(0.into());
+			max_priority_fee_per_gas = Some(0.into());
+			base_fee = 0.into();
 		}
 
 		let (total_fee_per_gas, _actual_priority_fee_per_gas) =
@@ -225,17 +256,24 @@ where
 				})?;
 
 		// Deduct fee from the `source` account. Returns `None` if `total_fee` is Zero.
-		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)
-			.map_err(|e| RunnerError { error: e, weight })?;
+		// Unique: Do not charge on estimate
+		let fee = if !config.estimate {
+			Some(
+				T::OnChargeTransaction::withdraw_fee(source, reason, total_fee)
+					.map_err(|e| RunnerError { error: e, weight })?,
+			)
+		} else {
+			None
+		};
 
 		// Execute the EVM call.
 		let vicinity = Vicinity {
 			gas_price: base_fee,
-			origin: source,
+			origin: *source.as_eth(),
 		};
 
 		let metadata = StackSubstateMetadata::new(gas_limit, config);
-		let state = SubstrateStackState::new(&vicinity, metadata, maybe_weight_info);
+		let state = SubstrateStackState::new(&vicinity, metadata, maybe_weight_info, source);
 		let mut executor = StackExecutor::new_with_precompiles(state, config, precompiles);
 
 		let (reason, retv) = f(&mut executor);
@@ -285,16 +323,20 @@ where
 		// Refunded 200 - 40 = 160.
 		// Tip 5 * 6 = 30.
 		// Burned 200 - (160 + 30) = 10. Which is equivalent to gas_used * base_fee.
-		let actual_priority_fee = T::OnChargeTransaction::correct_and_deposit_fee(
-			&source,
-			// Actual fee after evm execution, including tip.
-			actual_fee,
-			// Base fee.
-			executor.fee(base_fee),
-			// Fee initially withdrawn.
-			fee,
-		);
-		T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
+
+		// Unique: Do not charge on estimate
+		if let Some(fee) = fee {
+			let actual_priority_fee = T::OnChargeTransaction::correct_and_deposit_fee(
+				source,
+				// Actual fee after evm execution, including tip.
+				actual_fee,
+				// Base fee.
+				executor.fee(base_fee),
+				// Fee initially withdrawn.
+				fee,
+			);
+			T::OnChargeTransaction::pay_priority_fee(actual_priority_fee);
+		};
 
 		let state = executor.into_state();
 
@@ -307,6 +349,7 @@ where
 			Pallet::<T>::remove_account(address)
 		}
 
+		/* Unique: logs are stored in storage
 		for log in &state.substate.logs {
 			log::trace!(
 				target: "evm",
@@ -325,6 +368,7 @@ where
 				},
 			});
 		}
+		*/
 
 		Ok(ExecutionInfoV2 {
 			value: retv,
@@ -334,7 +378,9 @@ where
 				effective: effective_gas,
 			},
 			weight_info: state.weight_info(),
+			/* Unique:
 			logs: state.substate.logs,
+			*/
 		})
 	}
 }
@@ -346,7 +392,10 @@ where
 	type Error = Error<T>;
 
 	fn validate(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: Option<H160>,
 		input: Vec<u8>,
 		value: U256,
@@ -361,10 +410,12 @@ where
 		evm_config: &evm::Config,
 	) -> Result<(), RunnerError<Self::Error>> {
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
-		let (source_account, inner_weight) = Pallet::<T>::account_basic(&source);
+		let (source_account, inner_weight) = Pallet::<T>::account_basic_by_id(&source);
 		weight = weight.saturating_add(inner_weight);
+		let nonce = nonce.unwrap_or(source_account.nonce);
 
-		let _ = fp_evm::CheckEvmTransaction::<Self::Error>::new(
+		let mut v = fp_evm::CheckEvmTransaction::new(
+			source_account,
 			fp_evm::CheckEvmTransactionConfig {
 				evm_config,
 				block_gas_limit: T::BlockGasLimit::get(),
@@ -376,7 +427,7 @@ where
 				chain_id: Some(T::ChainId::get()),
 				to: target,
 				input,
-				nonce: nonce.unwrap_or(source_account.nonce),
+				nonce,
 				gas_limit: gas_limit.into(),
 				gas_price: None,
 				max_fee_per_gas,
@@ -386,16 +437,30 @@ where
 			},
 			weight_limit,
 			proof_size_base_cost,
-		)
-		.validate_in_block_for(&source_account)
-		.and_then(|v| v.with_base_fee())
-		.and_then(|v| v.with_balance_for(&source_account))
-		.map_err(|error| RunnerError { error, weight })?;
+		);
+
+		T::OnCheckEvmTransaction::on_check_evm_transaction(&mut v, &source).map_err(|error| {
+			RunnerError {
+				error: error.into(),
+				weight,
+			}
+		})?;
+
+		v.validate_in_block()
+			.and_then(|v| v.with_base_fee())
+			.and_then(|v| v.with_balance())
+			.map_err(|error| RunnerError {
+				error: error.into(),
+				weight,
+			})?;
 		Ok(())
 	}
 
 	fn call(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: H160,
 		input: Vec<u8>,
 		value: U256,
@@ -410,9 +475,17 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Call {
+			target,
+			input: input.clone(),
+			max_fee_per_gas,
+			gas_limit: gas_limit.into(),
+			is_transactional,
+			is_check: false,
+		};
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				Some(target),
 				input.clone(),
 				value,
@@ -427,24 +500,40 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
 			weight_limit,
 			proof_size_base_cost,
-			|executor| executor.transact_call(source, target, value, input, gas_limit, access_list),
+			|executor| {
+				executor.transact_call(
+					*source.as_eth(),
+					target,
+					value,
+					input,
+					gas_limit,
+					access_list,
+				)
+			},
 		)
 	}
 
 	fn create(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		value: U256,
 		gas_limit: u64,
@@ -458,9 +547,10 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create;
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -475,30 +565,39 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
 			weight_limit,
 			proof_size_base_cost,
 			|executor| {
-				let address = executor.create_address(evm::CreateScheme::Legacy { caller: source });
-				T::OnCreate::on_create(source, address);
+				let address = executor.create_address(evm::CreateScheme::Legacy {
+					caller: *source.as_eth(),
+				});
+				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
-					executor.transact_create(source, value, init, gas_limit, access_list);
+					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				(reason, address)
 			},
 		)
 	}
 
 	fn create2(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		salt: H256,
 		value: U256,
@@ -513,9 +612,10 @@ where
 		proof_size_base_cost: Option<u64>,
 		config: &evm::Config,
 	) -> Result<CreateInfo, RunnerError<Self::Error>> {
+		let reason = WithdrawReason::Create2;
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -530,14 +630,18 @@ where
 				config,
 			)?;
 		}
+		/* Unique:
 		let precompiles = T::PrecompilesValue::get();
+		*/
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -545,27 +649,34 @@ where
 			proof_size_base_cost,
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Create2 {
-					caller: source,
+					caller: *source.as_eth(),
 					code_hash,
 					salt,
 				});
-				T::OnCreate::on_create(source, address);
-				let (reason, _) =
-					executor.transact_create2(source, value, init, salt, gas_limit, access_list);
+				T::OnCreate::on_create(*source.as_eth(), address);
+				let (reason, _) = executor.transact_create2(
+					// Unique
+					*source.as_eth(),
+					value,
+					init,
+					salt,
+					gas_limit,
+					access_list,
+				);
 				(reason, address)
 			},
 		)
 	}
 }
 
-struct SubstrateStackSubstate<'config> {
+struct SubstrateStackSubstate<'config, T> {
 	metadata: StackSubstateMetadata<'config>,
 	deletes: BTreeSet<H160>,
-	logs: Vec<Log>,
-	parent: Option<Box<SubstrateStackSubstate<'config>>>,
+	parent: Option<Box<SubstrateStackSubstate<'config, T>>>,
+	_marker: PhantomData<T>,
 }
 
-impl<'config> SubstrateStackSubstate<'config> {
+impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 	pub fn metadata(&self) -> &StackSubstateMetadata<'config> {
 		&self.metadata
 	}
@@ -579,7 +690,7 @@ impl<'config> SubstrateStackSubstate<'config> {
 			metadata: self.metadata.spit_child(gas_limit, is_static),
 			parent: None,
 			deletes: BTreeSet::new(),
-			logs: Vec::new(),
+			_marker: PhantomData,
 		};
 		mem::swap(&mut entering, self);
 
@@ -593,7 +704,9 @@ impl<'config> SubstrateStackSubstate<'config> {
 		mem::swap(&mut exited, self);
 
 		self.metadata.swallow_commit(exited.metadata)?;
+		/* Unique:
 		self.logs.append(&mut exited.logs);
+		*/
 		self.deletes.append(&mut exited.deletes);
 
 		sp_io::storage::commit_transaction();
@@ -635,11 +748,29 @@ impl<'config> SubstrateStackSubstate<'config> {
 	}
 
 	pub fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
+		/* Unique:
 		self.logs.push(Log {
 			address,
 			topics,
 			data,
 		});
+		*/
+		let log = Log {
+			address,
+			topics,
+			data,
+		};
+		log::trace!(
+			target: "evm",
+			"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
+			log.address,
+			log.topics.len(),
+			log.topics,
+			log.data.len(),
+			log.data
+		);
+		<CurrentLogs<T>>::append(&log);
+		<Pallet<T>>::deposit_event(Event::<T>::Log { log });
 	}
 
 	fn recursive_is_cold<F: Fn(&Accessed) -> bool>(&self, f: &F) -> bool {
@@ -657,17 +788,18 @@ impl<'config> SubstrateStackSubstate<'config> {
 
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct Recorded {
-	account_codes: sp_std::vec::Vec<H160>,
+	account_codes: Vec<H160>,
 	account_storages: BTreeMap<(H160, H256), bool>,
 }
 
 /// Substrate backend for EVM.
-pub struct SubstrateStackState<'vicinity, 'config, T> {
+pub struct SubstrateStackState<'vicinity, 'config, T: Config> {
 	vicinity: &'vicinity Vicinity,
-	substate: SubstrateStackSubstate<'config>,
+	substate: SubstrateStackSubstate<'config, T>,
 	original_storage: BTreeMap<(H160, H256), H256>,
 	recorded: Recorded,
 	weight_info: Option<WeightInfo>,
+	source: &'config T::CrossAccountId,
 	_marker: PhantomData<T>,
 }
 
@@ -677,24 +809,33 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 		vicinity: &'vicinity Vicinity,
 		metadata: StackSubstateMetadata<'config>,
 		weight_info: Option<WeightInfo>,
+		source: &'config T::CrossAccountId,
 	) -> Self {
 		Self {
 			vicinity,
 			substate: SubstrateStackSubstate {
 				metadata,
 				deletes: BTreeSet::new(),
+				/* Unique:
 				logs: Vec::new(),
+				*/
 				parent: None,
+				_marker: PhantomData,
 			},
 			_marker: PhantomData,
 			original_storage: BTreeMap::new(),
 			recorded: Default::default(),
 			weight_info,
+			source,
 		}
 	}
 
 	pub fn weight_info(&self) -> Option<WeightInfo> {
 		self.weight_info
+	}
+
+	fn source(&self) -> &'config T::CrossAccountId {
+		self.source
 	}
 
 	pub fn recorded(&self) -> &Recorded {
@@ -715,10 +856,6 @@ where
 	}
 	fn origin(&self) -> H160 {
 		self.vicinity.origin
-	}
-
-	fn block_randomness(&self) -> Option<H256> {
-		None
 	}
 
 	fn block_hash(&self, number: U256) -> H256 {
@@ -747,8 +884,17 @@ where
 		U256::zero()
 	}
 
+	fn block_randomness(&self) -> Option<H256> {
+		None
+	}
+
 	fn block_gas_limit(&self) -> U256 {
 		T::BlockGasLimit::get()
+	}
+
+	fn block_base_fee_per_gas(&self) -> U256 {
+		let (base_fee, _) = T::FeeCalculator::min_gas_price();
+		base_fee
 	}
 
 	fn chain_id(&self) -> U256 {
@@ -769,7 +915,9 @@ where
 	}
 
 	fn code(&self, address: H160) -> Vec<u8> {
-		<AccountCodes<T>>::get(address)
+		// Unique
+		<T as Config>::OnMethodCall::get_code(&address)
+			.unwrap_or_else(|| <AccountCodes<T>>::get(address))
 	}
 
 	fn storage(&self, address: H160, index: H256) -> H256 {
@@ -783,11 +931,6 @@ where
 				.cloned()
 				.unwrap_or_else(|| self.storage(address, index)),
 		)
-	}
-
-	fn block_base_fee_per_gas(&self) -> sp_core::U256 {
-		let (base_fee, _) = T::FeeCalculator::min_gas_price();
-		base_fee
 	}
 }
 
@@ -891,10 +1034,15 @@ where
 	}
 
 	fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
-		let source = T::AddressMapping::into_account_id(transfer.source);
+		let transfer_cross = T::CrossAccountId::from_eth(transfer.source);
+		let source = if self.source().conv_eq(&transfer_cross) {
+			self.source().as_sub()
+		} else {
+			transfer_cross.as_sub()
+		};
 		let target = T::AddressMapping::into_account_id(transfer.target);
 		T::Currency::transfer(
-			&source,
+			source,
 			&target,
 			transfer
 				.value
@@ -1191,13 +1339,63 @@ where
 	}
 }
 
+// Unique:
+pub struct PrecompileSetWithMethods<T: Config>(T::PrecompilesType);
+impl<T: Config> PrecompileSetWithMethods<T> {
+	fn get() -> Self {
+		Self(T::PrecompilesValue::get())
+	}
+}
+
+impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
+	fn execute(&self, handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
+		if let Some(result) = self.0.execute(handle) {
+			Some(result)
+		} else {
+			T::OnMethodCall::call(handle)
+		}
+	}
+
+	fn is_precompile(&self, address: H160, remaining_gas: u64) -> IsPrecompileResult {
+		let result = self.0.is_precompile(address, remaining_gas);
+		if let IsPrecompileResult::Answer {
+			is_precompile: true,
+			..
+		} = result
+		{
+			return result;
+		}
+
+		IsPrecompileResult::Answer {
+			is_precompile: T::OnMethodCall::is_used(&address),
+			extra_cost: 0,
+		}
+	}
+}
+
 #[cfg(feature = "forbid-evm-reentrancy")]
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::Test;
+	use crate::mock::{MockPrecompileSet, Test};
 	use evm::ExitSucceed;
-	use std::assert_matches::assert_matches;
+
+	macro_rules! assert_matches {
+		( $left:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)? ) => {
+			match $left {
+				$( $pattern )|+ $( if $guard )? => {}
+				ref left_val => panic!("assertion failed: `{:?}` does not match `{}`",
+					left_val, stringify!($($pattern)|+ $(if $guard)?))
+			}
+		};
+		( $left:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )?, $($arg:tt)+ ) => {
+			match $left {
+				$( $pattern )|+ $( if $guard )? => {}
+				ref left_val => panic!("assertion failed: `{:?}` does not match `{}`",
+					left_val, stringify!($($pattern)|+ $(if $guard)?))
+			}
+		};
+	}
 
 	#[test]
 	fn test_evm_reentrancy() {
@@ -1211,7 +1409,7 @@ mod tests {
 			None,
 			None,
 			&config,
-			&(),
+			&MockPrecompileSet,
 			false,
 			|_| {
 				let res = Runner::<Test>::execute(
@@ -1221,7 +1419,7 @@ mod tests {
 					None,
 					None,
 					&config,
-					&(),
+					&MockPrecompileSet,
 					false,
 					|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
 				);
@@ -1251,7 +1449,7 @@ mod tests {
 			None,
 			None,
 			&config,
-			&(),
+			&MockPrecompileSet,
 			false,
 			|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
 		);

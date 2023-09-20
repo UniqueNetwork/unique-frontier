@@ -30,20 +30,21 @@ use sp_blockchain::HeaderBackend;
 use sp_core::hashing::keccak_256;
 use sp_runtime::traits::Block as BlockT;
 // Frontier
-use crate::{internal_err, public_key};
 use fc_rpc_core::{
 	types::{Get, Summary, TransactionMap, TxPoolResult, TxPoolTransaction},
 	TxPoolApiServer,
 };
 use fp_rpc::{EthereumRuntimeRPCApi, TxPoolResponse};
 
-pub struct TxPool<A: ChainApi, B, C> {
+use crate::{internal_err, public_key};
+
+pub struct TxPool<B, C, A: ChainApi> {
 	client: Arc<C>,
 	graph: Arc<Pool<A>>,
 	_marker: PhantomData<B>,
 }
 
-impl<A: ChainApi, B, C> Clone for TxPool<A, B, C> {
+impl<B, C, A: ChainApi> Clone for TxPool<B, C, A> {
 	fn clone(&self) -> Self {
 		Self {
 			client: self.client.clone(),
@@ -53,13 +54,13 @@ impl<A: ChainApi, B, C> Clone for TxPool<A, B, C> {
 	}
 }
 
-impl<A, B, C> TxPool<A, B, C>
+impl<B, C, A> TxPool<B, C, A>
 where
-	A: ChainApi<Block = B> + 'static,
-	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: Send + Sync + 'static,
-	C: HeaderBackend<B> + ProvideRuntimeApi<B>,
+	B: BlockT,
+	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
+	C: HeaderBackend<B> + 'static,
+	A: ChainApi<Block = B> + 'static,
 {
 	/// Use the transaction graph interface to get the extrinsics currently in the ready and future
 	/// queues.
@@ -80,7 +81,7 @@ where
 				TransactionV2::EIP1559(t) => t.nonce,
 			};
 			let from_address = match public_key(txn) {
-				Ok(pk) => H160::from(H256::from_slice(keccak_256(&pk).as_slice())),
+				Ok(pk) => H160::from(H256::from(keccak_256(&pk))),
 				Err(_e) => H160::default(),
 			};
 			pending
@@ -97,7 +98,7 @@ where
 				TransactionV2::EIP1559(t) => t.nonce,
 			};
 			let from_address = match public_key(txn) {
-				Ok(pk) => H160::from(H256::from_slice(keccak_256(&pk).as_slice())),
+				Ok(pk) => H160::from(H256::from(keccak_256(&pk))),
 				Err(_e) => H160::default(),
 			};
 			queued
@@ -140,7 +141,7 @@ where
 	}
 }
 
-impl<A: ChainApi, B, C> TxPool<A, B, C> {
+impl<B, C, A: ChainApi> TxPool<B, C, A> {
 	pub fn new(client: Arc<C>, graph: Arc<Pool<A>>) -> Self {
 		Self {
 			client,
@@ -150,13 +151,13 @@ impl<A: ChainApi, B, C> TxPool<A, B, C> {
 	}
 }
 
-impl<A, B, C> TxPoolApiServer for TxPool<A, B, C>
+impl<B, C, A> TxPoolApiServer for TxPool<B, C, A>
 where
-	A: ChainApi<Block = B> + 'static,
-	B: BlockT<Hash = H256> + Send + Sync + 'static,
-	C: Send + Sync + 'static,
-	C: HeaderBackend<B> + ProvideRuntimeApi<B>,
+	B: BlockT,
+	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
+	C: HeaderBackend<B> + 'static,
+	A: ChainApi<Block = B> + 'static,
 {
 	fn content(&self) -> RpcResult<TxPoolResult<TransactionMap<TxPoolTransaction>>> {
 		self.map_build::<TxPoolTransaction>()

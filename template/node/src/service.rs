@@ -7,7 +7,7 @@ use futures::{channel::mpsc, prelude::*};
 use prometheus_endpoint::Registry;
 use sc_client_api::{BlockBackend, StateBackendFor};
 use sc_consensus::BasicQueue;
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::NativeExecutionDispatch;
 use sc_network_common::sync::warp::WarpSyncParams;
 use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
@@ -94,12 +94,7 @@ where
 		})
 		.transpose()?;
 
-	let executor = NativeElseWasmExecutor::<Executor>::new(
-		config.wasm_method,
-		config.default_heap_pages,
-		config.max_runtime_instances,
-		config.runtime_cache_size,
-	);
+	let executor = sc_service::new_native_or_wasm_executor(config);
 
 	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, _>(
@@ -314,6 +309,7 @@ where
 		fee_history_cache_limit,
 	} = new_frontier_partial(&eth_config)?;
 
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
 		&client.block_hash(0)?.expect("Genesis block exists; qed"),
 		&config.chain_spec,
@@ -322,12 +318,9 @@ where
 	let warp_sync_params = if sealing.is_some() {
 		None
 	} else {
-		config
-			.network
-			.extra_sets
-			.push(sc_consensus_grandpa::grandpa_peers_set_config(
-				grandpa_protocol_name.clone(),
-			));
+		net_config.add_notification_protocol(sc_consensus_grandpa::grandpa_peers_set_config(
+			grandpa_protocol_name.clone(),
+		));
 		let warp_sync: Arc<dyn sc_network::config::WarpSyncProvider<Block>> =
 			Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
 				backend.clone(),
@@ -340,6 +333,7 @@ where
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
@@ -438,7 +432,7 @@ where
 		client: client.clone(),
 		backend: backend.clone(),
 		task_manager: &mut task_manager,
-		keystore: keystore_container.sync_keystore(),
+		keystore: keystore_container.keystore(),
 		transaction_pool: transaction_pool.clone(),
 		rpc_builder,
 		network: network.clone(),
@@ -515,7 +509,7 @@ where
 				create_inherent_data_providers,
 				force_authoring,
 				backoff_authoring_blocks: Option::<()>::None,
-				keystore: keystore_container.sync_keystore(),
+				keystore: keystore_container.keystore(),
 				block_proposal_slot_portion: sc_consensus_aura::SlotProportion::new(2f32 / 3f32),
 				max_block_proposal_slot_portion: None,
 				telemetry: telemetry.as_ref().map(|x| x.handle()),
@@ -533,7 +527,7 @@ where
 		// if the node isn't actively participating in consensus then it doesn't
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if role.is_authority() {
-			Some(keystore_container.sync_keystore())
+			Some(keystore_container.keystore())
 		} else {
 			None
 		};

@@ -31,7 +31,7 @@ use sp_runtime_interface::pass_by::PassByInner;
 #[derive(Encode, Decode, MaxEncodedLen, TypeInfo)]
 pub struct AccountId20(pub [u8; 20]);
 
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 impl_serde::impl_fixed_hash_serde!(AccountId20, 20);
 
 #[cfg(feature = "std")]
@@ -114,8 +114,8 @@ impl From<ecdsa::Public> for AccountId20 {
 	}
 }
 
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Eq, PartialEq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(Eq, PartialEq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EthereumSignature(ecdsa::Signature);
 
 impl sp_runtime::traits::Verify for EthereumSignature {
@@ -146,20 +146,8 @@ impl EthereumSignature {
 	}
 }
 
-#[derive(
-	PartialEq,
-	Eq,
-	PartialOrd,
-	Ord,
-	Clone,
-	Copy,
-	Encode,
-	Decode,
-	PassByInner,
-	MaxEncodedLen,
-	RuntimeDebug,
-	TypeInfo
-)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(RuntimeDebug, Encode, Decode, MaxEncodedLen, TypeInfo, PassByInner)]
 pub struct EthereumSigner([u8; 20]);
 
 impl From<[u8; 20]> for EthereumSigner {

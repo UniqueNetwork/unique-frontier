@@ -10,7 +10,7 @@ use futures::{future, prelude::*};
 use sc_client_api::{BlockchainEvents, StateBackendFor};
 use sc_executor::NativeExecutionDispatch;
 use sc_network_sync::SyncingService;
-use sc_service::{error::Error as ServiceError, BasePath, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sp_api::ConstructRuntimeApi;
 use sp_runtime::traits::BlakeTwo256;
 // Frontier
@@ -26,29 +26,17 @@ use crate::client::{FullBackend, FullClient};
 pub type FrontierBackend = fc_db::Backend<Block>;
 
 pub fn db_config_dir(config: &Configuration) -> PathBuf {
-	let application = &config.impl_name;
-	config
-		.base_path
-		.as_ref()
-		.map(|base_path| base_path.config_dir(config.chain_spec.id()))
-		.unwrap_or_else(|| {
-			BasePath::from_project("", "", application).config_dir(config.chain_spec.id())
-		})
+	config.base_path.config_dir(config.chain_spec.id())
 }
 
 /// Avalailable frontier backend types.
-#[derive(Debug, Copy, Clone, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, Default, clap::ValueEnum)]
 pub enum BackendType {
 	/// Either RocksDb or ParityDb as per inherited from the global backend settings.
+	#[default]
 	KeyValue,
 	/// Sql database with custom log indexing.
 	Sql,
-}
-
-impl Default for BackendType {
-	fn default() -> BackendType {
-		BackendType::KeyValue
-	}
 }
 
 /// The ethereum-compatibility configuration used to run a node.
