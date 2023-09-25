@@ -2908,7 +2908,6 @@ version = "3.0.0-dev"
 dependencies = [
  "evm",
  "frame-support",
- "impl-trait-for-tuples",
  "num_enum",
  "parity-scale-codec",
  "scale-info",
