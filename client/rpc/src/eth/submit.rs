@@ -200,7 +200,7 @@ where
 
 		self.pool
 			.submit_one(
-				&BlockId::Hash(block_hash),
+				block_hash,
 				TransactionSource::Local,
 				extrinsic,
 			)
@@ -277,7 +277,7 @@ where
 
 		self.pool
 			.submit_one(
-				&BlockId::Hash(block_hash),
+				block_hash,
 				TransactionSource::Local,
 				extrinsic,
 			)
