@@ -1,6 +1,7 @@
-use crate::{AddressMapping, BackwardsAddressMapping, Config};
+use crate::{AddressMapping, BackwardsAddressMapping};
 use core::cmp::Ordering;
 use fp_account::AccountId20;
+use frame_support::Parameter;
 use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use scale_info::{Type, TypeInfo};
 use sp_core::H160;
@@ -55,21 +56,27 @@ enum BasicCrossAccountIdRepr<AccountId> {
 	Ethereum(H160),
 }
 
+pub trait CrossAccountConfig: 'static + Eq {
+	type AccountId: Parameter + Ord + MaxEncodedLen;
+	type AddressMapping: AddressMapping<Self::AccountId>;
+	type BackwardsAddressMapping: BackwardsAddressMapping<Self::AccountId>;
+}
+
 #[derive(PartialEq, Eq)]
-pub struct BasicCrossAccountId<T: Config> {
+pub struct BasicCrossAccountId<T: CrossAccountConfig> {
 	/// If true - then ethereum is canonical encoding
 	from_ethereum: bool,
 	substrate: T::AccountId,
 	ethereum: H160,
 }
 
-impl<T: Config> MaxEncodedLen for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> MaxEncodedLen for BasicCrossAccountId<T> {
 	fn max_encoded_len() -> usize {
 		<BasicCrossAccountIdRepr<T::AccountId>>::max_encoded_len()
 	}
 }
 
-impl<T: Config> TypeInfo for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> TypeInfo for BasicCrossAccountId<T> {
 	type Identity = Self;
 
 	fn type_info() -> Type {
@@ -77,7 +84,7 @@ impl<T: Config> TypeInfo for BasicCrossAccountId<T> {
 	}
 }
 
-impl<T: Config> core::fmt::Debug for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> core::fmt::Debug for BasicCrossAccountId<T> {
 	fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
 		if self.from_ethereum {
 			fmt.debug_tuple("CrossAccountId::Ethereum")
@@ -91,20 +98,20 @@ impl<T: Config> core::fmt::Debug for BasicCrossAccountId<T> {
 	}
 }
 
-impl<T: Config> PartialOrd for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> PartialOrd for BasicCrossAccountId<T> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.substrate.cmp(&other.substrate))
 	}
 }
 
-impl<T: Config> Ord for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> Ord for BasicCrossAccountId<T> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.partial_cmp(other)
 			.expect("substrate account is total ordered")
 	}
 }
 
-impl<T: Config> Clone for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> Clone for BasicCrossAccountId<T> {
 	fn clone(&self) -> Self {
 		Self {
 			from_ethereum: self.from_ethereum,
@@ -113,13 +120,13 @@ impl<T: Config> Clone for BasicCrossAccountId<T> {
 		}
 	}
 }
-impl<T: Config> Encode for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> Encode for BasicCrossAccountId<T> {
 	fn encode(&self) -> Vec<u8> {
 		BasicCrossAccountIdRepr::from(self.clone()).encode()
 	}
 }
-impl<T: Config> EncodeLike for BasicCrossAccountId<T> {}
-impl<T: Config> Decode for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> EncodeLike for BasicCrossAccountId<T> {}
+impl<T: CrossAccountConfig> Decode for BasicCrossAccountId<T> {
 	fn decode<I>(input: &mut I) -> Result<Self, scale_codec::Error>
 	where
 		I: scale_codec::Input,
@@ -131,7 +138,7 @@ impl<T: Config> Decode for BasicCrossAccountId<T> {
 #[cfg(feature = "std")]
 impl<T> Serialize for BasicCrossAccountId<T>
 where
-	T: Config,
+	T: CrossAccountConfig,
 	T::AccountId: Serialize,
 {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -146,7 +153,7 @@ where
 #[cfg(feature = "std")]
 impl<'de, T> Deserialize<'de> for BasicCrossAccountId<T>
 where
-	T: Config,
+	T: CrossAccountConfig,
 	T::AccountId: Deserialize<'de>,
 {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -157,7 +164,7 @@ where
 	}
 }
 
-impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
 	fn as_sub(&self) -> &T::AccountId {
 		&self.substrate
 	}
@@ -192,7 +199,7 @@ impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
 		!self.from_ethereum
 	}
 }
-impl<T: Config> From<BasicCrossAccountIdRepr<T::AccountId>> for BasicCrossAccountId<T> {
+impl<T: CrossAccountConfig> From<BasicCrossAccountIdRepr<T::AccountId>> for BasicCrossAccountId<T> {
 	fn from(repr: BasicCrossAccountIdRepr<T::AccountId>) -> Self {
 		match repr {
 			BasicCrossAccountIdRepr::Substrate(s) => Self::from_sub(s),
@@ -200,7 +207,7 @@ impl<T: Config> From<BasicCrossAccountIdRepr<T::AccountId>> for BasicCrossAccoun
 		}
 	}
 }
-impl<T: Config> From<BasicCrossAccountId<T>> for BasicCrossAccountIdRepr<T::AccountId> {
+impl<T: CrossAccountConfig> From<BasicCrossAccountId<T>> for BasicCrossAccountIdRepr<T::AccountId> {
 	fn from(v: BasicCrossAccountId<T>) -> Self {
 		if v.from_ethereum {
 			BasicCrossAccountIdRepr::Ethereum(*v.as_eth())
