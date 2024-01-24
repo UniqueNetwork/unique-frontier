@@ -1,5 +1,6 @@
 use crate::{AddressMapping, BackwardsAddressMapping};
 use core::cmp::Ordering;
+use derivative::Derivative;
 use fp_account::AccountId20;
 use frame_support::Parameter;
 use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
@@ -56,13 +57,14 @@ enum BasicCrossAccountIdRepr<AccountId> {
 	Ethereum(H160),
 }
 
-pub trait CrossAccountConfig: 'static + Eq {
+pub trait CrossAccountConfig: 'static {
 	type AccountId: Parameter + Ord + MaxEncodedLen;
 	type AddressMapping: AddressMapping<Self::AccountId>;
 	type BackwardsAddressMapping: BackwardsAddressMapping<Self::AccountId>;
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Derivative)]
+#[derivative(PartialEq(bound=""), Eq(bound=""))]
 pub struct BasicCrossAccountId<T: CrossAccountConfig> {
 	/// If true - then ethereum is canonical encoding
 	from_ethereum: bool,
