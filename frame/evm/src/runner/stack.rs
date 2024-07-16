@@ -589,8 +589,12 @@ where
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
 		let measured_proof_size_before = get_proof_size().unwrap_or_default();
 		let reason = WithdrawReason::Call {
+			max_fee_per_gas,
+			gas_limit,
 			target,
 			input: input.clone(),
+			is_transactional,
+			is_check: false,
 		};
 		if validate {
 			Self::validate(
