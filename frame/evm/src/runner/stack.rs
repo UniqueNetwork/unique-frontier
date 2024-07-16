@@ -166,7 +166,7 @@ where
 		/* Unique:
 		source: H160,
 		*/
-		source: &T::CrossAccountId,
+		source: &'config T::CrossAccountId,
 		value: U256,
 		mut gas_limit: u64,
 		mut max_fee_per_gas: Option<U256>,
@@ -284,7 +284,7 @@ where
 		// Unique: Do not charge on estimate
 		let fee = if !config.estimate {
 			Some(T::OnChargeTransaction::withdraw_fee(source, reason, total_fee)
-			.map_err(|e| RunnerError { error: e, weight })?)
+				.map_err(|e| RunnerError { error: e, weight })?)
 		} else {
 			None
 		};
@@ -863,7 +863,7 @@ pub struct Recorded {
 }
 
 /// Substrate backend for EVM.
-pub struct SubstrateStackState<'vicinity, 'config, T> {
+pub struct SubstrateStackState<'vicinity, 'config, T: Config> {
 	vicinity: &'vicinity Vicinity,
 	substate: SubstrateStackSubstate<'config, T>,
 	original_storage: BTreeMap<(H160, H256), H256>,
@@ -871,6 +871,7 @@ pub struct SubstrateStackState<'vicinity, 'config, T> {
 	recorded: Recorded,
 	weight_info: Option<WeightInfo>,
 	storage_meter: Option<StorageMeter>,
+	source: &'config T::CrossAccountId,
 	_marker: PhantomData<T>,
 }
 
@@ -881,6 +882,7 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 		metadata: StackSubstateMetadata<'config>,
 		weight_info: Option<WeightInfo>,
 		storage_limit: Option<u64>,
+		source: &'config T::CrossAccountId,
 	) -> Self {
 		let storage_meter = storage_limit.map(StorageMeter::new);
 		Self {
@@ -901,11 +903,16 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 			recorded: Default::default(),
 			weight_info,
 			storage_meter,
+			source,
 		}
 	}
 
 	pub fn weight_info(&self) -> Option<WeightInfo> {
 		self.weight_info
+	}
+
+	fn source(&self) -> &'config T::CrossAccountId {
+		&self.source
 	}
 
 	pub fn recorded(&self) -> &Recorded {
@@ -1123,10 +1130,15 @@ where
 	}
 
 	fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
-		let source = T::AddressMapping::into_account_id(transfer.source);
+		let transfer_cross = T::CrossAccountId::from_eth(transfer.source);
+		let source = if self.source().conv_eq(&transfer_cross) {
+			self.source().as_sub()
+		} else {
+			transfer_cross.as_sub()
+		};
 		let target = T::AddressMapping::into_account_id(transfer.target);
 		T::Currency::transfer(
-			&source,
+			source,
 			&target,
 			transfer
 				.value
