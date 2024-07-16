@@ -23,7 +23,6 @@ use sp_core::{H160, U256};
 use crate::{
 	EnsureAddressNever, EnsureAddressRoot, EnsureAllowedCreateAddress, FeeCalculator,
 	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
-	TransactionValidationError,
 };
 
 frame_support::construct_runtime! {
