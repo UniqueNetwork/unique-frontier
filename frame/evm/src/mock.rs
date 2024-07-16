@@ -22,7 +22,7 @@ use sp_core::{H160, U256};
 
 use crate::{
 	FeeCalculator, IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult,
-	PrecompileSet,
+	PrecompileSet, TransactionValidationError,
 };
 
 frame_support::construct_runtime! {
@@ -74,14 +74,7 @@ impl crate::Config for Test {
 	type PrecompilesValue = MockPrecompiles;
 	type Runner = crate::runner::stack::Runner<Self>;
 	type Timestamp = Timestamp;
-}
-
-pub struct FixedGasPrice;
-impl FeeCalculator for FixedGasPrice {
-	fn min_gas_price() -> (U256, Weight) {
-		// Return some meaningful gas price and weight
-		(1_000_000_000u128.into(), Weight::from_parts(7u64, 0))
-	}
+	type OnCheckEvmTransaction<E: From<TransactionValidationError>> = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.

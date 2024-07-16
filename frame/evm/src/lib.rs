@@ -102,7 +102,7 @@ use sp_runtime::{
 use fp_account::AccountId20;
 use fp_evm::GenesisAccount;
 pub use fp_evm::{
-	Account, AccountProvider, CallInfo, CreateInfo, ExecutionInfoV2 as ExecutionInfo,
+	Account, AccountProvider, CallInfo, CheckEvmTransaction, CreateInfo, ExecutionInfoV2 as ExecutionInfo,
 	FeeCalculator, IsPrecompileResult, LinearCostPrecompile, Log, Precompile, PrecompileFailure,
 	PrecompileHandle, PrecompileOutput, PrecompileResult, PrecompileSet,
 	TransactionValidationError, Vicinity,
@@ -206,6 +206,12 @@ pub mod pallet {
 		fn config() -> &'static EvmConfig {
 			&CANCUN_CONFIG
 		}
+
+		// Called when transaction info for validation is created
+		type OnCheckEvmTransaction<E: From<TransactionValidationError>>: OnCheckEvmTransaction<
+			Self,
+			E,
+		>;
 	}
 
 	pub mod config_preludes {
@@ -279,6 +285,12 @@ pub mod pallet {
 				Some(H160::from_str("1234500000000000000000000000000000000000").unwrap())
 			}
 		}
+
+		// Called when transaction info for validation is created
+		type OnCheckEvmTransaction<E: From<TransactionValidationError>>: OnCheckEvmTransaction<
+			Self,
+			E,
+		>;
 	}
 
 	#[pallet::call]
@@ -1268,5 +1280,15 @@ impl<T: frame_system::Config> AccountProvider for FrameSystemAccountProvider<T> 
 
 	fn remove_account(who: &Self::AccountId) {
 		let _ = frame_system::Pallet::<T>::dec_sufficients(who);
+	}
+}
+
+pub trait OnCheckEvmTransaction<T: Config, E: From<TransactionValidationError>> {
+	fn on_check_evm_transaction(v: &mut CheckEvmTransaction<E>, origin: &H160) -> Result<(), E>;
+}
+
+impl<T: Config, E: From<TransactionValidationError>> OnCheckEvmTransaction<T, E> for () {
+	fn on_check_evm_transaction(_v: &mut CheckEvmTransaction<E>, _origin: &H160) -> Result<(), E> {
+		Ok(())
 	}
 }
