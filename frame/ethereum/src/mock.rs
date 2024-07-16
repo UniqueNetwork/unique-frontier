@@ -118,6 +118,7 @@ impl pallet_evm::Config for Test {
 	// Unique:
 	type CrossAccountId = CrossAccountId<Self>;
 	type BackwardsAddressMapping = HashedAddressMapping<Self::Hashing>;
+	type OnMethodCall = ();
 }
 
 #[derive_impl(crate::config_preludes::TestDefaultConfig)]
