@@ -135,6 +135,7 @@ parameter_types! {
 	pub BlockGasLimit: U256 = U256::max_value();
 	pub WeightPerGas: Weight = Weight::from_parts(20_000, 0);
 }
+
 impl pallet_evm::Config for Test {
 	type AccountProvider = pallet_evm::FrameSystemAccountProvider<Self>;
 	type FeeCalculator = FixedGasPrice;
@@ -142,9 +143,15 @@ impl pallet_evm::Config for Test {
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = pallet_evm::SubstrateBlockHashMapping<Self>;
+	/* Unique
 	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	*/
+	type CallOrigin = EnsureAddressRoot<Self>;
 
+	/* Unique
 	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	*/
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 
@@ -162,6 +169,10 @@ impl pallet_evm::Config for Test {
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = pallet_evm::account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
 }
 
 pub(crate) struct MockHandle {

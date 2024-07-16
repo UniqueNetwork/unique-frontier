@@ -28,6 +28,8 @@ use sp_runtime::{
 };
 // Frontier
 use pallet_evm::{config_preludes::ChainId, AddressMapping};
+// Unique
+use pallet_evm::{BackwardsAddressMapping};
 
 use super::*;
 
@@ -100,6 +102,10 @@ impl pallet_evm::Config for Test {
 	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
 	type Timestamp = Timestamp;
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = CrossAccountId<Self>;
+	type BackwardsAddressMapping = HashedAddressMapping;
 }
 
 #[derive_impl(crate::config_preludes::TestDefaultConfig)]

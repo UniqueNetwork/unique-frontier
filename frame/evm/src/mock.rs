@@ -25,6 +25,9 @@ use crate::{
 	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
 
+// Unique
+use crate::account;
+
 frame_support::construct_runtime! {
 	pub enum Test {
 		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
@@ -75,6 +78,10 @@ impl crate::Config for Test {
 	type Runner = crate::runner::stack::Runner<Self>;
 	type Timestamp = Timestamp;
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
 }
 
 /// Example PrecompileSet with only Identity precompile.

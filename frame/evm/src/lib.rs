@@ -114,6 +114,11 @@ pub use self::{
 	weights::WeightInfo,
 };
 
+// Unique
+pub mod account;
+use account::CrossAccountId;
+use core::marker::PhantomData;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -144,13 +149,19 @@ pub mod pallet {
 		type BlockHashMapping: BlockHashMapping;
 
 		/// Allow the origin to call on behalf of given address.
-		#[pallet::no_default_bounds]
+		/* Unique:
 		type CallOrigin: EnsureAddressOrigin<Self::RuntimeOrigin>;
-
+		*/
+		type CallOrigin: EnsureAddressOrigin<Self::RuntimeOrigin, Success = Self::CrossAccountId>;
 		/// Allow the origin to withdraw on behalf of given address.
-		#[pallet::no_default_bounds]
-		type WithdrawOrigin: EnsureAddressOrigin<Self::RuntimeOrigin, Success = AccountIdOf<Self>>;
-
+		/* Unique:
+		type WithdrawOrigin: EnsureAddressOrigin<Self::RuntimeOrigin, Success = Self::AccountId>;
+		*/
+		type WithdrawOrigin: EnsureAddressOrigin<
+			Self::RuntimeOrigin,
+			Success = Self::CrossAccountId,
+		>;
+		
 		/// Mapping from address to account id.
 		#[pallet::no_default_bounds]
 		type AddressMapping: AddressMapping<AccountIdOf<Self>>;
@@ -288,6 +299,10 @@ pub mod pallet {
 
 		// Called when transaction info for validation is created
 		type OnCheckEvmTransaction: OnCheckEvmTransaction<Self>;
+
+		// Unique:
+		type CrossAccountId: CrossAccountId<Self::AccountId>;
+		type BackwardsAddressMapping: BackwardsAddressMapping<Self::AccountId>;
 	}
 
 	#[pallet::call]
@@ -305,7 +320,9 @@ pub mod pallet {
 
 			T::Currency::transfer(
 				&address_account_id,
-				&destination,
+				// Unique:
+				// &destination,
+				&destination.as_sub(),
 				value,
 				ExistenceRequirement::AllowDeath,
 			)?;
@@ -331,7 +348,10 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
+			/* Unique:
 			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			*/
+			let source = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let validate = true;
@@ -407,7 +427,10 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
+			/* Unique:
 			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			*/
+			let source = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let validate = true;
@@ -494,7 +517,10 @@ pub mod pallet {
 			nonce: Option<U256>,
 			access_list: Vec<(H160, Vec<H256>)>,
 		) -> DispatchResultWithPostInfo {
+			/* Unique:
 			T::CallOrigin::ensure_address_origin(&source, origin)?;
+			*/
+			let source = T::CallOrigin::ensure_address_origin(&source, origin)?;
 
 			let is_transactional = true;
 			let validate = true;
@@ -754,47 +780,59 @@ where
 }
 
 /// Ensure that the origin is root.
-pub struct EnsureAddressRoot<AccountId>(core::marker::PhantomData<AccountId>);
+pub struct EnsureAddressRoot<T>(core::marker::PhantomData<T>);
 
-impl<OuterOrigin, AccountId> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<AccountId>
+impl<OuterOrigin, T> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<T>
 where
-	OuterOrigin: Into<Result<RawOrigin<AccountId>, OuterOrigin>> + From<RawOrigin<AccountId>>,
+	T: Config,
+	OuterOrigin: Into<Result<RawOrigin<T::AccountId>, OuterOrigin>> + From<RawOrigin<T::AccountId>>,
 {
-	type Success = ();
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(_address: &H160, origin: OuterOrigin) -> Result<(), OuterOrigin> {
+	fn try_address_origin(
+		address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		origin.into().and_then(|o| match o {
-			RawOrigin::Root => Ok(()),
+			RawOrigin::Root => Ok(T::CrossAccountId::from_eth(*address)),
 			r => Err(OuterOrigin::from(r)),
 		})
 	}
 }
 
 /// Ensure that the origin never happens.
-pub struct EnsureAddressNever<AccountId>(core::marker::PhantomData<AccountId>);
+pub struct EnsureAddressNever<T: Config>(core::marker::PhantomData<T>);
 
-impl<OuterOrigin, AccountId> EnsureAddressOrigin<OuterOrigin> for EnsureAddressNever<AccountId> {
-	type Success = AccountId;
+impl<OuterOrigin, T: Config> EnsureAddressOrigin<OuterOrigin> for EnsureAddressNever<T> {
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(_address: &H160, origin: OuterOrigin) -> Result<AccountId, OuterOrigin> {
+	fn try_address_origin(
+		_address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		Err(origin)
 	}
 }
 
 /// Ensure that the address is truncated hash of the origin. Only works if the account id is
 /// `AccountId32`.
-pub struct EnsureAddressTruncated;
+pub struct EnsureAddressTruncated<T>(PhantomData<T>);
 
-impl<OuterOrigin> EnsureAddressOrigin<OuterOrigin> for EnsureAddressTruncated
+impl<T, OuterOrigin> EnsureAddressOrigin<OuterOrigin> for EnsureAddressTruncated<T>
 where
+	T: Config,
+	T::AccountId: From<AccountId32>,
 	OuterOrigin: Into<Result<RawOrigin<AccountId32>, OuterOrigin>> + From<RawOrigin<AccountId32>>,
 {
-	type Success = AccountId32;
+	type Success = T::CrossAccountId;
 
-	fn try_address_origin(address: &H160, origin: OuterOrigin) -> Result<AccountId32, OuterOrigin> {
+	fn try_address_origin(
+		address: &H160,
+		origin: OuterOrigin,
+	) -> Result<Self::Success, OuterOrigin> {
 		origin.into().and_then(|o| match o {
 			RawOrigin::Signed(who) if AsRef::<[u8; 32]>::as_ref(&who)[0..20] == address[0..20] => {
-				Ok(who)
+				Ok(T::CrossAccountId::from_sub(T::AccountId::from(who)))
 			}
 			r => Err(OuterOrigin::from(r)),
 		})
@@ -824,12 +862,29 @@ pub trait AddressMapping<A> {
 	fn into_account_id(address: H160) -> A;
 }
 
+// Unique
+/// Transforms substrate addresses to ethereum (Reverse of `EvmAddressMapping`)
+/// pallet_evm doesn't have this, as it only checks if eth address
+/// is owned by substrate via `EnsureAddressOrigin` trait
+///
+/// This trait implementations shouldn't conflict with used `EnsureAddressOrigin`
+pub trait BackwardsAddressMapping<A> {
+	fn from_account_id(account_id: A) -> H160;
+}
+
 /// Identity address mapping.
 pub struct IdentityAddressMapping;
 
 impl<T: From<H160>> AddressMapping<T> for IdentityAddressMapping {
 	fn into_account_id(address: H160) -> T {
 		address.into()
+	}
+}
+
+// Unique
+impl<T: Into<H160>> BackwardsAddressMapping<T> for IdentityAddressMapping {
+	fn from_account_id(account_id: T) -> H160 {
+		account_id.into()
 	}
 }
 
@@ -844,6 +899,15 @@ impl<H: Hasher<Out = H256>> AddressMapping<AccountId32> for HashedAddressMapping
 		let hash = H::hash(&data);
 
 		AccountId32::from(Into::<[u8; 32]>::into(hash))
+	}
+}
+
+// Unique
+impl<H> BackwardsAddressMapping<AccountId32> for HashedAddressMapping<H> {
+	fn from_account_id(account_id: AccountId32) -> H160 {
+		let mut out = [0; 20];
+		out.copy_from_slice(&(account_id.as_ref() as &[u8])[0..20]);
+		H160(out)
 	}
 }
 
@@ -988,10 +1052,20 @@ impl<T: Config> Pallet<T> {
 
 	/// Get the account basic in EVM format.
 	pub fn account_basic(address: &H160) -> (Account, frame_support::weights::Weight) {
-		let account_id = T::AddressMapping::into_account_id(*address);
-		let nonce = T::AccountProvider::account_nonce(&account_id);
-		let balance =
-			T::Currency::reducible_balance(&account_id, Preservation::Preserve, Fortitude::Polite);
+		let account_id = T::CrossAccountId::from_eth(*address);
+		Self::account_basic_by_id(&account_id)
+	}
+
+	pub fn account_basic_by_id(
+		account_id: &T::CrossAccountId,
+	) -> (Account, frame_support::weights::Weight) {
+		let nonce = frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
+		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
+		let balance = T::Currency::reducible_balance(
+			account_id.as_sub(),
+			Preservation::Preserve,
+			Fortitude::Polite,
+		);
 
 		(
 			Account {
@@ -1018,7 +1092,7 @@ pub trait OnChargeEVMTransaction<T: Config> {
 
 	/// Before the transaction is executed the payment of the transaction fees
 	/// need to be secured.
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
+	fn withdraw_fee(who: &T::CrossAccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>>;
 
 	/// After the transaction was executed the actual fee can be calculated.
 	/// This function should refund any overpaid fees and optionally deposit
@@ -1026,7 +1100,7 @@ pub trait OnChargeEVMTransaction<T: Config> {
 	/// `OnUnbalanced` implementation.
 	/// Returns the `NegativeImbalance` - if any - produced by the priority fee.
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		base_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
@@ -1056,13 +1130,12 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<NegativeImbalanceOf<C, T>>;
 
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
+	fn withdraw_fee(who: &T::CrossAccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
 		if fee.is_zero() {
 			return Ok(None);
 		}
-		let account_id = T::AddressMapping::into_account_id(*who);
 		let imbalance = C::withdraw(
-			&account_id,
+			who.as_sub(),
 			fee.unique_saturated_into(),
 			WithdrawReasons::FEE,
 			ExistenceRequirement::AllowDeath,
@@ -1072,14 +1145,12 @@ where
 	}
 
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		base_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) -> Self::LiquidityInfo {
 		if let Some(paid) = already_withdrawn {
-			let account_id = T::AddressMapping::into_account_id(*who);
-
 			// Calculate how much refund we should return
 			let refund_amount = paid
 				.peek()
@@ -1087,7 +1158,7 @@ where
 			// refund to the account that paid the fees. If this fails, the
 			// account might have dropped below the existential balance. In
 			// that case we don't refund anything.
-			let refund_imbalance = C::deposit_into_existing(&account_id, refund_amount)
+			let refund_imbalance = C::deposit_into_existing(who.as_sub(), refund_amount)
 				.unwrap_or_else(|_| C::PositiveImbalance::zero());
 
 			// Make sure this works with 0 ExistentialDeposit
@@ -1096,11 +1167,11 @@ where
 			// we call `make_free_balance_be` with the refunded amount.
 			let refund_imbalance = if C::minimum_balance().is_zero()
 				&& refund_amount > C::Balance::zero()
-				&& C::total_balance(&account_id).is_zero()
+				&& C::total_balance(who.as_sub()).is_zero()
 			{
 				// Known bug: Substrate tried to refund to a zeroed AccountData, but
 				// interpreted the account to not exist.
-				match C::make_free_balance_be(&account_id, refund_amount) {
+				match C::make_free_balance_be(who.as_sub(), refund_amount) {
 					SignedImbalance::Positive(p) => p,
 					_ => C::PositiveImbalance::zero(),
 				}
@@ -1148,13 +1219,12 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<Credit<AccountIdOf<T>, F>>;
 
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
+	fn withdraw_fee(who: &T::CrossAccountId, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
 		if fee.is_zero() {
 			return Ok(None);
 		}
-		let account_id = T::AddressMapping::into_account_id(*who);
 		let imbalance = F::withdraw(
-			&account_id,
+			who.as_sub(),
 			fee.unique_saturated_into(),
 			Precision::Exact,
 			Preservation::Preserve,
@@ -1165,14 +1235,12 @@ where
 	}
 
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		base_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
 	) -> Self::LiquidityInfo {
 		if let Some(paid) = already_withdrawn {
-			let account_id = T::AddressMapping::into_account_id(*who);
-
 			// Calculate how much refund we should return
 			let refund_amount = paid
 				.peek()
@@ -1214,12 +1282,15 @@ where
 	// Kept type as Option to satisfy bound of Default
 	type LiquidityInfo = Option<Credit<AccountIdOf<T>, T::Currency>>;
 
-	fn withdraw_fee(who: &H160, fee: U256) -> Result<Self::LiquidityInfo, Error<T>> {
-		EVMFungibleAdapter::<T::Currency, ()>::withdraw_fee(who, fee)
+	fn withdraw_fee(
+		who: &T::CrossAccountId,
+		fee: U256,
+	) -> Result<Self::LiquidityInfo, Error<T>> {
+		<EVMFungibleAdapter<T::Currency, ()> as OnChargeEVMTransaction<T>>::withdraw_fee(who, fee)
 	}
 
 	fn correct_and_deposit_fee(
-		who: &H160,
+		who: &T::CrossAccountId,
 		corrected_fee: U256,
 		base_fee: U256,
 		already_withdrawn: Self::LiquidityInfo,
@@ -1289,7 +1360,7 @@ pub trait OnCheckEvmTransaction<T: Config> {
 	/// - `v`: Transaction data to validate. Method can modify transaction data before frontier's built-in validations.
 	fn on_check_evm_transaction(
 		v: &mut CheckEvmTransaction,
-		origin: &H160,
+		origin: &T::CrossAccountId,
 	) -> Result<(), TransactionValidationError>;
 }
 
@@ -1297,7 +1368,7 @@ pub trait OnCheckEvmTransaction<T: Config> {
 impl<T: Config> OnCheckEvmTransaction<T> for () {
 	fn on_check_evm_transaction(
 		_v: &mut CheckEvmTransaction,
-		_origin: &H160,
+		_origin: &T::CrossAccountId,
 	) -> Result<(), TransactionValidationError> {
 		Ok(())
 	}
