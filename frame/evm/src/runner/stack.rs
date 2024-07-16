@@ -59,6 +59,7 @@ use crate::{
 
 // Unique
 use crate::{account::CrossAccountId, CurrentLogs};
+use fp_evm::WithdrawReason;
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::environmental!(IN_EVM: bool);
@@ -83,6 +84,7 @@ where
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
 		precompiles: &'precompiles T::PrecompilesType,
 		is_transactional: bool,
@@ -111,6 +113,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			precompiles,
 			is_transactional,
@@ -150,6 +153,7 @@ where
 				gas_limit,
 				max_fee_per_gas,
 				max_priority_fee_per_gas,
+				reason,
 				config,
 				precompiles,
 				is_transactional,
@@ -175,6 +179,7 @@ where
 		mut gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
 		max_priority_fee_per_gas: Option<U256>,
+		reason: WithdrawReason,
 		config: &'config evm::Config,
 		precompiles: &'precompiles T::PrecompilesType,
 		is_transactional: bool,
@@ -278,7 +283,7 @@ where
 				})?;
 
 		// Deduct fee from the `source` account. Returns `None` if `total_fee` is Zero.
-		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)
+		let fee = T::OnChargeTransaction::withdraw_fee(&source, reason, total_fee)
 			.map_err(|e| RunnerError { error: e, weight })?;
 
 		let vicinity = Vicinity {
@@ -558,6 +563,10 @@ where
 		config: &evm::Config,
 	) -> Result<CallInfo, RunnerError<Self::Error>> {
 		let measured_proof_size_before = get_proof_size().unwrap_or_default();
+		let reason = WithdrawReason::Call {
+			target,
+			input: input.clone(),
+		};
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -582,6 +591,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -626,6 +636,7 @@ where
 		T::CreateOriginFilter::check_create_origin(eth_source)
 			.map_err(|error| RunnerError { error, weight })?;
 
+		let reason = WithdrawReason::Create;
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -650,6 +661,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -694,6 +706,7 @@ where
 		T::CreateOriginFilter::check_create_origin(eth_source)
 			.map_err(|error| RunnerError { error, weight })?;
 
+		let reason = WithdrawReason::Create2;
 		if validate {
 			Self::validate(
 				source.clone(),
@@ -719,6 +732,7 @@ where
 			gas_limit,
 			max_fee_per_gas,
 			max_priority_fee_per_gas,
+			reason,
 			config,
 			&precompiles,
 			is_transactional,
@@ -1473,6 +1487,7 @@ mod tests {
 	fn test_evm_reentrancy() {
 		TestExternalities::new_empty().execute_with(|| {
 			let config = evm::Config::istanbul();
+			let reason = WithdrawReason::Create;
 
 			let measured_proof_size_before = get_proof_size().unwrap_or_default();
 			// Should fail with the appropriate error if there is reentrancy
@@ -1482,6 +1497,7 @@ mod tests {
 				100_000,
 				None,
 				None,
+				reason.clone(),
 				&config,
 				&MockPrecompileSet,
 				false,
@@ -1496,6 +1512,7 @@ mod tests {
 						100_000,
 						None,
 						None,
+						reason.clone(),
 						&config,
 						&MockPrecompileSet,
 						false,
@@ -1530,6 +1547,7 @@ mod tests {
 				100_000,
 				None,
 				None,
+				reason,
 				&config,
 				&MockPrecompileSet,
 				false,
