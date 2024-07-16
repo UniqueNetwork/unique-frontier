@@ -99,7 +99,7 @@ impl pallet_evm::Config for Test {
 	type FindAuthor = FindAuthorTruncated;
 	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
 	type Timestamp = Timestamp;
-	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
+	type OnCheckEvmTransaction = ();
 }
 
 #[derive_impl(crate::config_preludes::TestDefaultConfig)]

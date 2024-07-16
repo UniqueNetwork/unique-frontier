@@ -161,7 +161,7 @@ impl pallet_evm::Config for Test {
 	type GasLimitStorageGrowthRatio = ();
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
-	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
+	type OnCheckEvmTransaction = ();
 }
 
 pub(crate) struct MockHandle {

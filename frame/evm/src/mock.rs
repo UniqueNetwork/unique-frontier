@@ -21,8 +21,8 @@ use frame_support::{derive_impl, parameter_types, weights::Weight};
 use sp_core::{H160, U256};
 
 use crate::{
-	FeeCalculator, IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult,
-	PrecompileSet, TransactionValidationError,
+	EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping,
+	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
 
 frame_support::construct_runtime! {
@@ -74,7 +74,7 @@ impl crate::Config for Test {
 	type PrecompilesValue = MockPrecompiles;
 	type Runner = crate::runner::stack::Runner<Self>;
 	type Timestamp = Timestamp;
-	type OnCheckEvmTransaction<E: From<TransactionValidationError>> = ();
+	type OnCheckEvmTransaction = ();
 }
 
 /// Example PrecompileSet with only Identity precompile.
