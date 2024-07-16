@@ -58,7 +58,7 @@ use crate::{
 };
 
 // Unique
-use crate::account::CrossAccountId;
+use crate::{account::CrossAccountId, CurrentLogs};
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::environmental!(IN_EVM: bool);
@@ -220,8 +220,10 @@ where
 						effective: gas_limit.into(),
 					},
 					weight_info: maybe_weight_info,
+					/* Unique:
 					logs: Default::default(),
-				})
+					*/
+				});
 			}
 		};
 
@@ -429,6 +431,7 @@ where
 			Pallet::<T>::remove_account(address)
 		}
 
+		/* Unique: logs are stored in storage
 		for log in &state.substate.logs {
 			log::trace!(
 				target: "evm",
@@ -447,6 +450,7 @@ where
 				},
 			});
 		}
+		*/
 
 		Ok(ExecutionInfoV2 {
 			value: retv,
@@ -456,7 +460,9 @@ where
 				effective: effective_gas,
 			},
 			weight_info: state.weight_info(),
+			/* Unique:
 			logs: state.substate.logs,
+			*/
 		})
 	}
 }
@@ -741,15 +747,15 @@ where
 	}
 }
 
-struct SubstrateStackSubstate<'config> {
+struct SubstrateStackSubstate<'config, T> {
 	metadata: StackSubstateMetadata<'config>,
 	deletes: BTreeSet<H160>,
 	creates: BTreeSet<H160>,
-	logs: Vec<Log>,
-	parent: Option<Box<SubstrateStackSubstate<'config>>>,
+	parent: Option<Box<SubstrateStackSubstate<'config, T>>>,
+	_marker: PhantomData<T>,
 }
 
-impl<'config> SubstrateStackSubstate<'config> {
+impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 	pub fn metadata(&self) -> &StackSubstateMetadata<'config> {
 		&self.metadata
 	}
@@ -764,7 +770,7 @@ impl<'config> SubstrateStackSubstate<'config> {
 			parent: None,
 			deletes: BTreeSet::new(),
 			creates: BTreeSet::new(),
-			logs: Vec::new(),
+			_marker: PhantomData,
 		};
 		mem::swap(&mut entering, self);
 
@@ -778,7 +784,9 @@ impl<'config> SubstrateStackSubstate<'config> {
 		mem::swap(&mut exited, self);
 
 		self.metadata.swallow_commit(exited.metadata)?;
+		/* Unique:
 		self.logs.append(&mut exited.logs);
+		*/
 		self.deletes.append(&mut exited.deletes);
 		self.creates.append(&mut exited.creates);
 		sp_io::storage::commit_transaction();
@@ -836,11 +844,29 @@ impl<'config> SubstrateStackSubstate<'config> {
 	}
 
 	pub fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
+		/* Unique:
 		self.logs.push(Log {
 			address,
 			topics,
 			data,
 		});
+		*/
+		let log = Log {
+			address,
+			topics,
+			data,
+		};
+		log::trace!(
+			target: "evm",
+			"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
+			log.address,
+			log.topics.len(),
+			log.topics,
+			log.data.len(),
+			log.data
+		);
+		<CurrentLogs<T>>::append(&log);
+		<Pallet<T>>::deposit_event(Event::<T>::Log { log });
 	}
 
 	fn recursive_is_cold<F: Fn(&Accessed) -> bool>(&self, f: &F) -> bool {
@@ -865,7 +891,7 @@ pub struct Recorded {
 /// Substrate backend for EVM.
 pub struct SubstrateStackState<'vicinity, 'config, T> {
 	vicinity: &'vicinity Vicinity,
-	substate: SubstrateStackSubstate<'config>,
+	substate: SubstrateStackSubstate<'config, T>,
 	original_storage: BTreeMap<(H160, H256), H256>,
 	transient_storage: BTreeMap<(H160, H256), H256>,
 	recorded: Recorded,
@@ -889,8 +915,11 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 				metadata,
 				deletes: BTreeSet::new(),
 				creates: BTreeSet::new(),
+				/* Unique:
 				logs: Vec::new(),
+				*/
 				parent: None,
+				_marker: PhantomData,
 			},
 			_marker: PhantomData,
 			original_storage: BTreeMap::new(),
