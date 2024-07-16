@@ -34,7 +34,10 @@ use sp_runtime::{
 };
 // Frontier
 use fp_evm::{ExitReason, ExitRevert, PrecompileFailure, PrecompileHandle};
-use pallet_evm::{CodeMetadata, EnsureAddressNever, EnsureAddressRoot};
+use pallet_evm::{
+	account::BasicCrossAccountId, CodeMetadata, EnsureAddressNever, EnsureAddressRoot,
+	IdentityAddressMapping,
+};
 use precompile_utils::{
 	precompile_set::*,
 	solidity::{codec::Writer, revert::revert},
@@ -252,8 +255,8 @@ impl pallet_evm::Config for Runtime {
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 	type BlockHashMapping = pallet_evm::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<AccountId>;
-	type WithdrawOrigin = EnsureAddressNever<AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = AccountId;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
@@ -272,6 +275,10 @@ impl pallet_evm::Config for Runtime {
 	type CreateOriginFilter = ();
 	type WeightInfo = pallet_evm::weights::SubstrateWeight<Runtime>;
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
 }
 
 parameter_types! {

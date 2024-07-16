@@ -19,6 +19,7 @@ scale-info = { workspace = true }
 serde = { workspace = true, optional = true }
 
 # Substrate
+frame-system = { workspace = true }
 frame-support = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
