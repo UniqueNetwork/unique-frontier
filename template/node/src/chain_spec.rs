@@ -91,7 +91,6 @@ pub fn development_config(enable_manual_seal: Option<bool>) -> DevChainSpec {
 		move || {
 			DevGenesisExt {
 				genesis_config: testnet_genesis(
-					wasm_binary,
 					// Sudo account (Alith)
 					AccountId::from(hex!("f24FF3a9CF04c71Dbc94D0b566f7A27B94566cac")),
 					// Pre-funded accounts
@@ -123,6 +122,7 @@ pub fn development_config(enable_manual_seal: Option<bool>) -> DevChainSpec {
 		Some(properties()),
 		// Extensions
 		None,
+		wasm_binary,
 	)
 }
 
@@ -137,7 +137,6 @@ pub fn local_testnet_config() -> ChainSpec {
 		ChainType::Local,
 		move || {
 			testnet_genesis(
-				wasm_binary,
 				// Initial PoA authorities
 				// Sudo account (Alith)
 				AccountId::from(hex!("f24FF3a9CF04c71Dbc94D0b566f7A27B94566cac")),
@@ -169,12 +168,12 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		// Extensions
 		None,
+		wasm_binary,
 	)
 }
 
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
-	wasm_binary: &[u8],
 	sudo_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	initial_authorities: Vec<(AuraId, GrandpaId)>,
@@ -189,7 +188,6 @@ fn testnet_genesis(
 		// System
 		system: SystemConfig {
 			// Add Wasm runtime to storage.
-			code: wasm_binary.to_vec(),
 			..Default::default()
 		},
 		sudo: SudoConfig {

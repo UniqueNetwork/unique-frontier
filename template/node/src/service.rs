@@ -303,7 +303,7 @@ where
 		net_config.add_notification_protocol(sc_consensus_grandpa::grandpa_peers_set_config(
 			grandpa_protocol_name.clone(),
 		));
-		let warp_sync: Arc<dyn sc_network::config::WarpSyncProvider<Block>> =
+		let warp_sync: Arc<dyn sc_network_sync::warp::WarpSyncProvider<Block>> =
 			Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
 				backend.clone(),
 				grandpa_link.shared_authority_set().clone(),
