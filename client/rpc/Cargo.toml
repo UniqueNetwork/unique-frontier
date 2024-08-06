@@ -32,6 +32,7 @@ tokio = { workspace = true, features = ["sync"] }
 prometheus-endpoint = { workspace = true }
 sc-client-api = { workspace = true }
 sc-consensus-aura = { workspace = true }
+sp-externalities = { workspace = true }
 sc-network = { workspace = true }
 sc-network-common = { workspace = true }
 sc-network-sync = { workspace = true }

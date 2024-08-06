@@ -75,76 +75,77 @@ thiserror = "1.0"
 tokio = "1.32.0"
 
 # Substrate Client
-sc-basic-authorship = "0.32.0"
-sc-block-builder = "0.31.0"
-sc-chain-spec = "25.0.0"
-sc-cli = { version = "0.34.0", default-features = false }
-sc-client-api = "26.0.0"
-sc-client-db = { version = "0.33.0", default-features = false }
-sc-consensus = "0.31.0"
-sc-consensus-aura = "0.32.0"
-sc-consensus-grandpa = "0.17.0"
-sc-consensus-manual-seal = "0.33.0"
-sc-executor = "0.30.0"
-sc-keystore = "23.0.0"
-sc-network = "0.32.0"
-sc-network-common = "0.31.0"
-sc-network-sync = "0.31.0"
-sc-offchain = "27.0.0"
-sc-rpc = "27.0.0"
-sc-rpc-api = "0.31.0"
-sc-service = { version = "0.33.0", default-features = false }
-sc-telemetry = "13.0.0"
-sc-transaction-pool = "26.0.0"
-sc-transaction-pool-api = "26.0.0"
-sc-utils = "12.0.0"
+sc-basic-authorship = "0.33.0"
+sc-block-builder = "0.32.0"
+sc-chain-spec = "26.0.0"
+sc-cli = { version = "0.35.0", default-features = false }
+sc-client-api = "27.0.0"
+sc-client-db = { version = "0.34.0", default-features = false }
+sc-consensus = "0.32.0"
+sc-consensus-aura = "0.33.0"
+sc-consensus-grandpa = "0.18.0"
+sc-consensus-manual-seal = "0.34.0"
+sc-executor = "0.31.0"
+sc-keystore = "24.0.0"
+sc-network = "0.33.0"
+sc-network-common = "0.32.0"
+sc-network-sync = "0.32.0"
+sc-offchain = "28.0.0"
+sc-rpc = "28.0.0"
+sc-rpc-api = "0.32.0"
+sc-service = { version = "0.34.0", default-features = false }
+sc-telemetry = "14.0.0"
+sc-transaction-pool = "27.0.0"
+sc-transaction-pool-api = "27.0.0"
+sc-utils = "13.0.0"
 # Substrate Primitive
-sp-api = { version = "24.0.0", default-features = false }
-sp-block-builder = { version = "24.0.0", default-features = false }
-sp-blockchain = "26.0.0"
-sp-consensus = "0.30.0"
-sp-consensus-aura = { version = "0.30.0", default-features = false }
-sp-consensus-grandpa = { version = "11.0.0", default-features = false }
-sp-core = { version = "26.0.0", default-features = false }
-sp-core-hashing = { version = "13.0.0", default-features = false }
-sp-core-hashing-proc-macro = { version = "13.0.0", default-features = false }
+sp-api = { version = "25.0.0", default-features = false }
+sp-block-builder = { version = "25.0.0", default-features = false }
+sp-blockchain = "27.0.0"
+sp-consensus = "0.31.0"
+sp-consensus-aura = { version = "0.31.0", default-features = false }
+sp-consensus-grandpa = { version = "12.0.0", default-features = false }
+sp-core = { version = "27.0.0", default-features = false }
+sp-core-hashing = { version = "14.0.0", default-features = false }
+sp-core-hashing-proc-macro = { version = "14.0.0", default-features = false }
 sp-database = "9.0.0"
-sp-inherents = { version = "24.0.0", default-features = false }
-sp-io = { version = "28.0.0", default-features = false }
-sp-keyring = "29.0.0"
-sp-offchain = { version = "24.0.0", default-features = false }
-sp-runtime = { version = "29.0.0", default-features = false }
-sp-runtime-interface = { version = "22.0.0", default-features = false }
-sp-session = { version = "25.0.0", default-features = false }
-sp-state-machine = { version = "0.33.0", default-features = false }
-sp-std = { version = "12.0.0", default-features = false }
-sp-storage = { version = "17.0.0", default-features = false }
-sp-timestamp = { version = "24.0.0", default-features = false }
-sp-transaction-pool = { version = "24.0.0", default-features = false }
-sp-version = { version = "27.0.0", default-features = false }
+sp-externalities = "0.24.0"
+sp-inherents = { version = "25.0.0", default-features = false }
+sp-io = { version = "29.0.0", default-features = false }
+sp-keyring = "30.0.0"
+sp-offchain = { version = "25.0.0", default-features = false }
+sp-runtime = { version = "30.0.1", default-features = false }
+sp-runtime-interface = { version = "23.0.0", default-features = false }
+sp-session = { version = "26.0.0", default-features = false }
+sp-state-machine = { version = "0.34.0", default-features = false }
+sp-std = { version = "13.0.0", default-features = false }
+sp-storage = { version = "18.0.0", default-features = false }
+sp-timestamp = { version = "25.0.0", default-features = false }
+sp-transaction-pool = { version = "25.0.0", default-features = false }
+sp-version = { version = "28.0.0", default-features = false }
 # Substrate FRAME
-frame-benchmarking = { version = "26.0.0", default-features = false }
-frame-executive = { version = "26.0.0", default-features = false }
-frame-support = { version = "26.0.0", default-features = false }
-frame-system = { version = "26.0.0", default-features = false }
-frame-system-benchmarking = { version = "26.0.0", default-features = false }
-frame-system-rpc-runtime-api = { version = "24.0.0", default-features = false }
-pallet-aura = { version = "25.0.0", default-features = false }
-pallet-balances = { version = "26.0.0", default-features = false }
-pallet-grandpa = { version = "26.0.0", default-features = false }
-pallet-sudo = { version = "26.0.0", default-features = false }
-pallet-timestamp = { version = "25.0.0", default-features = false }
-pallet-transaction-payment = { version = "26.0.0", default-features = false }
-pallet-transaction-payment-rpc = "28.0.0"
-pallet-transaction-payment-rpc-runtime-api = { version = "26.0.0", default-features = false }
-pallet-utility = { version = "26.0.0", default-features = false }
+frame-benchmarking = { version = "27.0.0", default-features = false }
+frame-executive = { version = "27.0.0", default-features = false }
+frame-support = { version = "27.0.0", default-features = false }
+frame-system = { version = "27.0.0", default-features = false }
+frame-system-benchmarking = { version = "27.0.0", default-features = false }
+frame-system-rpc-runtime-api = { version = "25.0.0", default-features = false }
+pallet-aura = { version = "26.0.0", default-features = false }
+pallet-balances = { version = "27.0.0", default-features = false }
+pallet-grandpa = { version = "27.0.0", default-features = false }
+pallet-sudo = { version = "27.0.0", default-features = false }
+pallet-timestamp = { version = "26.0.0", default-features = false }
+pallet-transaction-payment = { version = "27.0.0", default-features = false }
+pallet-transaction-payment-rpc = "29.0.0"
+pallet-transaction-payment-rpc-runtime-api = { version = "27.0.0", default-features = false }
+pallet-utility = { version = "27.0.0", default-features = false }
 # Substrate Utility
-frame-benchmarking-cli = "30.0.0"
+frame-benchmarking-cli = "31.0.0"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.16.0" }
-substrate-build-script-utils = "9.0.0"
-substrate-frame-rpc-system = "26.0.0"
+substrate-build-script-utils = "10.0.0"
+substrate-frame-rpc-system = "27.0.0"
 #substrate-test-runtime-client = "0.1.0"
-substrate-wasm-builder = "15.0.0"
+substrate-wasm-builder = "16.0.0"
 
 # Frontier Client
 fc-api = { version = "1.0.0-dev", path = "client/api" }

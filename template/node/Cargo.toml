@@ -20,7 +20,7 @@ hex-literal = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 log = { workspace = true }
 scale-codec = { package = "parity-scale-codec", workspace = true }
-serde = { workspace = true }
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
 
 # Substrate
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", workspace = true }

@@ -28,7 +28,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::HeaderBackend;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{
-	generic::BlockId, traits::Block as BlockT, transaction_validity::TransactionSource,
+	traits::Block as BlockT, transaction_validity::TransactionSource,
 };
 // Frontier
 use fc_rpc_core::types::*;
