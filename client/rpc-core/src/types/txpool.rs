@@ -30,7 +30,7 @@ pub trait Get {
 	fn get(hash: H256, from_address: H160, txn: &EthereumTransaction) -> Self;
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct TxPoolResult<T: Serialize> {
 	pub pending: T,
 	pub queued: T,
