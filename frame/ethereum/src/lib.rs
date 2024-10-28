@@ -139,7 +139,11 @@ where
 		len: usize,
 	) -> Option<Result<(), TransactionValidityError>> {
 		if let Call::transact { transaction } = self {
-			if let Err(e) = CheckWeight::<T>::do_pre_dispatch(dispatch_info, len) {
+			let next_len = match CheckWeight::<T>::do_validate(dispatch_info, len) {
+				Ok((_, next_len)) => next_len,
+				Err(e) =>	return Some(Err(e)),
+			};
+			if let Err(e) = CheckWeight::<T>::do_prepare(dispatch_info, len, next_len) {
 				return Some(Err(e));
 			}
 

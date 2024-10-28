@@ -113,7 +113,7 @@ where
 	}
 
 	async fn import_block(
-		&mut self,
+		&self,
 		block: BlockImportParams<B>,
 	) -> Result<ImportResult, Self::Error> {
 		// We validate that there are only one frontier log. No other

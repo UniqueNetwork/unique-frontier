@@ -113,7 +113,7 @@ where
 		let call = Runtime::RuntimeCall::from(call);
 		let dispatch_info = call.get_dispatch_info();
 
-		Self::record_weight_v2_cost(handle, dispatch_info.weight).map_err(TryDispatchError::Evm)?;
+		Self::record_weight_v2_cost(handle, dispatch_info.call_weight).map_err(TryDispatchError::Evm)?;
 
 		// Dispatch call.
 		// It may be possible to not record gas cost if the call returns Pays::No.
@@ -125,7 +125,7 @@ where
 
 		Self::refund_weight_v2_cost(
 			handle,
-			dispatch_info.weight,
+			dispatch_info.call_weight,
 			post_dispatch_info.actual_weight,
 		)
 		.map_err(TryDispatchError::Evm)?;

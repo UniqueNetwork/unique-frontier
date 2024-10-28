@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
-	state_version: 1,
+	system_version: 1,
 };
 
 /// The version information used to identify this runtime when compiled natively.
@@ -298,6 +298,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxLocks = ConstU32<50>;
 	type MaxReserves = ConstU32<50>;
 	type MaxFreezes = ConstU32<1>;
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -311,6 +312,7 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = IdentityFee<Balance>;
 	type FeeMultiplierUpdate = ConstFeeMultiplier<FeeMultiplier>;
 	type OperationalFeeMultiplier = ConstU8<5>;
+	type WeightInfo = pallet_transaction_payment::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_sudo::Config for Runtime {

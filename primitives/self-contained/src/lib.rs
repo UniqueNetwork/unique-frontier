@@ -22,7 +22,7 @@ mod checked_extrinsic;
 mod unchecked_extrinsic;
 
 pub use crate::{
-	checked_extrinsic::{CheckedExtrinsic, CheckedSignature},
+	checked_extrinsic::{CheckedExtrinsic, CheckedFormat},
 	unchecked_extrinsic::UncheckedExtrinsic,
 };
 

@@ -102,6 +102,7 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type MaxFreezes = ();
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -143,14 +144,7 @@ impl pallet_evm::Config for Test {
 	type WeightPerGas = WeightPerGas;
 
 	type BlockHashMapping = pallet_evm::SubstrateBlockHashMapping<Self>;
-	/* Unique
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
-	*/
 	type CallOrigin = EnsureAddressRoot<Self>;
-
-	/* Unique
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
-	*/
 	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
