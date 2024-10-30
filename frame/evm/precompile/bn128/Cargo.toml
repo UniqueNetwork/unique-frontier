@@ -19,7 +19,7 @@ fp-evm = { workspace = true }
 pallet-evm-test-vector-support = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	# Substrate
 	"sp-core/std",

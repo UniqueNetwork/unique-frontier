@@ -43,7 +43,7 @@ pallet-evm-precompile-simple = { workspace = true, features = ["default"] }
 pallet-timestamp = { workspace = true, features = ["default"] }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"environmental?/std",
 	"evm/std",

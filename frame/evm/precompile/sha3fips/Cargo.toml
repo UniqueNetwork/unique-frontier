@@ -13,7 +13,7 @@ tiny-keccak = { version = "2.0", features = ["fips202"] }
 fp-evm = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	# Frontier
 	"fp-evm/std",

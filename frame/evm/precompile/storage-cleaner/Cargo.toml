@@ -35,7 +35,7 @@ sp-runtime = { workspace = true, features = ["default"] }
 precompile-utils = { workspace = true, features = ["std", "testing"] }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"scale-codec/std",
 	# Substrate
