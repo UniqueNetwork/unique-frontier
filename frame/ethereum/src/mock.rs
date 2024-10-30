@@ -39,7 +39,7 @@ use pallet_evm::BackwardsAddressMapping;
 use super::*;
 use crate::IntermediateStateRoot;
 
-pub type SignedExtra = (frame_system::CheckSpecVersion<Test>,);
+pub type TxExtension = (frame_system::CheckSpecVersion<Test>,);
 
 frame_support::construct_runtime! {
 	pub enum Test {

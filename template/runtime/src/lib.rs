@@ -12,7 +12,7 @@ extern crate alloc;
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 use scale_codec::{Decode, Encode};
 use sp_api::impl_runtime_apis;
@@ -108,8 +108,8 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 
-/// The SignedExtension to the basic transaction logic.
-pub type SignedExtra = (
+/// The TransactionExtension to the basic transaction logic.
+pub type TxExtension = (
 	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -122,14 +122,14 @@ pub type SignedExtra = (
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
-	fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+	fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, TxExtension>;
 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic =
-	fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
+	fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, TxExtension, H160>;
 
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, TxExtension>;
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
@@ -518,7 +518,7 @@ impl<B: BlockT> fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> for Transac
 		&self,
 		transaction: pallet_ethereum::Transaction,
 	) -> <B as BlockT>::Extrinsic {
-		let extrinsic = UncheckedExtrinsic::new_unsigned(
+		let extrinsic = UncheckedExtrinsic::new_bare(
 			pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
 		);
 		let encoded = extrinsic.encode();
@@ -1006,7 +1006,7 @@ impl_runtime_apis! {
 
 	impl fp_rpc::ConvertTransactionRuntimeApi<Block> for Runtime {
 		fn convert_transaction(transaction: EthereumTransaction) -> <Block as BlockT>::Extrinsic {
-			UncheckedExtrinsic::new_unsigned(
+			UncheckedExtrinsic::new_bare(
 				pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
 			)
 		}

@@ -52,12 +52,9 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::OriginFor, CheckWeight, WeightInfo};
 use sp_runtime::{
-	generic::DigestItem,
-	traits::{DispatchInfoOf, Dispatchable, One, Saturating, UniqueSaturatedInto, Zero},
-	transaction_validity::{
+	generic::DigestItem, impl_tx_ext_default, traits::{DispatchInfoOf, Dispatchable, One, Saturating, UniqueSaturatedInto, Zero}, transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
-	},
-	RuntimeDebug, SaturatedConversion,
+	}, RuntimeDebug, SaturatedConversion
 };
 // Frontier
 use fp_consensus::{PostLog, PreLog, FRONTIER_ENGINE_ID};
@@ -1126,41 +1123,16 @@ impl From<TransactionValidationError> for InvalidTransactionWrapper {
 #[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode)]
 pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
 
-impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync> sp_runtime::traits::SignedExtension
+impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync + Dispatchable> sp_runtime::traits::TransactionExtension<T::RuntimeCall>
 	for FakeTransactionFinalizer<T>
 {
 	const IDENTIFIER: &'static str = "FakeTransactionFinalizer";
 
-	type AccountId = T::AccountId;
-
-	type Call = T::RuntimeCall;
-
-	type AdditionalSigned = ();
+	type Implicit = ();
 
 	type Pre = ();
 
-	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
-		Ok(())
-	}
-
-	fn pre_dispatch(
-		self,
-		_who: &Self::AccountId,
-		_call: &Self::Call,
-		_info: &DispatchInfoOf<Self::Call>,
-		_len: usize,
-	) -> Result<Self::Pre, TransactionValidityError> {
-		Ok(())
-	}
-
-	fn post_dispatch(
-		_pre: Option<Self::Pre>,
-		_info: &DispatchInfoOf<Self::Call>,
-		_post_info: &sp_runtime::traits::PostDispatchInfoOf<Self::Call>,
-		_len: usize,
-		_result: &sp_runtime::DispatchResult,
-	) -> Result<(), TransactionValidityError> {
-		<Pallet<T>>::flush_injected_transaction();
-		Ok(())
-	}
+	type Val = ();
+	
+	impl_tx_ext_default!(T::RuntimeCall; validate prepare weight);
 }

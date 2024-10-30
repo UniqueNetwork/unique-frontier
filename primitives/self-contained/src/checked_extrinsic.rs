@@ -19,7 +19,7 @@ use frame_support::dispatch::{DispatchInfo, GetDispatchInfo};
 use scale_codec::Encode;
 use sp_runtime::{
 	traits::{
-		self, AsTransactionAuthorizedOrigin, DispatchInfoOf, DispatchTransaction, Dispatchable, MaybeDisplay, Member, PostDispatchInfoOf, SignedExtension, TransactionExtension, ValidateUnsigned
+		self, AsTransactionAuthorizedOrigin, DispatchInfoOf, DispatchTransaction, Dispatchable, MaybeDisplay, Member, PostDispatchInfoOf, TransactionExtension, ValidateUnsigned
 	},
 	transaction_validity::{
 		InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -74,8 +74,6 @@ where
 
 	fn validate<I: ValidateUnsigned<Call = Self::Call>>(
 		&self,
-		// TODO [#5006;ToDr] should source be passed to `SignedExtension`s?
-		// Perhaps a change for 2.0 to avoid breaking too much APIs?
 		source: TransactionSource,
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,

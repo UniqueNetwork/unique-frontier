@@ -71,7 +71,7 @@ fn transaction_without_enough_gas_should_not_work() {
 
 		let call = crate::Call::<Test>::transact { transaction };
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<u64, _, SignedExtra, _> {
+		let extrinsic = CheckedExtrinsic::<u64, _, TxExtension, _> {
 			format: fp_self_contained::CheckedFormat::SelfContained(source),
 			function: RuntimeCall::Ethereum(call.clone()),
 		};
@@ -100,7 +100,7 @@ fn transaction_with_to_low_nonce_should_not_work() {
 			transaction: signed,
 		};
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<u64, _, SignedExtra, H160> {
+		let extrinsic = CheckedExtrinsic::<u64, _, TxExtension, H160> {
 			format: fp_self_contained::CheckedFormat::SelfContained(source),
 			function: RuntimeCall::Ethereum(call.clone()),
 		};
@@ -128,7 +128,7 @@ fn transaction_with_to_low_nonce_should_not_work() {
 			transaction: signed2,
 		};
 		let source2 = call2.check_self_contained().unwrap().unwrap();
-		let extrinsic2 = CheckedExtrinsic::<u64, _, SignedExtra, _> {
+		let extrinsic2 = CheckedExtrinsic::<u64, _, TxExtension, _> {
 			format: fp_self_contained::CheckedFormat::SelfContained(source),
 			function: RuntimeCall::Ethereum(call2.clone()),
 		};
@@ -156,7 +156,7 @@ fn transaction_with_to_hight_nonce_should_fail_in_block() {
 			transaction: signed,
 		};
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<_, _, SignedExtra, _> {
+		let extrinsic = CheckedExtrinsic::<_, _, TxExtension, _> {
 			format: fp_self_contained::CheckedFormat::SelfContained(source),
 			function: RuntimeCall::Ethereum(call),
 		};
@@ -179,7 +179,7 @@ fn transaction_with_invalid_chain_id_should_fail_in_block() {
 
 		let call = crate::Call::<Test>::transact { transaction };
 		let source = call.check_self_contained().unwrap().unwrap();
-		let extrinsic = CheckedExtrinsic::<_, _, SignedExtra, _> {
+		let extrinsic = CheckedExtrinsic::<_, _, TxExtension, _> {
 			format: fp_self_contained::CheckedFormat::SelfContained(source),
 			function: RuntimeCall::Ethereum(call),
 		};

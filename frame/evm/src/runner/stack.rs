@@ -82,7 +82,7 @@ where
 		reason: WithdrawReason,
 		config: &'config evm::Config,
 		is_transactional: bool,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
 		f: F,
@@ -93,7 +93,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -145,7 +145,7 @@ where
 		mut max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles T::PrecompilesType,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
 		f: F,
 		mut base_fee: U256,
@@ -159,7 +159,7 @@ where
 				'config,
 				'precompiles,
 				SubstrateStackState<'_, 'config, T>,
-				T::PrecompilesType,
+				PrecompileSetWithMethods<T>,
 			>,
 		) -> (ExitReason, R),
 		R: Default,
@@ -502,8 +502,8 @@ where
 		}
 		/* Unique:
 		*/
-		let precompiles = T::PrecompilesValue::get();
-		//let precompiles = <PrecompileSetWithMethods<T>>::get();
+		//let precompiles = T::PrecompilesValue::get();
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
 			value,
@@ -567,8 +567,8 @@ where
 		}
 		/* Unique:
 		*/
-		let precompiles = T::PrecompilesValue::get();
-		//let precompiles = <PrecompileSetWithMethods<T>>::get();
+		//let precompiles = T::PrecompilesValue::get();
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
 			value,
@@ -632,8 +632,8 @@ where
 		}
 		/* Unique:
 		*/
-		let precompiles = T::PrecompilesValue::get();
-		//let precompiles = <PrecompileSetWithMethods<T>>::get();
+		//let precompiles = T::PrecompilesValue::get();
+		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
 			&source,
@@ -1379,7 +1379,7 @@ mod tests {
 			WithdrawReason::Create,
 			&config,
 			false,
-			&MockPrecompileSet,
+			&PrecompileSetWithMethods(MockPrecompileSet),
 			None,
 			None,
 			|_| {
@@ -1392,7 +1392,7 @@ mod tests {
 					WithdrawReason::Create,
 					&config,
 					false,
-					&MockPrecompileSet,
+					&PrecompileSetWithMethods(MockPrecompileSet),
 					None,
 					None,
 					|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
@@ -1425,7 +1425,7 @@ mod tests {
 			WithdrawReason::Create,
 			&config,
 			false,
-			&MockPrecompileSet,
+			&PrecompileSetWithMethods(MockPrecompileSet),
 			None,
 			None,
 			|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
