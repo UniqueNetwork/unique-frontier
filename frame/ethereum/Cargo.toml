@@ -36,12 +36,12 @@ rlp = { workspace = true }
 # Substrate
 pallet-balances = { workspace = true, features = ["default", "insecure_zero_ed"] }
 pallet-timestamp = { workspace = true, features = ["default"] }
-sp-core = { workspace = true, features = ["default"] }
+sp-core = { workspace = true }
 # Frontier
 fp-self-contained = { workspace = true, features = ["default"] }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"ethereum/std",
 	"evm/std",
@@ -52,6 +52,7 @@ std = [
 	# Substrate
 	"frame-support/std",
 	"frame-system/std",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	# Frontier

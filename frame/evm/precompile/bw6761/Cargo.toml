@@ -20,7 +20,7 @@ fp-evm = { workspace = true }
 pallet-evm-test-vector-support = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	# Arkworks
 	"ark-bw6-761/std",

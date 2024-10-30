@@ -15,7 +15,7 @@ scale-codec = { package = "parity-scale-codec", workspace = true }
 serde = { workspace = true, optional = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"scale-codec/std",
 	"serde/std",
