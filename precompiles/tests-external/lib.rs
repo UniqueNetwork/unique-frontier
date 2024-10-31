@@ -34,7 +34,7 @@ use sp_runtime::{
 };
 // Frontier
 use fp_evm::{ExitReason, ExitRevert, PrecompileFailure, PrecompileHandle};
-use pallet_evm::{EnsureAddressNever, EnsureAddressRoot};
+use pallet_evm::{EnsureAddressNever, EnsureAddressRoot, IdentityAddressMapping};
 use precompile_utils::{
 	precompile_set::*,
 	solidity::{codec::Writer, revert::revert},
@@ -107,6 +107,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type MaxFreezes = ();
+	type DoneSlashHandler = ();
 }
 
 #[derive(Debug, Clone)]
@@ -234,8 +235,8 @@ impl pallet_evm::Config for Runtime {
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
 	type BlockHashMapping = pallet_evm::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<AccountId>;
-	type WithdrawOrigin = EnsureAddressNever<AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = AccountId;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
@@ -252,6 +253,11 @@ impl pallet_evm::Config for Runtime {
 	type Timestamp = Timestamp;
 	type WeightInfo = pallet_evm::weights::SubstrateWeight<Runtime>;
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = pallet_evm::account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
+	type OnMethodCall = ();
 }
 
 parameter_types! {

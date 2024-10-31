@@ -13,7 +13,7 @@ curve25519-dalek = { version = "4.1.0", default-features = false, features = ["a
 fp-evm = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	# Frontier
 	"fp-evm/std",

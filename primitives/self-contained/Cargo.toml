@@ -19,7 +19,7 @@ frame-support = { workspace = true }
 sp-runtime = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"scale-codec/std",
 	"scale-info/std",

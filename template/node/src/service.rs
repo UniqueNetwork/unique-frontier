@@ -9,10 +9,10 @@ use sc_client_api::{Backend as BackendT, BlockBackend};
 use sc_consensus::{BasicQueue, BoxBlockImport};
 use sc_consensus_grandpa::BlockNumberOps;
 use sc_executor::HostFunctions as HostFunctionsT;
-use sc_network_sync::strategy::warp::{WarpSyncParams, WarpSyncProvider};
-use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
+use sc_network_sync::strategy::warp::WarpSyncProvider;
+use sc_service::{build_polkadot_syncing_strategy, error::Error as ServiceError, Configuration, PartialComponents, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
-use sc_transaction_pool::FullPool;
+use sc_transaction_pool::TransactionPoolHandle;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
 use sp_consensus_aura::sr25519::{AuthorityId as AuraId, AuthorityPair as AuraPair};
@@ -66,7 +66,7 @@ pub fn new_partial<B, RA, HF, BIQ>(
 		FullBackend<B>,
 		FullSelectChain<B>,
 		BasicQueue<B>,
-		FullPool<B, FullClient<B, RA, HF>>,
+		TransactionPoolHandle<B, FullClient<B, RA, HF>>,
 		(
 			Option<Telemetry>,
 			BoxBlockImport<B>,
@@ -103,7 +103,7 @@ where
 		})
 		.transpose()?;
 
-	let executor = sc_service::new_wasm_executor(config);
+	let executor = sc_service::new_wasm_executor(&config.executor);
 
 	let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts::<B, RA, _>(
 		config,
@@ -167,12 +167,15 @@ where
 		grandpa_block_import,
 	)?;
 
-	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
-		config.transaction_pool.clone(),
-		config.role.is_authority().into(),
-		config.prometheus_registry(),
-		task_manager.spawn_essential_handle(),
-		client.clone(),
+	let transaction_pool = Arc::from(
+		sc_transaction_pool::Builder::new(
+			task_manager.spawn_essential_handle(),
+			client.clone(),
+			config.role.is_authority().into(),
+		)
+		.with_options(config.transaction_pool.clone())
+		.with_prometheus(config.prometheus_registry())
+		.build(),
 	);
 
 	Ok(PartialComponents {
@@ -311,7 +314,10 @@ where
 	} = new_frontier_partial(&eth_config)?;
 
 	let mut net_config =
-		sc_network::config::FullNetworkConfiguration::<_, _, NB>::new(&config.network);
+		sc_network::config::FullNetworkConfiguration::<_, _, NB>::new(
+			&config.network,
+			config.prometheus_config.as_ref().map(|cfg| cfg.registry.clone()),
+		);
 	let peer_store_handle = net_config.peer_store_handle();
 	let metrics = NB::register_notification_metrics(
 		config.prometheus_config.as_ref().map(|cfg| &cfg.registry),
@@ -319,7 +325,9 @@ where
 
 	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
 		&client
-			.block_hash(0u32.into())?
+			.block_hash(0u32.into())
+			.ok()
+			.flatten()
 			.expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
@@ -331,7 +339,7 @@ where
 			peer_store_handle,
 		);
 
-	let warp_sync_params = if sealing.is_some() {
+	let warp_sync_config = if sealing.is_some() {
 		None
 	} else {
 		net_config.add_notification_protocol(grandpa_protocol_config);
@@ -341,8 +349,18 @@ where
 				grandpa_link.shared_authority_set().clone(),
 				Vec::new(),
 			));
-		Some(WarpSyncParams::WithProvider(warp_sync))
+		Some(WarpSyncConfig::WithProvider(warp_sync))
 	};
+
+	let syncing_strategy = build_polkadot_syncing_strategy(
+		config.protocol_id(),
+		config.chain_spec.fork_id(),
+		&mut net_config,
+		warp_sync_config,
+		client.clone(),
+		&task_manager.spawn_handle(),
+		config.prometheus_config.as_ref().map(|config| &config.registry),
+	)?;
 
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
@@ -353,7 +371,7 @@ where
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync_params,
+			syncing_strategy,
 			block_relay: None,
 			metrics,
 		})?;
@@ -399,7 +417,7 @@ where
 	let pubsub_notification_sinks = Arc::new(pubsub_notification_sinks);
 
 	// for ethereum-compatibility rpc.
-	config.rpc_id_provider = Some(Box::new(fc_rpc::EthereumSubIdProvider));
+	config.rpc.id_provider = Some(Box::new(fc_rpc::EthereumSubIdProvider));
 
 	let rpc_builder = {
 		let client = client.clone();
@@ -438,11 +456,10 @@ where
 			Ok((slot, timestamp, dynamic_fee))
 		};
 
-		Box::new(move |deny_unsafe, subscription_task_executor| {
+		Box::new(move |subscription_task_executor| {
 			let eth_deps = crate::rpc::EthDeps {
 				client: client.clone(),
 				pool: pool.clone(),
-				graph: pool.pool().clone(),
 				converter: Some(TransactionConverter::<B>::default()),
 				is_authority,
 				enable_dev_signer,
@@ -465,7 +482,6 @@ where
 			let deps = crate::rpc::FullDeps {
 				client: client.clone(),
 				pool: pool.clone(),
-				deny_unsafe,
 				command_sink: if sealing.is_some() {
 					Some(command_sink.clone())
 				} else {
@@ -634,7 +650,7 @@ fn run_manual_seal_authorship<B, RA, HF>(
 	eth_config: &EthConfiguration,
 	sealing: Sealing,
 	client: Arc<FullClient<B, RA, HF>>,
-	transaction_pool: Arc<FullPool<B, FullClient<B, RA, HF>>>,
+	transaction_pool: Arc<TransactionPoolHandle<B, FullClient<B, RA, HF>>>,
 	select_chain: FullSelectChain<B>,
 	block_import: BoxBlockImport<B>,
 	task_manager: &TaskManager,

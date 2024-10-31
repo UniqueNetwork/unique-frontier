@@ -35,8 +35,8 @@ sc-consensus-aura = { workspace = true }
 sc-network = { workspace = true }
 sc-network-sync = { workspace = true }
 sc-rpc = { workspace = true }
+sc-rpc-server = { workspace = true }
 sc-service = { workspace = true }
-sc-transaction-pool = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
 sc-utils = { workspace = true }
 sp-api = { workspace = true, features = ["default"] }

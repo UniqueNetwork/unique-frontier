@@ -22,7 +22,7 @@ sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	"evm/std",
 	"evm/with-serde",

@@ -13,7 +13,7 @@ ed25519-dalek = { version = "2.1.0", default-features = false, features = ["allo
 fp-evm = { workspace = true }
 
 [features]
-default = ["std"]
+default = []
 std = [
 	# Frontier
 	"fp-evm/std",

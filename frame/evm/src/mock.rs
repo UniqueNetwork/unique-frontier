@@ -98,6 +98,7 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type MaxFreezes = ();
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -137,6 +138,7 @@ parameter_types! {
 	pub MockPrecompiles: MockPrecompileSet = MockPrecompileSet;
 	pub SuicideQuickClearLimit: u32 = 0;
 }
+
 impl crate::Config for Test {
 	type FeeCalculator = FixedGasPrice;
 	type GasWeightMapping = crate::FixedGasWeightMapping<Self>;
