@@ -108,14 +108,18 @@ where
 	}
 }
 
+// impl<Address, AccountId, Call, Signature, Extension, Lookup> Checkable<ChainContext<Runtime>> for UncheckedExtrinsic<Address, Call, Signature, Extension> {
+
+// }
+
 impl<Address, AccountId, Call, Signature, Extension, Lookup> Checkable<Lookup>
 	for UncheckedExtrinsic<Address, Call, Signature, Extension>
 where
 	Address: Member + MaybeDisplay,
-	Call: Encode + Member + SelfContainedCall + Dispatchable,
+	Call: Encode + Member + SelfContainedCall,
 	Signature: Member + traits::Verify,
 	<Signature as traits::Verify>::Signer: IdentifyAccount<AccountId = AccountId>,
-	Extension: Encode + TransactionExtension<Call>,
+	Extension: TransactionExtension<Call>,
 	AccountId: Member + MaybeDisplay,
 	Lookup: traits::Lookup<Source = Address, Target = AccountId>,
 {

@@ -1123,7 +1123,7 @@ impl From<TransactionValidationError> for InvalidTransactionWrapper {
 #[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode)]
 pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
 
-impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync + Dispatchable> sp_runtime::traits::TransactionExtension<T::RuntimeCall>
+impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync> sp_runtime::traits::TransactionExtension<T::RuntimeCall>
 	for FakeTransactionFinalizer<T>
 {
 	const IDENTIFIER: &'static str = "FakeTransactionFinalizer";
