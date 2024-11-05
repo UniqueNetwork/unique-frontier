@@ -49,8 +49,9 @@ where
 			let current_number = self.client.info().best_number;
 			let highest_number = self
 				.sync
-				.best_seen_block()
+				.status()
 				.await
+				.map(|status| status.best_seen_block)
 				.map_err(|_| internal_err("fetch best_seen_block failed"))?
 				.unwrap_or(current_number);
 
