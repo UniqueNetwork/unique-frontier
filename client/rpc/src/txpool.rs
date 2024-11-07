@@ -21,9 +21,9 @@ use std::{marker::PhantomData, sync::Arc};
 use ethereum::TransactionV2 as EthereumTransaction;
 use ethereum_types::{H160, H256, U256};
 use jsonrpsee::core::RpcResult;
+use sc_service::TransactionPool;
 use serde::Serialize;
 // substrate
-use sc_transaction_pool::{ChainApi, Pool};
 use sc_transaction_pool_api::InPoolTransaction;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -43,29 +43,29 @@ struct TxPoolTransactions {
 	future: Vec<EthereumTransaction>,
 }
 
-pub struct TxPool<B, C, A: ChainApi> {
+pub struct TxPool<B, C, P: TransactionPool> {
 	client: Arc<C>,
-	graph: Arc<Pool<A>>,
+	pool: Arc<P>,
 	_marker: PhantomData<B>,
 }
 
-impl<B, C, A: ChainApi> Clone for TxPool<B, C, A> {
+impl<B, C, P: TransactionPool> Clone for TxPool<B, C, P> {
 	fn clone(&self) -> Self {
 		Self {
 			client: self.client.clone(),
-			graph: self.graph.clone(),
+			pool: self.pool.clone(),
 			_marker: PhantomData,
 		}
 	}
 }
 
-impl<B, C, A> TxPool<B, C, A>
+impl<B, C, P> TxPool<B, C, P>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + 'static,
-	A: ChainApi<Block = B> + 'static,
+	P: TransactionPool<Block = B> + 'static,
 {
 	fn map_build<T>(&self) -> RpcResult<TxPoolResult<TransactionMap<T>>>
 	where
@@ -106,19 +106,17 @@ where
 	fn collect_txpool_transactions(&self) -> RpcResult<TxPoolTransactions> {
 		// Collect extrinsics in the ready validated pool.
 		let ready_extrinsics = self
-			.graph
-			.validated_pool()
+			.pool
 			.ready()
-			.map(|in_pool_tx| in_pool_tx.data().clone())
+			.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 			.collect();
 
 		// Collect extrinsics in the future validated pool.
 		let future_extrinsics = self
-			.graph
-			.validated_pool()
+			.pool
 			.futures()
 			.iter()
-			.map(|(_, extrinsic)| extrinsic.clone())
+			.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 			.collect();
 
 		// Use the runtime to match the (here) opaque extrinsics against ethereum transactions.
@@ -135,23 +133,23 @@ where
 	}
 }
 
-impl<B, C, A: ChainApi> TxPool<B, C, A> {
-	pub fn new(client: Arc<C>, graph: Arc<Pool<A>>) -> Self {
+impl<B, C, P: TransactionPool> TxPool<B, C, P> {
+	pub fn new(client: Arc<C>, pool: Arc<P>) -> Self {
 		Self {
 			client,
-			graph,
+			pool,
 			_marker: PhantomData,
 		}
 	}
 }
 
-impl<B, C, A> TxPoolApiServer for TxPool<B, C, A>
+impl<B, C, P> TxPoolApiServer for TxPool<B, C, P>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + 'static,
-	A: ChainApi<Block = B> + 'static,
+	P: TransactionPool<Block = B> + 'static,
 {
 	fn content(&self) -> RpcResult<TxPoolResult<TransactionMap<Transaction>>> {
 		self.map_build::<Transaction>()
@@ -162,7 +160,7 @@ where
 	}
 
 	fn status(&self) -> RpcResult<TxPoolResult<U256>> {
-		let status = self.graph.validated_pool().status();
+		let status = self.pool.status();
 		Ok(TxPoolResult {
 			pending: U256::from(status.ready),
 			queued: U256::from(status.future),

@@ -34,12 +34,12 @@ use sp_runtime::{
 // Frontier
 use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
 // Unique
-use pallet_evm::{BackwardsAddressMapping};
+use pallet_evm::BackwardsAddressMapping;
 
 use super::*;
 use crate::IntermediateStateRoot;
 
-pub type SignedExtra = (frame_system::CheckSpecVersion<Test>,);
+pub type TxExtension = (frame_system::CheckSpecVersion<Test>,);
 
 frame_support::construct_runtime! {
 	pub enum Test {
@@ -105,6 +105,7 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
 	type MaxFreezes = ConstU32<1>;
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {

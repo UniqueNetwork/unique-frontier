@@ -20,7 +20,7 @@ use ethereum_types::{H160, U256, U64};
 use jsonrpsee::core::RpcResult;
 // Substrate
 use sc_client_api::backend::{Backend, StorageProvider};
-use sc_transaction_pool::ChainApi;
+use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::SyncOracle;
@@ -31,14 +31,14 @@ use fp_rpc::EthereumRuntimeRPCApi;
 
 use crate::{eth::Eth, internal_err};
 
-impl<B, C, P, CT, BE, A, CIDP, EC> Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + StorageProvider<B, BE> + 'static,
 	BE: Backend<B>,
-	A: ChainApi<Block = B>,
+	P: TransactionPool<Block = B>
 {
 	pub fn protocol_version(&self) -> RpcResult<u64> {
 		Ok(1)

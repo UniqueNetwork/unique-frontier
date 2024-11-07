@@ -81,8 +81,8 @@ where
 		max_priority_fee_per_gas: Option<U256>,
 		reason: WithdrawReason,
 		config: &'config evm::Config,
-		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		is_transactional: bool,
+		precompiles: &'precompiles PrecompileSetWithMethods<T>,
 		weight_limit: Option<Weight>,
 		proof_size_base_cost: Option<u64>,
 		f: F,
@@ -501,8 +501,8 @@ where
 			)?;
 		}
 		/* Unique:
-		let precompiles = T::PrecompilesValue::get();
 		*/
+		//let precompiles = T::PrecompilesValue::get();
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
@@ -512,8 +512,8 @@ where
 			max_priority_fee_per_gas,
 			reason,
 			config,
-			&precompiles,
 			is_transactional,
+			&precompiles,
 			weight_limit,
 			proof_size_base_cost,
 			|executor| {
@@ -566,8 +566,8 @@ where
 			)?;
 		}
 		/* Unique:
-		let precompiles = T::PrecompilesValue::get();
 		*/
+		//let precompiles = T::PrecompilesValue::get();
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		Self::execute(
 			&source,
@@ -577,8 +577,8 @@ where
 			max_priority_fee_per_gas,
 			reason,
 			config,
-			&precompiles,
 			is_transactional,
+			&precompiles,
 			weight_limit,
 			proof_size_base_cost,
 			|executor| {
@@ -631,8 +631,8 @@ where
 			)?;
 		}
 		/* Unique:
-		let precompiles = T::PrecompilesValue::get();
 		*/
+		//let precompiles = T::PrecompilesValue::get();
 		let precompiles = <PrecompileSetWithMethods<T>>::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
@@ -643,8 +643,8 @@ where
 			max_priority_fee_per_gas,
 			reason,
 			config,
-			&precompiles,
 			is_transactional,
+			&precompiles,
 			weight_limit,
 			proof_size_base_cost,
 			|executor| {
@@ -1344,6 +1344,7 @@ impl<T: Config> PrecompileSet for PrecompileSetWithMethods<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::account::BasicCrossAccountId;
 	use crate::mock::{MockPrecompileSet, Test};
 	use evm::ExitSucceed;
 
@@ -1370,26 +1371,28 @@ mod tests {
 
 		// Should fail with the appropriate error if there is reentrancy
 		let res = Runner::<Test>::execute(
-			H160::default(),
+			&BasicCrossAccountId::from_eth(H160::default()),
 			U256::default(),
 			100_000,
 			None,
 			None,
+			WithdrawReason::Create,
 			&config,
-			&MockPrecompileSet,
 			false,
+			&PrecompileSetWithMethods(MockPrecompileSet),
 			None,
 			None,
 			|_| {
 				let res = Runner::<Test>::execute(
-					H160::default(),
+					&BasicCrossAccountId::from_eth(H160::default()),
 					U256::default(),
 					100_000,
 					None,
 					None,
+					WithdrawReason::Create,
 					&config,
-					&MockPrecompileSet,
 					false,
+					&PrecompileSetWithMethods(MockPrecompileSet),
 					None,
 					None,
 					|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),
@@ -1414,14 +1417,15 @@ mod tests {
 
 		// Should succeed if there is no reentrancy
 		let res = Runner::<Test>::execute(
-			H160::default(),
+			&BasicCrossAccountId::from_eth(H160::default()),
 			U256::default(),
 			100_000,
 			None,
 			None,
+			WithdrawReason::Create,
 			&config,
-			&MockPrecompileSet,
 			false,
+			&PrecompileSetWithMethods(MockPrecompileSet),
 			None,
 			None,
 			|_| (ExitReason::Succeed(ExitSucceed::Stopped), ()),

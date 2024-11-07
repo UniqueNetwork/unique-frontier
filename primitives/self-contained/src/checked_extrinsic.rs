@@ -16,10 +16,10 @@
 // limitations under the License.
 
 use frame_support::dispatch::{DispatchInfo, GetDispatchInfo};
+use scale_codec::Encode;
 use sp_runtime::{
 	traits::{
-		self, DispatchInfoOf, Dispatchable, MaybeDisplay, Member, PostDispatchInfoOf,
-		SignedExtension, ValidateUnsigned,
+		self, AsTransactionAuthorizedOrigin, DispatchInfoOf, DispatchTransaction, Dispatchable, MaybeDisplay, Member, PostDispatchInfoOf, TransactionExtension, ValidateUnsigned
 	},
 	transaction_validity::{
 		InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -30,9 +30,10 @@ use sp_runtime::{
 use crate::SelfContainedCall;
 
 #[derive(Clone, Eq, PartialEq, RuntimeDebug)]
-pub enum CheckedSignature<AccountId, Extra, SelfContainedSignedInfo> {
-	Signed(AccountId, Extra),
-	Unsigned,
+pub enum CheckedFormat<AccountId, Extension, SelfContainedSignedInfo> {
+	Bare,
+	Signed(AccountId, Extension),
+	General(Extension),
 	SelfContained(SelfContainedSignedInfo),
 }
 
@@ -40,54 +41,57 @@ pub enum CheckedSignature<AccountId, Extra, SelfContainedSignedInfo> {
 /// existence implies that it has been checked and is good, particularly with
 /// regards to the signature.
 #[derive(Clone, Eq, PartialEq, RuntimeDebug)]
-pub struct CheckedExtrinsic<AccountId, Call, Extra, SelfContainedSignedInfo> {
+pub struct CheckedExtrinsic<AccountId, Call, Extension, SelfContainedSignedInfo> {
 	/// Who this purports to be from and the number of extrinsics have come before
 	/// from the same signer, if anyone (note this is not a signature).
-	pub signed: CheckedSignature<AccountId, Extra, SelfContainedSignedInfo>,
+	pub format: CheckedFormat<AccountId, Extension, SelfContainedSignedInfo>,
 
 	/// The function that should be called.
 	pub function: Call,
 }
 
-impl<AccountId, Call: GetDispatchInfo, Extra, SelfContainedSignedInfo> GetDispatchInfo
-	for CheckedExtrinsic<AccountId, Call, Extra, SelfContainedSignedInfo>
+impl<AccountId, Call: GetDispatchInfo, Extension, SelfContainedSignedInfo> GetDispatchInfo
+	for CheckedExtrinsic<AccountId, Call, Extension, SelfContainedSignedInfo>
 {
 	fn get_dispatch_info(&self) -> DispatchInfo {
 		self.function.get_dispatch_info()
 	}
 }
 
-impl<AccountId, Call, Extra, SelfContainedSignedInfo, Origin> traits::Applyable
-	for CheckedExtrinsic<AccountId, Call, Extra, SelfContainedSignedInfo>
+impl<AccountId, Call, Extension, SelfContainedSignedInfo, RuntimeOrigin> traits::Applyable
+	for CheckedExtrinsic<AccountId, Call, Extension, SelfContainedSignedInfo>
 where
 	AccountId: Member + MaybeDisplay,
 	Call: Member
-		+ Dispatchable<RuntimeOrigin = Origin>
+		+ Dispatchable<RuntimeOrigin = RuntimeOrigin>
+		+ Encode
 		+ SelfContainedCall<SignedInfo = SelfContainedSignedInfo>,
-	Extra: SignedExtension<AccountId = AccountId, Call = Call>,
-	Origin: From<Option<AccountId>>,
+	Extension: TransactionExtension<Call>,
+	RuntimeOrigin: From<Option<AccountId>> + AsTransactionAuthorizedOrigin,
 	SelfContainedSignedInfo: Send + Sync + 'static,
 {
 	type Call = Call;
 
-	fn validate<U: ValidateUnsigned<Call = Self::Call>>(
+	fn validate<I: ValidateUnsigned<Call = Self::Call>>(
 		&self,
-		// TODO [#5006;ToDr] should source be passed to `SignedExtension`s?
-		// Perhaps a change for 2.0 to avoid breaking too much APIs?
 		source: TransactionSource,
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> TransactionValidity {
-		match &self.signed {
-			CheckedSignature::Signed(id, extra) => {
-				Extra::validate(extra, id, &self.function, info, len)
-			}
-			CheckedSignature::Unsigned => {
-				let valid = Extra::validate_unsigned(&self.function, info, len)?;
-				let unsigned_validation = U::validate_unsigned(source, &self.function)?;
-				Ok(valid.combine_with(unsigned_validation))
-			}
-			CheckedSignature::SelfContained(signed_info) => self
+		match &self.format {
+			CheckedFormat::Bare => {
+				let inherent_validation = I::validate_unsigned(source, &self.function)?;
+				#[allow(deprecated)]
+				let legacy_validation = Extension::bare_validate(&self.function, info, len)?;
+				Ok(legacy_validation.combine_with(inherent_validation))
+			},
+			CheckedFormat::Signed(ref signer, ref extension) => {
+				let origin = Some(signer.clone()).into();
+				extension.validate_only(origin, &self.function, info, len).map(|x| x.0)
+			},
+			CheckedFormat::General(ref extension) =>
+				extension.validate_only(None.into(), &self.function, info, len).map(|x| x.0),
+			CheckedFormat::SelfContained(signed_info) => self
 				.function
 				.validate_self_contained(signed_info, info, len)
 				.ok_or(TransactionValidityError::Invalid(
@@ -96,48 +100,30 @@ where
 		}
 	}
 
-	fn apply<U: ValidateUnsigned<Call = Self::Call>>(
+	fn apply<I: ValidateUnsigned<Call = Self::Call>>(
 		self,
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> sp_runtime::ApplyExtrinsicResultWithInfo<PostDispatchInfoOf<Self::Call>> {
-		match self.signed {
-			CheckedSignature::Signed(id, extra) => {
-				let pre = Extra::pre_dispatch(extra, &id, &self.function, info, len)?;
-				let maybe_who = Some(id);
-				let res = self.function.dispatch(Origin::from(maybe_who));
-				let post_info = match res {
-					Ok(info) => info,
-					Err(err) => err.post_info,
-				};
-				Extra::post_dispatch(
-					Some(pre),
-					info,
-					&post_info,
-					len,
-					&res.map(|_| ()).map_err(|e| e.error),
-				)?;
+		match self.format {
+			CheckedFormat::Bare => {
+				I::pre_dispatch(&self.function)?;
+				// TODO: Separate logic from `TransactionExtension` into a new `InherentExtension`
+				// interface.
+				Extension::bare_validate_and_prepare(&self.function, info, len)?;
+				let res = self.function.dispatch(None.into());
+				let mut post_info = res.unwrap_or_else(|err| err.post_info);
+				let pd_res = res.map(|_| ()).map_err(|e| e.error);
+				// TODO: Separate logic from `TransactionExtension` into a new `InherentExtension`
+				// interface.
+				Extension::bare_post_dispatch(info, &mut post_info, len, &pd_res)?;
 				Ok(res)
-			}
-			CheckedSignature::Unsigned => {
-				Extra::pre_dispatch_unsigned(&self.function, info, len)?;
-				U::pre_dispatch(&self.function)?;
-				let maybe_who = None;
-				let res = self.function.dispatch(Origin::from(maybe_who));
-				let post_info = match res {
-					Ok(info) => info,
-					Err(err) => err.post_info,
-				};
-				Extra::post_dispatch(
-					None,
-					info,
-					&post_info,
-					len,
-					&res.map(|_| ()).map_err(|e| e.error),
-				)?;
-				Ok(res)
-			}
-			CheckedSignature::SelfContained(signed_info) => {
+			},
+			CheckedFormat::Signed(signer, extension) =>
+				extension.dispatch_transaction(Some(signer).into(), self.function, info, len),
+			CheckedFormat::General(extension) =>
+				extension.dispatch_transaction(None.into(), self.function, info, len),
+			CheckedFormat::SelfContained(signed_info) => {
 				// If pre-dispatch fail, the block must be considered invalid
 				self.function
 					.pre_dispatch_self_contained(&signed_info, info, len)
@@ -147,14 +133,13 @@ where
 				let res = self.function.apply_self_contained(signed_info).ok_or(
 					TransactionValidityError::Invalid(InvalidTransaction::BadProof),
 				)?;
-				let post_info = match res {
+				let mut post_info = match res {
 					Ok(info) => info,
 					Err(err) => err.post_info,
 				};
-				Extra::post_dispatch(
-					None,
+				Extension::bare_post_dispatch(
 					info,
-					&post_info,
+					&mut post_info,
 					len,
 					&res.map(|_| ()).map_err(|e| e.error),
 				)?;

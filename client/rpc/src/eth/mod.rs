@@ -36,7 +36,6 @@ use jsonrpsee::core::{async_trait, RpcResult};
 // Substrate
 use sc_client_api::backend::{Backend, StorageProvider};
 use sc_network_sync::SyncingService;
-use sc_transaction_pool::{ChainApi, Pool};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::{CallApiAt, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -71,9 +70,8 @@ impl<B: BlockT, C> EthConfig<B, C> for () {
 }
 
 /// Eth API implementation.
-pub struct Eth<B: BlockT, C, P, CT, BE, A: ChainApi, CIDP, EC> {
+pub struct Eth<B: BlockT, C, P: TransactionPool, CT, BE, CIDP, EC> {
 	pool: Arc<P>,
-	graph: Arc<Pool<A>>,
 	client: Arc<C>,
 	convert_transaction: Option<CT>,
 	sync: Arc<SyncingService<B>>,
@@ -94,19 +92,18 @@ pub struct Eth<B: BlockT, C, P, CT, BE, A: ChainApi, CIDP, EC> {
 	_marker: PhantomData<(BE, EC)>,
 }
 
-impl<B, C, P, CT, BE, A, CIDP, EC> Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + StorageProvider<B, BE> + 'static,
-	BE: Backend<B> + 'static,
-	A: ChainApi<Block = B>,
+	P: TransactionPool,
+	BE: Backend<B> + 'static
 {
 	pub fn new(
 		client: Arc<C>,
 		pool: Arc<P>,
-		graph: Arc<Pool<A>>,
 		convert_transaction: Option<CT>,
 		sync: Arc<SyncingService<B>>,
 		signers: Vec<Box<dyn EthSigner>>,
@@ -124,7 +121,6 @@ where
 		Self {
 			client,
 			pool,
-			graph,
 			convert_transaction,
 			sync,
 			is_authority,
@@ -247,17 +243,16 @@ where
 	}
 }
 
-impl<B, C, P, CT, BE, A, CIDP, EC> Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
-	A: ChainApi<Block = B>,
+	P: TransactionPool,
 	EC: EthConfig<B, C>,
 {
-	pub fn replace_config<EC2: EthConfig<B, C>>(self) -> Eth<B, C, P, CT, BE, A, CIDP, EC2> {
+	pub fn replace_config<EC2: EthConfig<B, C>>(self) -> Eth<B, C, P, CT, BE, CIDP, EC2> {
 		let Self {
 			client,
 			pool,
-			graph,
 			convert_transaction,
 			sync,
 			is_authority,
@@ -277,7 +272,6 @@ where
 		Eth {
 			client,
 			pool,
-			graph,
 			convert_transaction,
 			sync,
 			is_authority,
@@ -297,7 +291,7 @@ where
 }
 
 #[async_trait]
-impl<B, C, P, CT, BE, A, CIDP, EC> EthApiServer for Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> EthApiServer for Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
 	C: CallApiAt<B> + ProvideRuntimeApi<B>,
@@ -306,7 +300,6 @@ where
 	BE: Backend<B> + 'static,
 	P: TransactionPool<Block = B> + 'static,
 	CT: ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
-	A: ChainApi<Block = B> + 'static,
 	CIDP: CreateInherentDataProviders<B, ()> + Send + 'static,
 	EC: EthConfig<B, C>,
 {

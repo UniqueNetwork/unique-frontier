@@ -23,8 +23,7 @@ use ethereum_types::{H256, U256, U64};
 use jsonrpsee::core::RpcResult;
 // Substrate
 use sc_client_api::backend::{Backend, StorageProvider};
-use sc_transaction_pool::ChainApi;
-use sc_transaction_pool_api::InPoolTransaction;
+use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::hashing::keccak_256;
@@ -38,19 +37,19 @@ use crate::{
 	frontier_backend_client, internal_err,
 };
 
-impl<B, C, P, CT, BE, A, CIDP, EC> Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + StorageProvider<B, BE> + 'static,
 	BE: Backend<B> + 'static,
-	A: ChainApi<Block = B>,
+	P: TransactionPool<Block = B>,
 {
 	pub async fn transaction_by_hash(&self, hash: H256) -> RpcResult<Option<Transaction>> {
 		let client = Arc::clone(&self.client);
 		let backend = Arc::clone(&self.backend);
-		let graph = Arc::clone(&self.graph);
+		let pool = Arc::clone(&self.pool);
 
 		let (eth_block_hash, index) = match frontier_backend_client::load_transactions::<B, C>(
 			client.as_ref(),
@@ -78,20 +77,18 @@ where
 				let mut xts: Vec<<B as BlockT>::Extrinsic> = Vec::new();
 				// Collect transactions in the ready validated pool.
 				xts.extend(
-					graph
-						.validated_pool()
+					pool
 						.ready()
-						.map(|in_pool_tx| in_pool_tx.data().clone())
+						.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 						.collect::<Vec<<B as BlockT>::Extrinsic>>(),
 				);
 
 				// Collect transactions in the future validated pool.
 				xts.extend(
-					graph
-						.validated_pool()
+					pool
 						.futures()
 						.iter()
-						.map(|(_hash, extrinsic)| extrinsic.clone())
+						.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 						.collect::<Vec<<B as BlockT>::Extrinsic>>(),
 				);
 

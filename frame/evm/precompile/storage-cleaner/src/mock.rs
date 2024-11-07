@@ -18,13 +18,12 @@
 //! Test mock for unit tests and benchmarking
 
 use crate::{StorageCleanerPrecompile, StorageCleanerPrecompileCall};
-use frame_support::{parameter_types, weights::Weight};
-use pallet_evm::{EnsureAddressNever, EnsureAddressRoot, IdentityAddressMapping};
+use frame_support::{derive_impl, parameter_types, weights::Weight};
+use pallet_evm::{AddressMapping, BackwardsAddressMapping, EnsureAddressNever, EnsureAddressRoot, IdentityAddressMapping};
 use precompile_utils::{precompile_set::*, testing::*};
-use sp_core::{ConstU32, H256, U256};
+use sp_core::{ConstU32, H160, H256, U256};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
+	traits::{BlakeTwo256, IdentityLookup}, AccountId32, BuildStorage
 };
 
 pub type AccountId = MockAccount;
@@ -45,36 +44,13 @@ parameter_types! {
 		frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024, 0));
 }
 
+#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type BaseCallFilter = frame_support::traits::Everything;
-	type BlockWeights = ();
-	type BlockLength = ();
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	type RuntimeTask = RuntimeTask;
 	type Nonce = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Block = frame_system::mocking::MockBlock<Self>;
-	type BlockHashCount = BlockHashCount;
-	type DbWeight = ();
-	type Version = ();
-	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = ();
-	type OnSetCode = ();
-	type MaxConsumers = ConstU32<16>;
-	type MultiBlockMigrator = ();
-	type PreInherents = ();
-	type PostInherents = ();
-	type PostTransactions = ();
-	type SingleBlockMigrations = ();
 }
 
 parameter_types! {
@@ -95,6 +71,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = ();
 	type MaxFreezes = ();
 	type RuntimeFreezeReason = ();
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -123,12 +100,14 @@ parameter_types! {
 	pub SuicideQuickClearLimit: u32 = 0;
 }
 
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
 impl pallet_evm::Config for Runtime {
 	type FeeCalculator = ();
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
@@ -145,6 +124,12 @@ impl pallet_evm::Config for Runtime {
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
 	type SuicideQuickClearLimit = SuicideQuickClearLimit;
+	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = CrossAccountId<Self>;
+	type BackwardsAddressMapping = IdentityAddressMapping;
+	type OnMethodCall = ();
 }
 
 /// Build test externalities, prepopulated with data for testing the precompile.
