@@ -22,8 +22,7 @@ use ethereum_types::{H256, U256};
 use jsonrpsee::core::RpcResult;
 // Substrate
 use sc_client_api::backend::{Backend, StorageProvider};
-use sc_transaction_pool::ChainApi;
-use sc_transaction_pool_api::InPoolTransaction;
+use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::hashing::keccak_256;
@@ -37,14 +36,14 @@ use crate::{
 	frontier_backend_client, internal_err,
 };
 
-impl<B, C, P, CT, BE, A, CIDP, EC> Eth<B, C, P, CT, BE, A, CIDP, EC>
+impl<B, C, P, CT, BE, CIDP, EC> Eth<B, C, P, CT, BE, CIDP, EC>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + StorageProvider<B, BE> + 'static,
 	BE: Backend<B> + 'static,
-	A: ChainApi<Block = B>,
+	P: TransactionPool<Block = B> + 'static,
 {
 	pub async fn block_by_hash(&self, hash: H256, full: bool) -> RpcResult<Option<RichBlock>> {
 		let BlockInfo {
@@ -89,7 +88,7 @@ where
 		let client = Arc::clone(&self.client);
 		let block_data_cache = Arc::clone(&self.block_data_cache);
 		let backend = Arc::clone(&self.backend);
-		let graph = Arc::clone(&self.graph);
+		let pool = Arc::clone(&self.pool);
 
 		match frontier_backend_client::native_block_id::<B, C>(
 			client.as_ref(),
@@ -144,20 +143,18 @@ where
 				let mut xts: Vec<<B as BlockT>::Extrinsic> = Vec::new();
 				// ready validated pool
 				xts.extend(
-					graph
-						.validated_pool()
+					pool
 						.ready()
-						.map(|in_pool_tx| in_pool_tx.data().clone())
+						.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 						.collect::<Vec<<B as BlockT>::Extrinsic>>(),
 				);
 
 				// future validated pool
 				xts.extend(
-					graph
-						.validated_pool()
+					pool
 						.futures()
 						.iter()
-						.map(|(_hash, extrinsic)| extrinsic.clone())
+						.map(|in_pool_tx| (**in_pool_tx.data()).clone())
 						.collect::<Vec<<B as BlockT>::Extrinsic>>(),
 				);
 
@@ -198,7 +195,7 @@ where
 		if let BlockNumberOrHash::Pending = number_or_hash {
 			// get the pending transactions count
 			return Ok(Some(U256::from(
-				self.graph.validated_pool().ready().count(),
+				self.pool.ready().count(),
 			)));
 		}
 

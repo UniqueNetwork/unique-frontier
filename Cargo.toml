@@ -77,82 +77,82 @@ thiserror = "1.0"
 tokio = "1.37.0"
 
 # Substrate Client
-sc-basic-authorship = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-block-builder = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-chain-spec = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-cli = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-client-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-client-db = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-consensus = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-consensus-aura = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-consensus-grandpa = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-consensus-manual-seal = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-executor = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-keystore = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-network = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-network-common = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-network-sync = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-offchain = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-rpc = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-rpc-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-rpc-server = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" } 
-sc-service = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-telemetry = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-transaction-pool = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-transaction-pool-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sc-utils = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
+sc-basic-authorship = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-block-builder = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-chain-spec = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-cli = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-client-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-client-db = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-consensus = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-consensus-aura = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-consensus-grandpa = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-consensus-manual-seal = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-executor = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-keystore = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-network = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-network-common = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-network-sync = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-offchain = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-rpc = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-rpc-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-rpc-server = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" } 
+sc-service = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-telemetry = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-transaction-pool = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-transaction-pool-api = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sc-utils = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
 # Substrate Primitive
-sp-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-block-builder = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-blockchain = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-consensus = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-consensus-aura = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-consensus-grandpa = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-core = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-crypto-hashing = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-database = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-externalities = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-genesis-builder = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-inherents = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-io = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-keyring = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-offchain = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-runtime = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-runtime-interface = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-session = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-state-machine = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-std = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-storage = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-timestamp = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-transaction-pool = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-version = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-sp-weights = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
+sp-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-block-builder = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-blockchain = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-consensus = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-consensus-aura = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-consensus-grandpa = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-core = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-crypto-hashing = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-database = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-externalities = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-genesis-builder = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-inherents = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-io = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-keyring = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-offchain = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-runtime = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-runtime-interface = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-session = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-state-machine = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-std = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-storage = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-timestamp = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-transaction-pool = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-version = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+sp-weights = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
 # Substrate FRAME 
-frame-benchmarking = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-frame-executive = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-frame-support = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-frame-system = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-frame-system-benchmarking = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-frame-system-rpc-runtime-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-aura = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-balances = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-grandpa = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-sudo = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-timestamp = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-transaction-payment = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-transaction-payment-rpc = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-transaction-payment-rpc-runtime-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-pallet-utility = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
+frame-benchmarking = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+frame-executive = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+frame-support = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+frame-system = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+frame-system-benchmarking = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+frame-system-rpc-runtime-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-aura = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-balances = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-grandpa = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-sudo = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-timestamp = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-transaction-payment = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-transaction-payment-rpc = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-transaction-payment-rpc-runtime-api = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+pallet-utility = { default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
 # Substrate Utility
-frame-benchmarking-cli = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-substrate-build-script-utils = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-substrate-frame-rpc-system = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-substrate-test-runtime-client = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
-substrate-wasm-builder = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
+frame-benchmarking-cli = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+substrate-build-script-utils = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+substrate-frame-rpc-system = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+substrate-test-runtime-client = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
+substrate-wasm-builder = { git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
 
 # XCM
-xcm = { package = "staging-xcm", default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241015" }
+xcm = { package = "staging-xcm", default-features = false , git="https://github.com/UniqueNetwork/polkadot-sdk", branch="v20241016" }
 
 # Arkworks
 ark-bls12-377 = { version = "0.4.0", default-features = false, features = ["curve"] }
