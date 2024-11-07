@@ -10,7 +10,7 @@ use sc_consensus::{BasicQueue, BoxBlockImport};
 use sc_consensus_grandpa::BlockNumberOps;
 use sc_executor::HostFunctions as HostFunctionsT;
 use sc_network_sync::strategy::warp::WarpSyncProvider;
-use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager, WarpSyncConfig};
+use sc_service::{build_polkadot_syncing_strategy, error::Error as ServiceError, Configuration, PartialComponents, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -347,6 +347,16 @@ where
 		Some(WarpSyncConfig::WithProvider(warp_sync))
 	};
 
+	let syncing_strategy = build_polkadot_syncing_strategy(
+		config.protocol_id(),
+		config.chain_spec.fork_id(),
+		&mut net_config,
+		warp_sync_config,
+		client.clone(),
+		&task_manager.spawn_handle(),
+		config.prometheus_config.as_ref().map(|config| &config.registry),
+	)?;
+
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
@@ -356,7 +366,7 @@ where
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync_config,
+			syncing_strategy,
 			block_relay: None,
 			metrics,
 		})?;
