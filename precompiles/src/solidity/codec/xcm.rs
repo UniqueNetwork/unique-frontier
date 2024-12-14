@@ -23,7 +23,7 @@ use alloc::{string::String, vec::Vec};
 use frame_support::{ensure, traits::ConstU32};
 use sp_core::H256;
 use sp_weights::Weight;
-use xcm::latest::{Junction, Junctions, Location, NetworkId};
+use xcm::{latest::{Junction, Junctions, Location, NetworkId}, v4::AssetInstance};
 
 use crate::solidity::{
 	codec::{bytes::*, Codec, Reader, Writer},
@@ -31,6 +31,7 @@ use crate::solidity::{
 };
 
 pub const JUNCTION_SIZE_LIMIT: u32 = 2u32.pow(16);
+pub const ASSET_INSTANCE_SIZE_LIMIT: u32 = 2u32.pow(6);
 
 // Function to convert network id to bytes
 // We don't implement solidity::Codec here as these bytes will be appended only
@@ -395,5 +396,111 @@ impl Codec for Weight {
 
 	fn signature() -> String {
 		<(u64, u64)>::signature()
+	}
+}
+
+impl Codec for AssetInstance {
+	fn read(reader: &mut Reader) -> MayRevert<Self> {
+		let asset_instance = reader.read::<BoundedBytes<ConstU32<ASSET_INSTANCE_SIZE_LIMIT>>>()?;
+		let asset_instance_bytes: Vec<_> = asset_instance.into();
+
+		ensure!(
+			!asset_instance_bytes.is_empty(),
+			RevertReason::custom("AssetInstance cannot be empty")
+		);
+
+		// For simplicity we use an EvmReader here
+		let mut encoded_asset_instance = Reader::new(&asset_instance_bytes);
+
+		// We take the first byte
+		let enum_selector = encoded_asset_instance
+			.read_raw_bytes(1)
+			.map_err(|_| RevertReason::read_out_of_bounds("asset instance variant"))?;
+
+		// The firs byte selects the enum variant
+		match enum_selector[0] {
+			0 => {
+				Ok(AssetInstance::Undefined)
+			}
+			1 => {
+				let mut index: [u8; 16] = Default::default();
+				index.copy_from_slice(encoded_asset_instance.read_raw_bytes(16)?);
+				let para_id = u128::from_be_bytes(index);
+				Ok(AssetInstance::Index(para_id))
+			}
+			2 => {
+				// In the case of AssetInstance::Array4, we need 4 additional bytes
+				let mut data: [u8; 4] = Default::default();
+				data.copy_from_slice(encoded_asset_instance.read_raw_bytes(4)?);
+
+				Ok(AssetInstance::Array4(data))
+			}
+			3 => {
+				// In the case of AssetInstance::Array8, we need 8 additional bytes
+				let mut data: [u8; 8] = Default::default();
+				data.copy_from_slice(encoded_asset_instance.read_raw_bytes(8)?);
+
+				Ok(AssetInstance::Array8(data))
+			}
+			4 => {
+				// In the case of AssetInstance::Array16, we need 16 additional bytes
+				let mut data: [u8; 16] = Default::default();
+				data.copy_from_slice(encoded_asset_instance.read_raw_bytes(16)?);
+
+				Ok(AssetInstance::Array16(data))
+			}
+			5 => {
+				// In the case of AssetInstance::Array32, we need 32 additional bytes
+				let mut data: [u8; 32] = Default::default();
+				data.copy_from_slice(encoded_asset_instance.read_raw_bytes(32)?);
+
+				Ok(AssetInstance::Array32(data))
+			}
+			_ => Err(RevertReason::custom("Unknown AssetInstance variant").into()),
+		}
+	}
+
+	fn write(writer: &mut Writer, value: Self) {
+		let mut encoded: Vec<u8> = Vec::new();
+		let encoded_bytes: UnboundedBytes = match value {
+			AssetInstance::Undefined => {
+				encoded.push(0u8);
+				encoded.as_slice().into()
+			}
+			AssetInstance::Index(index) => {
+				encoded.push(1u8);
+				encoded.append(&mut index.to_be_bytes().to_vec());
+				encoded.as_slice().into()
+			}
+			AssetInstance::Array4(data) => {
+				encoded.push(2u8);
+				encoded.append(&mut data.to_vec());
+				encoded.as_slice().into()
+			}
+			AssetInstance::Array8(data) => {
+				encoded.push(3u8);
+				encoded.append(&mut data.to_vec());
+				encoded.as_slice().into()
+			}
+			AssetInstance::Array16(data) => {
+				encoded.push(4u8);
+				encoded.append(&mut data.to_vec());
+				encoded.as_slice().into()
+			}
+			AssetInstance::Array32(data) => {
+				encoded.push(5u8);
+				encoded.append(&mut data.to_vec());
+				encoded.as_slice().into()
+			}
+		};
+		Codec::write(writer, encoded_bytes);
+	}
+
+	fn has_static_size() -> bool {
+		false
+	}
+
+	fn signature() -> String {
+		UnboundedBytes::signature()
 	}
 }
