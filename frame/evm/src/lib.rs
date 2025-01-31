@@ -74,7 +74,7 @@ pub use evm::{
 };
 use hash_db::Hasher;
 use impl_trait_for_tuples::impl_for_tuples;
-use scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use scale_info::TypeInfo;
 // Substrate
 use frame_support::{
@@ -214,99 +214,29 @@ pub mod pallet {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
+		// Unique:
+		// Called when transaction info for validation is created
+		#[pallet::no_default_bounds]
+		type OnCheckEvmTransaction: OnCheckEvmTransaction<Self>;
+
+		// Unique:
+		#[pallet::no_default_bounds]
+		type CrossAccountId: CrossAccountId<AccountIdOf<Self>>;
+
+		// Unique:
+		#[pallet::no_default_bounds]
+		type BackwardsAddressMapping: BackwardsAddressMapping<AccountIdOf<Self>>;
+		
+		// Unique:
+		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
+		/// pallets
+		#[pallet::no_default_bounds]
+		type OnMethodCall: OnMethodCall<Self>;
+
 		/// EVM config used in the module.
 		fn config() -> &'static EvmConfig {
 			&CANCUN_CONFIG
 		}
-
-		// Called when transaction info for validation is created
-		type OnCheckEvmTransaction<E: From<TransactionValidationError>>: OnCheckEvmTransaction<
-			Self,
-			E,
-		>;
-	}
-
-	pub mod config_preludes {
-		use super::*;
-		use core::str::FromStr;
-		use frame_support::{derive_impl, parameter_types, ConsensusEngineId};
-		use sp_runtime::traits::BlakeTwo256;
-
-		pub struct TestDefaultConfig;
-
-		#[derive_impl(
-			frame_system::config_preludes::SolochainDefaultConfig,
-			no_aggregated_types
-		)]
-		impl frame_system::DefaultConfig for TestDefaultConfig {}
-
-		const BLOCK_GAS_LIMIT: u64 = 150_000_000;
-		const MAX_POV_SIZE: u64 = 5 * 1024 * 1024;
-		/// The maximum storage growth per block in bytes.
-		const MAX_STORAGE_GROWTH: u64 = 400 * 1024;
-
-		parameter_types! {
-			pub BlockGasLimit: U256 = U256::from(BLOCK_GAS_LIMIT);
-			pub const ChainId: u64 = 42;
-			pub const GasLimitPovSizeRatio: u64 = BLOCK_GAS_LIMIT.saturating_div(MAX_POV_SIZE);
-			pub const GasLimitStorageGrowthRatio: u64 = BLOCK_GAS_LIMIT.saturating_div(MAX_STORAGE_GROWTH);
-			pub WeightPerGas: Weight = Weight::from_parts(20_000, 0);
-		}
-
-		#[register_default_impl(TestDefaultConfig)]
-		impl DefaultConfig for TestDefaultConfig {
-			type CallOrigin = EnsureAddressRoot<Self::AccountId>;
-			type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
-			type AddressMapping = HashedAddressMapping<BlakeTwo256>;
-			type FeeCalculator = FixedGasPrice;
-			type GasWeightMapping = FixedGasWeightMapping<Self>;
-			type WeightPerGas = WeightPerGas;
-			#[inject_runtime_type]
-			type RuntimeEvent = ();
-			type PrecompilesType = ();
-			type PrecompilesValue = ();
-			type ChainId = ChainId;
-			type BlockGasLimit = BlockGasLimit;
-			type OnChargeTransaction = ();
-			type OnCreate = ();
-			type FindAuthor = FindAuthorTruncated;
-			type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
-			type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
-			type WeightInfo = ();
-		}
-
-		impl FixedGasWeightMappingAssociatedTypes for TestDefaultConfig {
-			type WeightPerGas = <Self as DefaultConfig>::WeightPerGas;
-			type BlockWeights = <Self as frame_system::DefaultConfig>::BlockWeights;
-			type GasLimitPovSizeRatio = <Self as DefaultConfig>::GasLimitPovSizeRatio;
-		}
-
-		pub struct FixedGasPrice;
-		impl FeeCalculator for FixedGasPrice {
-			fn min_gas_price() -> (U256, Weight) {
-				(1.into(), Weight::zero())
-			}
-		}
-
-		pub struct FindAuthorTruncated;
-		impl FindAuthor<H160> for FindAuthorTruncated {
-			fn find_author<'a, I>(_digests: I) -> Option<H160>
-			where
-				I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
-			{
-				Some(H160::from_str("1234500000000000000000000000000000000000").unwrap())
-			}
-		}
-
-		// Called when transaction info for validation is created
-		type OnCheckEvmTransaction: OnCheckEvmTransaction<Self>;
-
-		// Unique:
-		type CrossAccountId: CrossAccountId<Self::AccountId>;
-		type BackwardsAddressMapping: BackwardsAddressMapping<Self::AccountId>;
-		/// To intercept contracts being called from pallet. Used for implementing ethereum RFCs using substrate
-		/// pallets
-		type OnMethodCall: OnMethodCall<Self>;
 	}
 
 	#[pallet::call]
@@ -845,7 +775,7 @@ where
 	) -> Result<Self::Success, OuterOrigin> {
 		origin.into().and_then(|o| match o {
 			RawOrigin::Signed(who) if AsRef::<[u8; 32]>::as_ref(&who)[0..20] == address[0..20] => {
-				Ok(T::CrossAccountId::from_sub(T::AccountId::from(who)))
+				Ok(T::CrossAccountId::from_sub(AccountIdOf::<T>::from(who)))
 			}
 			r => Err(OuterOrigin::from(r)),
 		})
@@ -1107,7 +1037,7 @@ impl<T: Config> Pallet<T> {
 	pub fn account_basic_by_id(
 		account_id: &T::CrossAccountId,
 	) -> (Account, frame_support::weights::Weight) {
-		let nonce = frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
+		let nonce = (); // frame_system::Pallet::<T>::account_nonce(account_id.as_sub());
 		// keepalive `true` takes into account ExistentialDeposit as part of what's considered liquid balance.
 		let balance = T::Currency::reducible_balance(
 			account_id.as_sub(),
@@ -1302,7 +1232,7 @@ where
 				.peek()
 				.saturating_sub(corrected_fee.unique_saturated_into());
 			// refund to the account that paid the fees.
-			let refund_imbalance = F::deposit(&account_id, refund_amount, Precision::BestEffort)
+			let refund_imbalance = F::deposit(who.as_sub(), refund_amount, Precision::BestEffort)
 				.unwrap_or_else(|_| Debt::<AccountIdOf<T>, F>::zero());
 
 			// merge the imbalance caused by paying the fees and refunding parts of it again.
@@ -1387,7 +1317,7 @@ impl<T> OnCreate<T> for Tuple {
 /// Uses standard Substrate accounts system to hold EVM accounts.
 pub struct FrameSystemAccountProvider<T>(core::marker::PhantomData<T>);
 
-impl<T: frame_system::Config> AccountProvider for FrameSystemAccountProvider<T> {
+impl<T: Config> AccountProvider for FrameSystemAccountProvider<T> {
 	type AccountId = T::AccountId;
 	type Nonce = T::Nonce;
 

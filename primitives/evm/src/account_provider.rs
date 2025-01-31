@@ -17,7 +17,10 @@
 
 //! Custom account provider logic.
 
-use sp_runtime::traits::AtLeast32Bit;
+use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
+use scale_info::TypeInfo;
+use serde::{de::DeserializeOwned, Serialize};
+use sp_runtime::{traits::AtLeast32Bit, AccountId32};
 
 /// The account provider interface abstraction layer.
 ///
@@ -32,7 +35,20 @@ pub trait AccountProvider {
 	/// The account identifier type.
 	///
 	/// Represent the account itself in accounts records.
-	type AccountId;
+	type AccountId: PartialEq
+		+ Eq
+		+ PartialOrd
+		+ Ord
+		+ Clone
+		+ alloc::fmt::Debug
+		+ Encode
+		+ EncodeLike
+		+ Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Serialize
+		+ DeserializeOwned
+		+ From<AccountId32>;
 
 	/// Account nonce type.
 	///

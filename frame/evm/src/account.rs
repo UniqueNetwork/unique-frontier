@@ -1,4 +1,4 @@
-use crate::{AddressMapping, BackwardsAddressMapping, Config};
+use crate::{AccountIdOf, AddressMapping, BackwardsAddressMapping, Config};
 use core::cmp::Ordering;
 use fp_account::AccountId20;
 use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
@@ -59,13 +59,13 @@ enum BasicCrossAccountIdRepr<AccountId> {
 pub struct BasicCrossAccountId<T: Config> {
 	/// If true - then ethereum is canonical encoding
 	from_ethereum: bool,
-	substrate: T::AccountId,
+	substrate: AccountIdOf<T>,
 	ethereum: H160,
 }
 
 impl<T: Config> MaxEncodedLen for BasicCrossAccountId<T> {
 	fn max_encoded_len() -> usize {
-		<BasicCrossAccountIdRepr<T::AccountId>>::max_encoded_len()
+		<BasicCrossAccountIdRepr<AccountIdOf<T>>>::max_encoded_len()
 	}
 }
 
@@ -73,7 +73,7 @@ impl<T: Config> TypeInfo for BasicCrossAccountId<T> {
 	type Identity = Self;
 
 	fn type_info() -> Type {
-		<BasicCrossAccountIdRepr<T::AccountId>>::type_info()
+		<BasicCrossAccountIdRepr<AccountIdOf<T>>>::type_info()
 	}
 }
 
@@ -157,14 +157,14 @@ where
 	}
 }
 
-impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
-	fn as_sub(&self) -> &T::AccountId {
+impl<T: Config> CrossAccountId<AccountIdOf<T>> for BasicCrossAccountId<T> {
+	fn as_sub(&self) -> &AccountIdOf<T> {
 		&self.substrate
 	}
 	fn as_eth(&self) -> &H160 {
 		&self.ethereum
 	}
-	fn from_sub(substrate: T::AccountId) -> Self {
+	fn from_sub(substrate: AccountIdOf<T>) -> Self {
 		Self {
 			ethereum: T::BackwardsAddressMapping::from_account_id(substrate.clone()),
 			substrate,
@@ -192,15 +192,15 @@ impl<T: Config> CrossAccountId<T::AccountId> for BasicCrossAccountId<T> {
 		!self.from_ethereum
 	}
 }
-impl<T: Config> From<BasicCrossAccountIdRepr<T::AccountId>> for BasicCrossAccountId<T> {
-	fn from(repr: BasicCrossAccountIdRepr<T::AccountId>) -> Self {
+impl<T: Config> From<BasicCrossAccountIdRepr<AccountIdOf<T>>> for BasicCrossAccountId<T> {
+	fn from(repr: BasicCrossAccountIdRepr<AccountIdOf<T>>) -> Self {
 		match repr {
 			BasicCrossAccountIdRepr::Substrate(s) => Self::from_sub(s),
 			BasicCrossAccountIdRepr::Ethereum(e) => Self::from_eth(e),
 		}
 	}
 }
-impl<T: Config> From<BasicCrossAccountId<T>> for BasicCrossAccountIdRepr<T::AccountId> {
+impl<T: Config> From<BasicCrossAccountId<T>> for BasicCrossAccountIdRepr<AccountIdOf<T>> {
 	fn from(v: BasicCrossAccountId<T>) -> Self {
 		if v.from_ethereum {
 			BasicCrossAccountIdRepr::Ethereum(*v.as_eth())

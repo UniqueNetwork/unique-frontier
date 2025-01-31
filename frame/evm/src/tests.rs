@@ -645,7 +645,7 @@ mod storage_growth_test {
 		gas_limit: u64,
 	) -> Result<CreateInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::create(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			hex::decode(contract.trim_end()).expect("Failed to decode contract"),
 			U256::zero(),
 			gas_limit,
@@ -671,7 +671,7 @@ mod storage_growth_test {
 		gas_limit: u64,
 	) -> Result<CallInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			contract_addr,
 			call_data.to_vec(),
 			value,

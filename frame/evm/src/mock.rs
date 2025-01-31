@@ -17,13 +17,16 @@
 
 //! Test mock for unit tests and benchmarking
 
-use frame_support::{derive_impl, parameter_types, weights::Weight};
-use sp_core::{H160, U256};
-
 use crate::{
-	EnsureAddressNever, EnsureAddressRoot, FeeCalculator, IdentityAddressMapping,
+	EnsureAddressNever, EnsureAddressRoot, FrameSystemAccountProvider, IdentityAddressMapping,
 	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
+use fp_evm::FeeCalculator;
+use frame_support::traits::FindAuthor;
+use frame_support::{derive_impl, parameter_types, weights::Weight};
+use sp_core::{H160, U256};
+use sp_runtime::ConsensusEngineId;
+use std::str::FromStr;
 
 // Unique
 use crate::account;
@@ -65,18 +68,57 @@ impl pallet_timestamp::Config for Test {}
 
 parameter_types! {
 	pub MockPrecompiles: MockPrecompileSet = MockPrecompileSet;
+	pub WeightPerGas: Weight = Weight::from_parts(20_000, 0);
 }
 
-#[derive_impl(crate::config_preludes::TestDefaultConfig)]
+pub struct FixedGasPrice;
+impl FeeCalculator for FixedGasPrice {
+	fn min_gas_price() -> (U256, Weight) {
+		(1.into(), Weight::zero())
+	}
+}
+
+pub struct FindAuthorTruncated;
+impl FindAuthor<H160> for FindAuthorTruncated {
+	fn find_author<'a, I>(_digests: I) -> Option<H160>
+	where
+		I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
+	{
+		Some(H160::from_str("1234500000000000000000000000000000000000").unwrap())
+	}
+}
+
 impl crate::Config for Test {
-	type AccountProvider = crate::FrameSystemAccountProvider<Self>;
+	type AccountProvider = FrameSystemAccountProvider<Self>;
+
 	type FeeCalculator = FixedGasPrice;
+	type GasWeightMapping = crate::FixedGasWeightMapping<Self>;
+	type WeightPerGas = WeightPerGas;
+
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
+	// Unique:
+	// type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
+
+	// Unique:
+	// type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
+	type AddressMapping = IdentityAddressMapping;
 	type Currency = Balances;
+
+	type RuntimeEvent = RuntimeEvent;
 	type PrecompilesType = MockPrecompileSet;
 	type PrecompilesValue = MockPrecompiles;
+	type ChainId = ();
+	type BlockGasLimit = ();
 	type Runner = crate::runner::stack::Runner<Self>;
+	type OnChargeTransaction = ();
+	type OnCreate = ();
+	type FindAuthor = FindAuthorTruncated;
+	type GasLimitPovSizeRatio = ();
+	type GasLimitStorageGrowthRatio = ();
 	type Timestamp = Timestamp;
+	type WeightInfo = ();
 	type OnCheckEvmTransaction = ();
 
 	// Unique:
