@@ -980,7 +980,7 @@ pub fn error_on_execution_failure(reason: &ExitReason, data: &[u8]) -> RpcResult
 			// should contain a utf-8 encoded revert reason.
 			if data.len() > MESSAGE_START {
 				let message_len =
-					U256::from(&data[LEN_START..MESSAGE_START]).saturated_into::<usize>();
+					U256::from_little_endian(&data[LEN_START..MESSAGE_START]).saturated_into::<usize>();
 				let message_end = MESSAGE_START.saturating_add(message_len);
 
 				if data.len() >= message_end {

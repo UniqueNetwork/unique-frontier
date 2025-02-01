@@ -147,7 +147,7 @@ where
 				format: match checked.format {
 						sp_runtime::generic::ExtrinsicFormat::Bare => CheckedFormat::Bare,
 						sp_runtime::generic::ExtrinsicFormat::Signed(account_id, extension) => CheckedFormat::Signed(account_id, extension),
-						sp_runtime::generic::ExtrinsicFormat::General(extension) => CheckedFormat::General(extension),
+						sp_runtime::generic::ExtrinsicFormat::General(_, extension) => CheckedFormat::General(extension),
 					},
 				function: checked.function,
 			})
@@ -193,7 +193,7 @@ where
 	Call: Dispatchable,
 	Extension: TransactionExtension<Call>
 {
-	const VERSION: u8 = <sp_runtime::generic::UncheckedExtrinsic<Address, Call, Signature, Extension> as ExtrinsicMetadata>::VERSION;
+	const VERSIONS: &'static [u8] = <sp_runtime::generic::UncheckedExtrinsic<Address, Call, Signature, Extension> as ExtrinsicMetadata>::VERSIONS;
 	type TransactionExtensions = Extension;
 }
 

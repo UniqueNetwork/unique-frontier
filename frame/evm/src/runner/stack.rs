@@ -671,6 +671,7 @@ where
 
 struct SubstrateStackSubstate<'config, T> {
 	metadata: StackSubstateMetadata<'config>,
+	creates: BTreeSet<H160>,
 	deletes: BTreeSet<H160>,
 	parent: Option<Box<SubstrateStackSubstate<'config, T>>>,
 	_marker: PhantomData<T>,
@@ -688,8 +689,9 @@ impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 	pub fn enter(&mut self, gas_limit: u64, is_static: bool) {
 		let mut entering = Self {
 			metadata: self.metadata.spit_child(gas_limit, is_static),
-			parent: None,
+			creates: BTreeSet::new(),
 			deletes: BTreeSet::new(),
+			parent: None,
 			_marker: PhantomData,
 		};
 		mem::swap(&mut entering, self);
@@ -743,8 +745,24 @@ impl<'config, T: Config> SubstrateStackSubstate<'config, T> {
 		false
 	}
 
+	pub fn created(&self, address: H160) -> bool {
+		if self.creates.contains(&address) {
+			return true;
+		}
+
+		if let Some(parent) = self.parent.as_ref() {
+			return parent.created(address);
+		}
+
+		false
+	}
+
 	pub fn set_deleted(&mut self, address: H160) {
 		self.deletes.insert(address);
+	}
+
+	pub fn set_created(&mut self, address: H160) {
+		self.creates.insert(address);
 	}
 
 	pub fn log(&mut self, address: H160, topics: Vec<H256>, data: Vec<u8>) {
@@ -797,6 +815,7 @@ pub struct SubstrateStackState<'vicinity, 'config, T: Config> {
 	vicinity: &'vicinity Vicinity,
 	substate: SubstrateStackSubstate<'config, T>,
 	original_storage: BTreeMap<(H160, H256), H256>,
+	transient_storage: BTreeMap<(H160, H256), H256>,
 	recorded: Recorded,
 	weight_info: Option<WeightInfo>,
 	source: &'config T::CrossAccountId,
@@ -815,6 +834,7 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 			vicinity,
 			substate: SubstrateStackSubstate {
 				metadata,
+				creates: BTreeSet::new(),
 				deletes: BTreeSet::new(),
 				/* Unique:
 				logs: Vec::new(),
@@ -823,6 +843,7 @@ impl<'vicinity, 'config, T: Config> SubstrateStackState<'vicinity, 'config, T> {
 				_marker: PhantomData,
 			},
 			_marker: PhantomData,
+			transient_storage: BTreeMap::new(),
 			original_storage: BTreeMap::new(),
 			recorded: Default::default(),
 			weight_info,
@@ -924,6 +945,13 @@ where
 		<AccountStorages<T>>::get(address, index)
 	}
 
+	fn transient_storage(&self, address: H160, index: H256) -> H256 {
+		self.transient_storage
+			.get(&(address, index))
+			.copied()
+			.unwrap_or_default()
+	}
+
 	fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
 		Some(
 			self.original_storage
@@ -971,6 +999,10 @@ where
 		self.substate.deleted(address)
 	}
 
+	fn created(&self, address: H160) -> bool {
+		self.substate.created(address)
+	}
+
 	fn inc_nonce(&mut self, address: H160) -> Result<(), ExitError> {
 		let account_id = T::AddressMapping::into_account_id(address);
 		frame_system::Pallet::<T>::inc_account_nonce(&account_id);
@@ -1010,6 +1042,10 @@ where
 		}
 	}
 
+	fn set_transient_storage(&mut self, address: H160, key: H256, value: H256) {
+		self.transient_storage.insert((address, key), value);
+	}
+
 	fn reset_storage(&mut self, address: H160) {
 		#[allow(deprecated)]
 		let _ = <AccountStorages<T>>::remove_prefix(address, None);
@@ -1021,6 +1057,10 @@ where
 
 	fn set_deleted(&mut self, address: H160) {
 		self.substate.set_deleted(address)
+	}
+
+	fn set_created(&mut self, address: H160) {
+		self.substate.set_created(address);
 	}
 
 	fn set_code(&mut self, address: H160, code: Vec<u8>) {

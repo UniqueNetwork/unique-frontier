@@ -618,7 +618,7 @@ impl<T: Config> Pallet<T> {
 							let data = info.value;
 							let data_len = data.len();
 							if data_len > MESSAGE_START {
-								let message_len = U256::from(&data[LEN_START..MESSAGE_START])
+								let message_len = U256::from_little_endian(&data[LEN_START..MESSAGE_START])
 									.saturated_into::<usize>();
 								let message_end = MESSAGE_START.saturating_add(
 									message_len.min(T::ExtraDataLength::get() as usize),
