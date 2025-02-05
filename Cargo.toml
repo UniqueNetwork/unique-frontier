@@ -59,8 +59,8 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 hex-literal = "0.4.1"
 impl-serde = { version = "0.5.0", default-features = false }
 impl-trait-for-tuples = "0.2.3"
-jsonrpsee = { version = "0.24.7" }
-jsonrpsee-core = { version = "0.24.4" }
+jsonrpsee = "0.24.7"
+jsonrpsee-core = "0.24.4"
 kvdb-rocksdb = "0.19.0"
 libsecp256k1 = { version = "0.7.1", default-features = false }
 log = { version = "0.4.22", default-features = false }
@@ -78,82 +78,82 @@ thiserror = "1.0"
 tokio = "1.43.0"
 
 # Substrate Client
-sc-basic-authorship = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-block-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-chain-spec = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-cli = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-client-db = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-consensus = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-consensus-aura = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-consensus-manual-seal = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-executor = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-keystore = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-network = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-network-common = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-network-sync = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-offchain = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-rpc = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-rpc-server = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-rpc-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-service = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-telemetry = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sc-utils = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sc-basic-authorship = "0.48.0"
+sc-block-builder = "0.43.0"
+sc-chain-spec = "41.0.0"
+sc-cli = { default-features = false , version = "0.50.0" }
+sc-client-api = "38.0.0"
+sc-client-db = { default-features = false , version = "0.45.0" }
+sc-consensus = "0.47.0"
+sc-consensus-aura = "0.48.0"
+sc-consensus-grandpa = "0.33.0"
+sc-consensus-manual-seal = "0.49.0"
+sc-executor = "0.41.0"
+sc-keystore = "34.0.0"
+sc-network = "0.48.0"
+sc-network-common = "0.47.0"
+sc-network-sync = "0.47.0"
+sc-offchain = "43.0.0"
+sc-rpc = "43.0.0"
+sc-rpc-server = "20.0.0"
+sc-rpc-api = "0.47.0"
+sc-service = { default-features = false , version = "0.49.0" }
+sc-telemetry = "28.0.0"
+sc-transaction-pool = "38.0.0"
+sc-transaction-pool-api = "38.0.0"
+sc-utils = "18.0.0"
 # Substrate Primitive
-sp-api = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-block-builder = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-consensus = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-consensus-aura = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-consensus-grandpa = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-core = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-crypto-hashing = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-database = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-externalities = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-genesis-builder = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-inherents = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-io = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-keyring = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-offchain = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-runtime = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-session = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-state-machine = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-std = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-storage = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-timestamp = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-transaction-pool = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-version = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-weights = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-api = { default-features = false , version = "35.0.0" }
+sp-block-builder = { default-features = false , version = "35.0.0" }
+sp-blockchain = "38.0.0"
+sp-consensus = "0.41.0"
+sp-consensus-aura = { default-features = false , version = "0.41.0" }
+sp-consensus-grandpa = { default-features = false , version = "22.0.0" }
+sp-core = { default-features = false , version = "35.0.0" }
+sp-crypto-hashing = { default-features = false , version = "0.1.0" }
+sp-database = "10.0.0"
+sp-externalities = { default-features = false , version = "0.30.0" }
+sp-genesis-builder = { default-features = false , version = "0.16.0" }
+sp-inherents = { default-features = false , version = "35.0.0" }
+sp-io = { default-features = false , version = "39.0.0" }
+sp-keyring = "40.0.0"
+sp-offchain = { default-features = false , version = "35.0.0" }
+sp-runtime = { default-features = false , version = "40.1.0" }
+sp-runtime-interface = { default-features = false , version = "29.0.0" }
+sp-session = { default-features = false , version = "37.0.0" }
+sp-state-machine = { default-features = false , version = "0.44.0" }
+sp-std = { default-features = false , version = "14.0.0" }
+sp-storage = { default-features = false , version = "22.0.0" }
+sp-timestamp = { default-features = false , version = "35.0.0" }
+sp-transaction-pool = { default-features = false , version = "35.0.0" }
+sp-version = { default-features = false , version = "38.0.0" }
+sp-weights = { default-features = false , version = "31.0.0" }
 # Substrate FRAME 
-frame-benchmarking = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-frame-executive = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-frame-support = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-frame-system = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-frame-system-benchmarking = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-frame-system-rpc-runtime-api = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-aura = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-balances = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-grandpa = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-sudo = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-timestamp = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-transaction-payment = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-transaction-payment-rpc-runtime-api = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-pallet-utility = { default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+frame-benchmarking = { default-features = false , version = "39.0.0" }
+frame-executive = { default-features = false , version = "39.0.0" }
+frame-support = { default-features = false , version = "39.0.0" }
+frame-system = { default-features = false , version = "39.1.0" }
+frame-system-benchmarking = { default-features = false , version = "39.0.0" }
+frame-system-rpc-runtime-api = { default-features = false , version = "35.0.0" }
+pallet-aura = { default-features = false , version = "38.0.0" }
+pallet-balances = { default-features = false , version = "40.0.0" }
+pallet-grandpa = { default-features = false , version = "39.0.0" }
+pallet-sudo = { default-features = false , version = "39.0.0" }
+pallet-timestamp = { default-features = false , version = "38.0.0" }
+pallet-transaction-payment = { default-features = false , version = "39.0.0" }
+pallet-transaction-payment-rpc = "42.0.0"
+pallet-transaction-payment-rpc-runtime-api = { default-features = false , version = "39.0.0" }
+pallet-utility = { default-features = false , version = "39.0.0" }
 # Substrate Utility
-frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-substrate-build-script-utils = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-substrate-test-runtime-client = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+frame-benchmarking-cli = "46.0.0"
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.17.1" }
+substrate-build-script-utils = "11.0.0"
+substrate-frame-rpc-system = "42.0.0"
+#substrate-test-runtime-client = "2.0.0"
+substrate-wasm-builder = "25.0.0"
 
 # XCM
-xcm = { package = "staging-xcm", default-features = false , git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+xcm = { package = "staging-xcm", default-features = false , version = "15.0.1" }
 
 # Arkworks
 ark-bls12-377 = { version = "0.4.0", default-features = false, features = ["curve"] }

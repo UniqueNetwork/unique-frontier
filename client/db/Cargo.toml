@@ -44,7 +44,7 @@ tempfile = "3.10.1"
 # Substrate
 sc-block-builder = { workspace = true }
 sp-consensus = { workspace = true }
-substrate-test-runtime-client = { workspace = true }
+#substrate-test-runtime-client = { workspace = true }
 # Frontier
 frontier-template-runtime = { workspace = true, features = ["default"] }
 
