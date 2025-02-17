@@ -10,7 +10,7 @@ use sc_consensus::{BasicQueue, BoxBlockImport};
 use sc_consensus_grandpa::BlockNumberOps;
 use sc_executor::HostFunctions as HostFunctionsT;
 use sc_network_sync::strategy::warp::WarpSyncProvider;
-use sc_service::{build_polkadot_syncing_strategy, error::Error as ServiceError, Configuration, PartialComponents, TaskManager, WarpSyncConfig};
+use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
 use sc_transaction_pool::TransactionPoolHandle;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;

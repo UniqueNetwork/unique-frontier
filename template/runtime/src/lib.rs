@@ -23,13 +23,13 @@ use sp_core::{
 	ConstU128, OpaqueMetadata, H160, H256, U256,
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	generic, impl_opaque_keys,
 	traits::{
 		BlakeTwo256, Block as BlockT, DispatchInfoOf, Dispatchable, Get, IdentifyAccount,
 		IdentityLookup, NumberFor, One, PostDispatchInfoOf, UniqueSaturatedInto, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
-	ApplyExtrinsicResult, ConsensusEngineId, ExtrinsicInclusionMode, Perbill, Permill,
+	ApplyExtrinsicResult, ConsensusEngineId, Cow, ExtrinsicInclusionMode, Perbill, Permill,
 };
 use sp_version::RuntimeVersion;
 // Substrate FRAME
@@ -173,8 +173,8 @@ pub mod opaque {
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("frontier-template"),
-	impl_name: create_runtime_str!("frontier-template"),
+	spec_name: Cow::Borrowed("frontier-template"),
+	impl_name: Cow::Borrowed("frontier-template"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 1,
