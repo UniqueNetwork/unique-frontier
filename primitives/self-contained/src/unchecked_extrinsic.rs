@@ -162,14 +162,14 @@ where
 		if self.0.function.is_self_contained() {
 			match self.0.function.check_self_contained() {
 				Some(signed_info) => Ok(CheckedExtrinsic {
-					signed: match signed_info {
+					format: match signed_info {
 						Ok(info) => CheckedFormat::SelfContained(info),
-						_ => CheckedFormat::Unsigned,
+						_ => CheckedFormat::Bare,
 					},
 					function: self.0.function,
 				}),
 				None => Ok(CheckedExtrinsic {
-					signed: CheckedFormat::Unsigned,
+					format: CheckedFormat::Bare,
 					function: self.0.function,
 				}),
 			}
@@ -177,9 +177,10 @@ where
 			let checked =
 				Checkable::<Lookup>::unchecked_into_checked_i_know_what_i_am_doing(self.0, lookup)?;
 			Ok(CheckedExtrinsic {
-				signed: match checked.signed {
-					Some((id, extra)) => CheckedFormat::Signed(id, extra),
-					None => CheckedFormat::Unsigned,
+				format: match checked.format {
+					sp_runtime::generic::ExtrinsicFormat::Bare => CheckedFormat::Bare,
+					sp_runtime::generic::ExtrinsicFormat::Signed(account_id, extension) => CheckedFormat::Signed(account_id, extension),
+					sp_runtime::generic::ExtrinsicFormat::General(_, extension) => CheckedFormat::General(extension),
 				},
 				function: checked.function,
 			})
