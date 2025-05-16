@@ -163,6 +163,7 @@ impl pallet_evm::Config for Test {
 	type CreateInnerOriginFilter = ();
 	type CreateOriginFilter = ();
 	type WeightInfo = ();
+	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
 }
 
 pub(crate) struct MockHandle {

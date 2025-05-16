@@ -377,6 +377,7 @@ impl pallet_evm::Config for Runtime {
 	type CreateOriginFilter = ();
 	type CreateInnerOriginFilter = ();
 	type WeightInfo = pallet_evm::weights::SubstrateWeight<Self>;
+	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
 }
 
 parameter_types! {
