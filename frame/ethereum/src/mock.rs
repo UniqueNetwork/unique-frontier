@@ -106,7 +106,7 @@ impl pallet_evm::Config for Test {
 	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
-	type OnCheckEvmTransaction<E: From<pallet_evm::TransactionValidationError>> = ();
+	type OnCheckEvmTransaction = ();
 }
 
 #[derive_impl(crate::config_preludes::TestDefaultConfig)]
