@@ -53,7 +53,7 @@ use super::meter::StorageMeter;
 use crate::{
 	runner::Runner as RunnerT, AccountCodes, AccountCodesMetadata, AccountProvider,
 	AccountStorages, AddressMapping, BalanceOf, BlockHashMapping, Config, EnsureCreateOrigin,
-	Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCreate, Pallet, RunnerError,
+	Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCheckEvmTransaction, OnCreate, Pallet, RunnerError,
 };
 
 #[cfg(feature = "forbid-evm-reentrancy")]
@@ -474,8 +474,10 @@ where
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
 		let (source_account, inner_weight) = Pallet::<T>::account_basic(&source);
 		weight = weight.saturating_add(inner_weight);
+		let nonce = nonce.unwrap_or(source_account.nonce);
 
-		let _ = fp_evm::CheckEvmTransaction::<Self::Error>::new(
+		let mut v = fp_evm::CheckEvmTransaction::<Self::Error>::new(
+			source_account,
 			fp_evm::CheckEvmTransactionConfig {
 				evm_config,
 				block_gas_limit: T::BlockGasLimit::get(),
@@ -487,7 +489,7 @@ where
 				chain_id: Some(T::ChainId::get()),
 				to: target,
 				input,
-				nonce: nonce.unwrap_or(source_account.nonce),
+				nonce,
 				gas_limit: gas_limit.into(),
 				gas_price: None,
 				max_fee_per_gas,
@@ -497,11 +499,15 @@ where
 			},
 			weight_limit,
 			proof_size_base_cost,
-		)
-		.validate_in_block_for(&source_account)
-		.and_then(|v| v.with_base_fee())
-		.and_then(|v| v.with_balance_for(&source_account))
-		.map_err(|error| RunnerError { error, weight })?;
+		);
+
+		T::OnCheckEvmTransaction::<Error<T>>::on_check_evm_transaction(&mut v, &source)
+			.map_err(|error| RunnerError { error, weight })?;
+
+		v.validate_in_block()
+			.and_then(|v| v.with_base_fee())
+			.and_then(|v| v.with_balance())
+			.map_err(|error| RunnerError { error, weight })?;
 		Ok(())
 	}
 
