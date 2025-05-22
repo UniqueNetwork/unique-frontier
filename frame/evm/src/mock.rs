@@ -22,8 +22,12 @@ use sp_core::{H160, U256};
 
 use crate::{
 	EnsureAddressNever, EnsureAddressRoot, EnsureAllowedCreateAddress, FeeCalculator,
-	IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
+	HashedAddressMapping, IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult,
+	PrecompileSet,
 };
+
+// Unique
+use crate::account;
 
 frame_support::construct_runtime! {
 	pub enum Test {
@@ -72,15 +76,20 @@ impl crate::Config for Test {
 	type AccountProvider = crate::FrameSystemAccountProvider<Self>;
 	type FeeCalculator = FixedGasPrice;
 	type BlockHashMapping = crate::SubstrateBlockHashMapping<Self>;
-	type CallOrigin = EnsureAddressRoot<Self::AccountId>;
+	type CallOrigin = EnsureAddressRoot<Self>;
 	type CreateOriginFilter = EnsureAllowedCreateAddress<AllowedAddressesCreate>;
 	type CreateInnerOriginFilter = EnsureAllowedCreateAddress<AllowedAddressesCreateInner>;
-	type WithdrawOrigin = EnsureAddressNever<Self::AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<Self>;
 	type Currency = Balances;
 	type PrecompilesType = MockPrecompileSet;
 	type PrecompilesValue = MockPrecompiles;
 	type Runner = crate::runner::stack::Runner<Self>;
 	type Timestamp = Timestamp;
+	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = account::BasicCrossAccountId<Self>;
+	type BackwardsAddressMapping = HashedAddressMapping<Self::Hashing>;
 }
 
 pub struct FixedGasPrice;

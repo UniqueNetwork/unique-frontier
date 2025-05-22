@@ -28,7 +28,10 @@ use sp_runtime::{
 	AccountId32, BuildStorage,
 };
 // Frontier
-use pallet_evm::{config_preludes::ChainId, AddressMapping, EnsureAllowedCreateAddress};
+use pallet_evm::{
+	config_preludes::ChainId, AddressMapping, EnsureAddressRoot, EnsureAddressTruncated,
+	EnsureAllowedCreateAddress, HashedAddressMapping,
+};
 
 use super::*;
 
@@ -92,8 +95,12 @@ parameter_types! {
 	pub AllowedAddressesCreateInner: Vec<H160> = vec![H160::from_str("0x1a642f0e3c3af545e7acbd38b07251b3990914f1").expect("alice address")];
 }
 
+type CrossAccountId<Runtime> = pallet_evm::account::BasicCrossAccountId<Runtime>;
+
 #[derive_impl(pallet_evm::config_preludes::TestDefaultConfig)]
 impl pallet_evm::Config for Test {
+	type CallOrigin = EnsureAddressRoot<Self>;
+	type WithdrawOrigin = EnsureAddressTruncated<Self>;
 	type AccountProvider = pallet_evm::FrameSystemAccountProvider<Self>;
 	type BlockHashMapping = crate::EthereumBlockHashMapping<Self>;
 	type CreateOriginFilter = EnsureAllowedCreateAddress<AllowedAddressesCreate>;
@@ -107,6 +114,10 @@ impl pallet_evm::Config for Test {
 	type Timestamp = Timestamp;
 	type WeightInfo = ();
 	type OnCheckEvmTransaction = ();
+
+	// Unique:
+	type CrossAccountId = CrossAccountId<Self>;
+	type BackwardsAddressMapping = HashedAddressMapping<Self::Hashing>;
 }
 
 #[derive_impl(crate::config_preludes::TestDefaultConfig)]

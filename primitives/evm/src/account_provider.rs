@@ -17,7 +17,10 @@
 
 //! Custom account provider logic.
 
-use sp_runtime::traits::AtLeast32Bit;
+use core::fmt::Debug;
+use frame_support::Parameter;
+use scale_codec::MaxEncodedLen;
+use sp_runtime::traits::{AtLeast32Bit, MaybeDisplay, MaybeSerializeDeserialize, Member};
 
 /// The account provider interface abstraction layer.
 ///
@@ -28,12 +31,20 @@ use sp_runtime::traits::AtLeast32Bit;
 /// The interface allow any custom account provider logic to be used instead of
 /// just using `frame_system` account provider. The accounts records should store nonce value
 /// for each account at least.
-pub trait AccountProvider {
+pub trait AccountProvider<T: frame_system::Config> {
 	/// The account identifier type.
 	///
 	/// Represent the account itself in accounts records.
-	type AccountId;
 
+	type AccountId: Parameter
+		+ Member
+		+ MaybeSerializeDeserialize
+		+ Debug
+		+ MaybeDisplay
+		+ Ord
+		+ MaxEncodedLen
+		+ From<T::AccountId>
+		+ Into<T::AccountId>;
 	/// Account nonce type.
 	///
 	/// The number that helps to ensure that each transaction in the network is unique

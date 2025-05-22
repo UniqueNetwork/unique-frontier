@@ -53,8 +53,12 @@ use super::meter::StorageMeter;
 use crate::{
 	runner::Runner as RunnerT, AccountCodes, AccountCodesMetadata, AccountProvider,
 	AccountStorages, AddressMapping, BalanceOf, BlockHashMapping, Config, EnsureCreateOrigin,
-	Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCheckEvmTransaction, OnCreate, Pallet, RunnerError,
+	Error, Event, FeeCalculator, OnChargeEVMTransaction, OnCheckEvmTransaction, OnCreate, Pallet,
+	RunnerError,
 };
+
+// Unique
+use crate::account::CrossAccountId;
 
 #[cfg(feature = "forbid-evm-reentrancy")]
 environmental::environmental!(IN_EVM: bool);
@@ -71,7 +75,10 @@ where
 	#[allow(clippy::let_and_return)]
 	/// Execute an already validated EVM operation.
 	fn execute<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &T::CrossAccountId,
 		value: U256,
 		gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -160,7 +167,10 @@ where
 
 	// Execute an already validated EVM operation.
 	fn execute_inner<'config, 'precompiles, F, R>(
+		/* Unique:
 		source: H160,
+		*/
+		source: &T::CrossAccountId,
 		value: U256,
 		mut gas_limit: u64,
 		max_fee_per_gas: Option<U256>,
@@ -194,9 +204,10 @@ where
 					weight,
 				},
 			)?;
+		let eth_source = *source.as_eth();
 		// The precompile check is only used for transactional invocations. However, here we always
 		// execute the check, because the check has side effects.
-		match precompiles.is_precompile(source, gas_limit) {
+		match precompiles.is_precompile(eth_source, gas_limit) {
 			IsPrecompileResult::Answer { extra_cost, .. } => {
 				gas_limit = gas_limit.saturating_sub(extra_cost);
 			}
@@ -220,7 +231,7 @@ where
 		//
 		// EIP-3607: https://eips.ethereum.org/EIPS/eip-3607
 		// Do not allow transactions for which `tx.sender` has any code deployed.
-		if is_transactional && !<AccountCodes<T>>::get(source).is_empty() {
+		if is_transactional && !<AccountCodes<T>>::get(eth_source).is_empty() {
 			return Err(RunnerError {
 				error: Error::<T>::TransactionMustComeFromEOA,
 				weight,
@@ -270,7 +281,7 @@ where
 
 		let vicinity = Vicinity {
 			gas_price: base_fee,
-			origin: source,
+			origin: *source.as_eth(),
 		};
 
 		// Compute the storage limit based on the gas limit and the storage growth ratio.
@@ -457,7 +468,10 @@ where
 	type Error = Error<T>;
 
 	fn validate(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: Option<H160>,
 		input: Vec<u8>,
 		value: U256,
@@ -472,7 +486,7 @@ where
 		evm_config: &evm::Config,
 	) -> Result<(), RunnerError<Self::Error>> {
 		let (base_fee, mut weight) = T::FeeCalculator::min_gas_price();
-		let (source_account, inner_weight) = Pallet::<T>::account_basic(&source);
+		let (source_account, inner_weight) = Pallet::<T>::account_basic_by_id(&source);
 		weight = weight.saturating_add(inner_weight);
 		let nonce = nonce.unwrap_or(source_account.nonce);
 
@@ -519,7 +533,10 @@ where
 	}
 
 	fn call(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		target: H160,
 		input: Vec<u8>,
 		value: U256,
@@ -537,7 +554,7 @@ where
 		let measured_proof_size_before = get_proof_size().unwrap_or_default();
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				Some(target),
 				input.clone(),
 				value,
@@ -554,7 +571,7 @@ where
 		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -565,12 +582,24 @@ where
 			weight_limit,
 			proof_size_base_cost,
 			measured_proof_size_before,
-			|executor| executor.transact_call(source, target, value, input, gas_limit, access_list),
+			|executor| {
+				executor.transact_call(
+					*source.as_eth(),
+					target,
+					value,
+					input,
+					gas_limit,
+					access_list,
+				)
+			},
 		)
 	}
 
 	fn create(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		value: U256,
 		gas_limit: u64,
@@ -587,12 +616,13 @@ where
 		let measured_proof_size_before = get_proof_size().unwrap_or_default();
 		let (_, weight) = T::FeeCalculator::min_gas_price();
 
-		T::CreateOriginFilter::check_create_origin(&source)
+		let eth_source = source.as_eth();
+		T::CreateOriginFilter::check_create_origin(eth_source)
 			.map_err(|error| RunnerError { error, weight })?;
 
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -609,7 +639,7 @@ where
 		}
 		let precompiles = T::PrecompilesValue::get();
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -621,17 +651,22 @@ where
 			proof_size_base_cost,
 			measured_proof_size_before,
 			|executor| {
-				let address = executor.create_address(evm::CreateScheme::Legacy { caller: source });
-				T::OnCreate::on_create(source, address);
+				let address = executor.create_address(evm::CreateScheme::Legacy {
+					caller: *source.as_eth(),
+				});
+				T::OnCreate::on_create(*source.as_eth(), address);
 				let (reason, _) =
-					executor.transact_create(source, value, init, gas_limit, access_list);
+					executor.transact_create(*source.as_eth(), value, init, gas_limit, access_list);
 				(reason, address)
 			},
 		)
 	}
 
 	fn create2(
+		/* Unique:
 		source: H160,
+		*/
+		source: T::CrossAccountId,
 		init: Vec<u8>,
 		salt: H256,
 		value: U256,
@@ -649,12 +684,13 @@ where
 		let measured_proof_size_before = get_proof_size().unwrap_or_default();
 		let (_, weight) = T::FeeCalculator::min_gas_price();
 
-		T::CreateOriginFilter::check_create_origin(&source)
+		let eth_source = source.as_eth();
+		T::CreateOriginFilter::check_create_origin(eth_source)
 			.map_err(|error| RunnerError { error, weight })?;
 
 		if validate {
 			Self::validate(
-				source,
+				source.clone(),
 				None,
 				init.clone(),
 				value,
@@ -672,7 +708,7 @@ where
 		let precompiles = T::PrecompilesValue::get();
 		let code_hash = H256::from(sp_io::hashing::keccak_256(&init));
 		Self::execute(
-			source,
+			&source,
 			value,
 			gas_limit,
 			max_fee_per_gas,
@@ -685,13 +721,20 @@ where
 			measured_proof_size_before,
 			|executor| {
 				let address = executor.create_address(evm::CreateScheme::Create2 {
-					caller: source,
+					caller: *source.as_eth(),
 					code_hash,
 					salt,
 				});
-				T::OnCreate::on_create(source, address);
-				let (reason, _) =
-					executor.transact_create2(source, value, init, salt, gas_limit, access_list);
+				T::OnCreate::on_create(*source.as_eth(), address);
+				let (reason, _) = executor.transact_create2(
+					// Unique
+					*source.as_eth(),
+					value,
+					init,
+					salt,
+					gas_limit,
+					access_list,
+				);
 				(reason, address)
 			},
 		)
@@ -1373,7 +1416,10 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{MockPrecompileSet, Test};
+	use crate::{
+		account::BasicCrossAccountId,
+		mock::{MockPrecompileSet, Test},
+	};
 	use evm::ExitSucceed;
 	use sp_io::TestExternalities;
 
@@ -1402,7 +1448,7 @@ mod tests {
 			let measured_proof_size_before = get_proof_size().unwrap_or_default();
 			// Should fail with the appropriate error if there is reentrancy
 			let res = Runner::<Test>::execute(
-				H160::default(),
+				&BasicCrossAccountId::from_eth(H160::default()),
 				U256::default(),
 				100_000,
 				None,
@@ -1416,7 +1462,7 @@ mod tests {
 				|_| {
 					let measured_proof_size_before2 = get_proof_size().unwrap_or_default();
 					let res = Runner::<Test>::execute(
-						H160::default(),
+						&BasicCrossAccountId::from_eth(H160::default()),
 						U256::default(),
 						100_000,
 						None,
@@ -1450,7 +1496,7 @@ mod tests {
 			let measured_proof_size_before = get_proof_size().unwrap_or_default();
 			// Should succeed if there is no reentrancy
 			let res = Runner::<Test>::execute(
-				H160::default(),
+				&BasicCrossAccountId::from_eth(H160::default()),
 				U256::default(),
 				100_000,
 				None,

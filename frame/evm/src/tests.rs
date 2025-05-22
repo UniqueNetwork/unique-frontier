@@ -17,6 +17,8 @@
 
 use super::*;
 use crate::mock::*;
+// Unique:
+use crate::account::BasicCrossAccountId;
 
 use evm::ExitReason;
 use frame_support::{
@@ -92,7 +94,7 @@ mod proof_size_test {
 		weight_limit: Option<Weight>,
 	) -> Result<CreateInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::create(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			hex::decode(PROOF_SIZE_TEST_CALLEE_CONTRACT_BYTECODE.trim_end()).unwrap(),
 			U256::zero(),
 			gas_limit,
@@ -113,7 +115,7 @@ mod proof_size_test {
 		weight_limit: Option<Weight>,
 	) -> Result<CreateInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::create(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			hex::decode(PROOF_SIZE_TEST_CONTRACT_BYTECODE.trim_end()).unwrap(),
 			U256::zero(),
 			gas_limit,
@@ -214,7 +216,7 @@ mod proof_size_test {
 			call_data.push_str(&format!("{:x}", subcall_contract_address));
 
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(&call_data).unwrap(),
 				U256::zero(),
@@ -270,7 +272,7 @@ mod proof_size_test {
 			call_data.push_str(&format!("{:x}", H160::random()));
 
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(&call_data).unwrap(),
 				U256::zero(),
@@ -325,7 +327,7 @@ mod proof_size_test {
 			// selector for ProofSizeTest::test_sload function..
 			let call_data: String = "e27a0ecd".to_owned();
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(call_data).unwrap(),
 				U256::zero(),
@@ -374,7 +376,7 @@ mod proof_size_test {
 			// selector for ProofSizeTest::test_sstore function..
 			let call_data: String = "4f3080a9".to_owned();
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(call_data).unwrap(),
 				U256::zero(),
@@ -428,7 +430,7 @@ mod proof_size_test {
 			// selector for ProofSizeTest::test_oog function..
 			let call_data: String = "944ddc62".to_owned();
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(call_data).unwrap(),
 				U256::zero(),
@@ -484,7 +486,7 @@ mod proof_size_test {
 			// ..encode the callee address argument
 			call_data.push_str(&format!("{:x}", subcall_contract_address));
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				call_contract_address,
 				hex::decode(&call_data).unwrap(),
 				U256::zero(),
@@ -543,7 +545,7 @@ mod proof_size_test {
 			let weight_limit = FixedGasWeightMapping::<Test>::gas_to_weight(gas_limit, true);
 
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				fake_contract_address,
 				Vec::new(),
 				U256::from(777),
@@ -584,7 +586,7 @@ mod proof_size_test {
 			let weight_limit = FixedGasWeightMapping::<Test>::gas_to_weight(gas_limit, true);
 
 			let result = <Test as Config>::Runner::call(
-				H160::default(),
+				BasicCrossAccountId::from_eth(H160::default()),
 				fake_contract_address,
 				Vec::new(),
 				U256::from(777),
@@ -633,7 +635,7 @@ mod storage_growth_test {
 		gas_limit: u64,
 	) -> Result<CreateInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::create(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			hex::decode(contract.trim_end()).expect("Failed to decode contract"),
 			U256::zero(),
 			gas_limit,
@@ -659,7 +661,7 @@ mod storage_growth_test {
 		gas_limit: u64,
 	) -> Result<CallInfo, crate::RunnerError<crate::Error<Test>>> {
 		<Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			contract_addr,
 			call_data.to_vec(),
 			value,
@@ -947,7 +949,7 @@ fn create_foo_bar_contract_creator(
 	weight_limit: Option<Weight>,
 ) -> Result<CreateInfo, crate::RunnerError<crate::Error<Test>>> {
 	<Test as Config>::Runner::create(
-		H160::default(),
+		BasicCrossAccountId::from_eth(H160::default()),
 		hex::decode(FOO_BAR_CONTRACT_CREATOR_BYTECODE.trim_end()).unwrap(),
 		U256::zero(),
 		gas_limit,
@@ -971,7 +973,7 @@ fn test_contract_deploy_succeeds_if_address_is_allowed() {
 
 		assert!(<Test as Config>::Runner::create(
 			// Alith is allowed to deploy contracts
-			H160::from([4u8; 20]),
+			BasicCrossAccountId::from_eth(H160::from([4u8; 20])),
 			hex::decode(FOO_BAR_CONTRACT_CREATOR_BYTECODE.trim_end()).unwrap(),
 			U256::zero(),
 			gas_limit,
@@ -997,7 +999,7 @@ fn test_contract_deploy_fails_if_address_not_allowed() {
 
 		match <Test as Config>::Runner::create(
 			// Bob is not allowed to deploy contracts
-			H160::from([5u8; 20]),
+			BasicCrossAccountId::from_eth(H160::from([5u8; 20])),
 			hex::decode(FOO_BAR_CONTRACT_CREATOR_BYTECODE.trim_end()).unwrap(),
 			U256::zero(),
 			gas_limit,
@@ -1034,7 +1036,7 @@ fn test_inner_contract_deploy_succeeds_if_address_is_allowed() {
 
 		let result = <Test as Config>::Runner::call(
 			// Alith is allowed to deploy inner contracts
-			H160::from([4u8; 20]),
+			BasicCrossAccountId::from_eth(H160::from([4u8; 20])),
 			call_contract_address,
 			hex::decode(&call_data).unwrap(),
 			U256::zero(),
@@ -1072,7 +1074,7 @@ fn test_inner_contract_deploy_reverts_if_address_not_allowed() {
 
 		let result = <Test as Config>::Runner::call(
 			// Charleth is not allowed to deploy inner contracts
-			H160::from([6u8; 20]),
+			BasicCrossAccountId::from_eth(H160::from([6u8; 20])),
 			call_contract_address,
 			hex::decode(&call_data).unwrap(),
 			U256::zero(),
@@ -1130,17 +1132,18 @@ fn fee_deduction() {
 		// Create an EVM address and the corresponding Substrate address that will be charged fees and refunded
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		// Seed account
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
 
 		// Deduct fees as 10 units
-		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&evm_addr, U256::from(10)).unwrap();
+		let imbalance = <<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(&cross_addr, U256::from(10)).unwrap();
 		assert_eq!(Balances::free_balance(&substrate_addr), 90);
 
 		// Refund fees as 5 units
-		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&evm_addr, U256::from(5), U256::from(5), imbalance);
+		<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::correct_and_deposit_fee(&cross_addr, U256::from(5), U256::from(5), imbalance);
 		assert_eq!(Balances::free_balance(&substrate_addr), 95);
 	});
 }
@@ -1180,6 +1183,7 @@ fn ed_0_refund_patch_is_required() {
 		// for ED 0 configured chains.
 		let evm_addr = H160::from_str("1000000000000000000000000000000000000003").unwrap();
 		let substrate_addr = <Test as Config>::AddressMapping::into_account_id(evm_addr);
+		let cross_addr = <Test as Config>::CrossAccountId::from_eth(evm_addr);
 
 		let _ = <Test as Config>::Currency::deposit_creating(&substrate_addr, 100);
 		assert_eq!(Balances::free_balance(&substrate_addr), 100);
@@ -1187,7 +1191,7 @@ fn ed_0_refund_patch_is_required() {
 		// Drain funds
 		let _ =
 			<<Test as Config>::OnChargeTransaction as OnChargeEVMTransaction<Test>>::withdraw_fee(
-				&evm_addr,
+				&cross_addr,
 				U256::from(100),
 			)
 			.unwrap();
@@ -1461,7 +1465,7 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_ok_without_gas_pr
 			U256::zero()
 		);
 		let _ = <Test as Config>::Runner::call(
-			non_balance_account,
+			BasicCrossAccountId::from_eth(non_balance_account),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1497,7 +1501,7 @@ fn runner_non_transactional_calls_with_non_balance_accounts_is_err_with_gas_pric
 			U256::zero()
 		);
 		let res = <Test as Config>::Runner::call(
-			non_balance_account,
+			BasicCrossAccountId::from_eth(non_balance_account),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1521,7 +1525,7 @@ fn runner_transactional_call_with_zero_gas_price_fails() {
 	// Transactional calls are rejected when `max_fee_per_gas == None`.
 	new_test_ext().execute_with(|| {
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1545,7 +1549,7 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 	// Transactional and non transactional calls enforce `max_fee_per_gas >= max_priority_fee_per_gas`.
 	new_test_ext().execute_with(|| {
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1562,7 +1566,7 @@ fn runner_max_fee_per_gas_gte_max_priority_fee_per_gas() {
 		);
 		assert!(res.is_err());
 		let res = <Test as Config>::Runner::call(
-			H160::default(),
+			BasicCrossAccountId::from_eth(H160::default()),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1587,7 +1591,9 @@ fn eip3607_transaction_from_contract() {
 		// external transaction
 		match <Test as Config>::Runner::call(
 			// Contract address.
-			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			<Test as Config>::CrossAccountId::from_eth(
+				H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
@@ -1612,7 +1618,9 @@ fn eip3607_transaction_from_contract() {
 		// internal call
 		assert!(<Test as Config>::Runner::call(
 			// Contract address.
-			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
+			BasicCrossAccountId::from_eth(
+				H160::from_str("1000000000000000000000000000000000000001").unwrap()
+			),
 			H160::from_str("1000000000000000000000000000000000000001").unwrap(),
 			Vec::new(),
 			U256::from(1u32),
