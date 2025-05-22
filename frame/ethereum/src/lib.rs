@@ -1161,7 +1161,7 @@ impl From<TransactionValidationError> for InvalidTransactionWrapper {
 	}
 }
 
-#[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode)]
+#[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode, DecodeWithMemTracking)]
 pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
 
 impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync>
