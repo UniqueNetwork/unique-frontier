@@ -279,6 +279,7 @@ impl pallet_evm::Config for Runtime {
 	// Unique:
 	type CrossAccountId = BasicCrossAccountId<Self>;
 	type BackwardsAddressMapping = IdentityAddressMapping;
+	type OnMethodCall = ();
 }
 
 parameter_types! {

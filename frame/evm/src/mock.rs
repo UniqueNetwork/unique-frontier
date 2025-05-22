@@ -90,6 +90,7 @@ impl crate::Config for Test {
 	// Unique:
 	type CrossAccountId = account::BasicCrossAccountId<Self>;
 	type BackwardsAddressMapping = HashedAddressMapping<Self::Hashing>;
+	type OnMethodCall = ();
 }
 
 pub struct FixedGasPrice;
