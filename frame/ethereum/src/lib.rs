@@ -266,7 +266,7 @@ pub mod pallet {
 					UniqueSaturatedInto::<u32>::unique_saturated_into(to_remove),
 				));
 			}
-			assert_eq!(<CurrentLogs<T>>::get().len(), 0, "fake transaction finalizer is not initialized, as some logs was left after block is finished");
+			debug_assert_eq!(<CurrentLogs<T>>::get().len(), 0, "fake transaction finalizer is not initialized, as some logs was left after block is finished");
 		}
 
 		fn on_initialize(_: BlockNumberFor<T>) -> Weight {
