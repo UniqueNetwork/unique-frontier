@@ -807,7 +807,8 @@ pub struct EnsureAddressRoot<T>(core::marker::PhantomData<T>);
 impl<OuterOrigin, T> EnsureAddressOrigin<OuterOrigin> for EnsureAddressRoot<T>
 where
 	T: Config,
-	OuterOrigin: Into<Result<RawOrigin<T::AccountId>, OuterOrigin>> + From<RawOrigin<T::AccountId>>,
+	OuterOrigin:
+		Into<Result<RawOrigin<AccountIdOf<T>>, OuterOrigin>> + From<RawOrigin<AccountIdOf<T>>>,
 {
 	type Success = T::CrossAccountId;
 
