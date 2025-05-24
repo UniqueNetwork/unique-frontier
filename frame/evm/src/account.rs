@@ -2,7 +2,7 @@ use crate::{AddressMapping, BackwardsAddressMapping, Config};
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use fp_account::AccountId20;
-use scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
+use scale_codec::{Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use scale_info::{Type, TypeInfo};
 use sp_core::H160;
 
@@ -126,6 +126,11 @@ impl<T: Config> Decode for BasicCrossAccountId<T> {
 	{
 		Ok(BasicCrossAccountIdRepr::decode(input)?.into())
 	}
+}
+
+impl<T: Config> DecodeWithMemTracking for BasicCrossAccountId<T> where
+	T::AccountId: DecodeWithMemTracking
+{
 }
 
 #[cfg(feature = "std")]
