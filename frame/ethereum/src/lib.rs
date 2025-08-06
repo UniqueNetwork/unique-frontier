@@ -54,11 +54,14 @@ use frame_system::{pallet_prelude::OriginFor, CheckWeight, WeightInfo};
 use sp_runtime::{
 	generic::DigestItem,
 	impl_tx_ext_default,
-	traits::{DispatchInfoOf, Dispatchable, One, Saturating, UniqueSaturatedInto, Zero},
+	traits::{
+		DispatchInfoOf, Dispatchable, One, PostDispatchInfoOf, Saturating, UniqueSaturatedInto,
+		Zero,
+	},
 	transaction_validity::{
 		InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransactionBuilder,
 	},
-	RuntimeDebug, SaturatedConversion,
+	DispatchResult, RuntimeDebug, SaturatedConversion,
 };
 use sp_version::RuntimeVersion;
 // Frontier
@@ -1163,7 +1166,16 @@ impl From<TransactionValidationError> for InvalidTransactionWrapper {
 	}
 }
 
-#[derive(TypeInfo, PartialEq, Eq, Clone, Debug, Encode, Decode, DecodeWithMemTracking)]
+#[derive(
+	TypeInfo,
+	PartialEq,
+	Eq,
+	Clone,
+	Debug,
+	Encode,
+	Decode,
+	DecodeWithMemTracking
+)]
 pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
 
 impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync>
@@ -1178,4 +1190,15 @@ impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync>
 	type Val = ();
 
 	impl_tx_ext_default!(T::RuntimeCall; validate prepare weight);
+
+	fn post_dispatch(
+		_pre: Self::Pre,
+		_info: &DispatchInfoOf<T::RuntimeCall>,
+		_post_info: &mut PostDispatchInfoOf<T::RuntimeCall>,
+		_len: usize,
+		_result: &DispatchResult,
+	) -> Result<(), TransactionValidityError> {
+		<Pallet<T>>::flush_injected_transaction();
+		Ok(())
+	}
 }
