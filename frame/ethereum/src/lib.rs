@@ -1178,6 +1178,12 @@ impl From<TransactionValidationError> for InvalidTransactionWrapper {
 )]
 pub struct FakeTransactionFinalizer<T>(PhantomData<T>);
 
+impl<T> FakeTransactionFinalizer<T> {
+	pub fn new() -> Self {
+		FakeTransactionFinalizer(PhantomData)
+	}
+}
+
 impl<T: Config + TypeInfo + core::fmt::Debug + Send + Sync>
 	sp_runtime::traits::TransactionExtension<T::RuntimeCall> for FakeTransactionFinalizer<T>
 {
