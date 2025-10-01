@@ -17,14 +17,14 @@
 
 use frame_support::{
 	dispatch::{DispatchInfo, GetDispatchInfo},
-	traits::{ExtrinsicCall, InherentBuilder, SignedTransactionBuilder},
+	traits::{InherentBuilder, SignedTransactionBuilder},
 };
 use scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	generic::{self, Preamble},
 	traits::{
-		self, Checkable, Dispatchable, ExtrinsicLike, ExtrinsicMetadata, IdentifyAccount,
+		self, Checkable, Dispatchable, ExtrinsicCall, ExtrinsicLike, ExtrinsicMetadata, IdentifyAccount,
 		MaybeDisplay, Member, TransactionExtension,
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
@@ -201,7 +201,7 @@ where
 impl<'a, Address: Decode, Signature: Decode, Call, Extension> serde::Deserialize<'a>
 	for UncheckedExtrinsic<Address, Call, Signature, Extension>
 where
-	Call: Decode + Dispatchable,
+	Call: Decode + Dispatchable + DecodeWithMemTracking,
 	Extension: Decode + TransactionExtension<Call>,
 {
 	fn deserialize<D>(de: D) -> Result<Self, D::Error>

@@ -182,10 +182,6 @@ pub mod pallet {
 		#[pallet::no_default]
 		type Currency: Currency<AccountIdOf<Self>> + Inspect<AccountIdOf<Self>>;
 
-		/// The overarching event type.
-		#[pallet::no_default_bounds]
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
 		/// Precompiles associated with this EVM engine.
 		type PrecompilesType: PrecompileSet;
 		type PrecompilesValue: Get<Self::PrecompilesType>;
@@ -279,8 +275,6 @@ pub mod pallet {
 			type FeeCalculator = FixedGasPrice;
 			type GasWeightMapping = FixedGasWeightMapping<Self>;
 			type WeightPerGas = WeightPerGas;
-			#[inject_runtime_type]
-			type RuntimeEvent = ();
 			type PrecompilesType = ();
 			type PrecompilesValue = ();
 			type ChainId = ChainId;
